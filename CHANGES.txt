@@ -217,10 +217,14 @@ Removed options
 * Plotly output formats.
 
 Output differences
-* Scale-regions bin edges that fall exactly on an integer are placed exactly;
-  3.5.6 computes them in floating point and truncates 1 bp early. Bin sums
-  are unchanged; single-base values can move to the adjacent bin.
-* Matrix values are 32-bit floats, so last-digit float rounding differs.
+* Scale-regions bin edges are computed in integer arithmetic. deepTools 3.5.6
+  computes them in floating point and truncates, so where an edge falls
+  exactly on a whole base the float can land just below it and the edge
+  moves 1 bp early (a small share of regions; e.g. about 2% of 1-100 kb
+  bodies at 400 bins). At such edges one base moves to the neighbouring bin,
+  so both bins' values differ from 3.5.6.
+* Matrix values are stored as 32-bit floats (deepTools 3.5.6 writes 64-bit
+  values), so values differ from 3.5.6 by at most float32 rounding.
 * Standard-error bands use the per-bin finite count, not the total row count.
 * K-means uses a fixed seeded native generator and Ward uses fastcluster, so
   cluster memberships may differ from SciPy. Confidence-interval quantiles

@@ -393,12 +393,13 @@ stranded medium and stranded big.
     adjacent pairs where a body-bin edge (region length × bin index / 400)
     lands exactly on an integer. For example, a 122,512 bp gene has an
     integer edge every 25 bins: 122,512 × 75 / 400 = 22,971.
-  - 3.5.6 appears to compute that edge in floating point, which lands just
-    below the integer and truncates 1 bp early. deepToolsR and 4.0.0 place
-    it exactly. Each pair's summed signal is unchanged, so this is a 1 bp
-    shift of a bin edge, not a signal difference. On binSize 1 nascent-RNA
-    coverage a single base can carry a large value, hence differences of a
-    few units.
+  - 3.5.6 computes bin edges with `np.linspace(..., dtype=int)`, which
+    truncates floats; at some of these ties the float lands just below the
+    integer (e.g. 8171.999...) and the edge moves 1 bp early. deepToolsR and
+    4.0.0 place it exactly. One base moves to the neighbouring bin, so both
+    bins' means differ; this is a 1 bp edge shift, not a signal difference.
+    On binSize 1 nascent-RNA coverage a single base can carry a large value,
+    hence differences of a few units.
   - None of the differing body cells is outside such a tie.
   - The other 1,017 cells are in flank bins of 4 rows (three chrM genes and
     GSTA4), whose values reach tens of thousands. These are float32 rounding

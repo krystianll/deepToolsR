@@ -164,9 +164,11 @@ it is an upper bound.
 
 ![ChIP bamCoverage wall time](benchmarks/release/figures/bamcov_chip_wall.png)
 
-Output parity: deepToolsR's RNA coverage and every matrix are identical to
-deepTools 4.0.0. Against 3.5.6 the only differences are float32 rounding and the
-documented 1 bp bin-edge ties in scale-regions matrices.
+Output parity: RNA coverage is identical to both deepTools 3.5.6 and 4.0.0.
+Matrices are identical to 4.0.0, which also stores 32-bit floats and places
+bin edges exactly. Against 3.5.6, matrices differ by float32 rounding and, in
+scale-regions matrices, at the few bin edges that 3.5.6 places 1 bp early (see
+CHANGES.txt).
 
 See [benchmarks/release/RESULTS.md](benchmarks/release/RESULTS.md) for the
 method, confidence intervals, all cases and how to reproduce them.
