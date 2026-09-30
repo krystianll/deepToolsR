@@ -1,0 +1,257 @@
+{
+  "cluster_relabel": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "empty_override": {
+    "status": 0,
+    "stderr": "WARNING: omitting 1 empty region groups.\n",
+    "stdout": ""
+  },
+  "gzip_matrix": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "hclust": {
+    "status": 0,
+    "stderr": "",
+    "stdout": "Performing hierarchical clustering.Please note that it might be very slow for large datasets.\n\n"
+  },
+  "hclust_selected": {
+    "status": 0,
+    "stderr": "",
+    "stdout": "Performing hierarchical clustering.Please note that it might be very slow for large datasets.\n\n"
+  },
+  "kmeans": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "kmeans_selected": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "kmeans_silhouette": {
+    "status": 0,
+    "stderr": "The average silhouette score is: 0.535561255178792\n",
+    "stdout": ""
+  },
+  "profile_cluster_relabel": {
+    "status": 0,
+    "stderr": "",
+    "stdout": "Performing hierarchical clustering.Please note that it might be very slow for large datasets.\n\n"
+  },
+  "profile_independent_relabel": {
+    "status": 0,
+    "stderr": "WARNING: omitting 1 empty region groups.\n",
+    "stdout": ""
+  },
+  "profile_merge_duplicate": {
+    "status": 0,
+    "stderr": "WARNING: omitting 1 empty region groups.\n",
+    "stdout": ""
+  },
+  "profile_show_counts": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "profile_together_duplicate": {
+    "status": 0,
+    "stderr": "WARNING: omitting 1 empty region groups.\n",
+    "stdout": ""
+  },
+  "quantile_custom": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "reject_cluster_sample": {
+    "status": 1,
+    "stderr": "--clusterUsingSamples indices must be between 1 and 3\n",
+    "stdout": ""
+  },
+  "reject_label_count": {
+    "status": 1,
+    "stderr": "ValueError: length new labels != length original labels\n",
+    "stdout": ""
+  },
+  "reject_quantiles": {
+    "status": 1,
+    "stderr": "The number of quantiles is bigger than the number of regions. Please reduce the number of quantiles.\n",
+    "stdout": ""
+  },
+  "reject_sort_sample": {
+    "status": 1,
+    "stderr": "The value [4] for --sortUsingSamples is not valid. Only values from 1 to 3 are allowed.\n",
+    "stdout": ""
+  },
+  "show_counts": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_max_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_max_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_mean_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_mean_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_median_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_median_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_min_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_min_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_region_length_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_region_length_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_score_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_score_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_sum_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_ascend_sum_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_max_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_max_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_mean_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_mean_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_median_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_median_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_min_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_min_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_region_length_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_region_length_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_score_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_score_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_sum_q1": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_descend_sum_q4": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_disjoint_mean": {
+    "status": 0,
+    "stderr": "",
+    "stdout": "Samples used for ordering within each group:  [0, 2]\n"
+  },
+  "sort_disjoint_median": {
+    "status": 0,
+    "stderr": "",
+    "stdout": "Samples used for ordering within each group:  [0, 2]\n"
+  },
+  "sort_keep": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  },
+  "sort_no": {
+    "status": 0,
+    "stderr": "",
+    "stdout": ""
+  }
+}

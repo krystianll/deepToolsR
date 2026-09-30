@@ -1,0 +1,2280 @@
+{
+  "baselines": {
+    "heatmap_basic": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.03762962962962965",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_colormap": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.009407407407407418",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_dimensions": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.01763888888888891",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_explicit_limits": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.009407407407407418",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_geom_fill": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.009407407407407418",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_labels": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.009407407407407418",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.00940740740740741",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_missing_colour": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.009407407407407418",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_multi": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.009407407407407418",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_multi_pergroup": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.018814814814814822",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_no_box": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.009407407407407418",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_stat_se": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.009407407407407418",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_summary_legend": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.009407407407407418",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_x_show_all": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.009407407407407418",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "heatmap_zmid": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.009407407407407418",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_by_column": [
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.014111111111111126",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.014111111111111126",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.01763888888888891",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_by_row": [
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.028222222222222253",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.028222222222222253",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.028222222222222253",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.028222222222222253",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.028222222222222253",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.028222222222222253",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.028222222222222253",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.028222222222222253",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.03527777777777779",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_ci_summary": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.014111111111111126",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_colorbar_scopes_below": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_colorbar_scopes_below_common": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_colorbar_scopes_right": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_grid_columns": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_label_runs": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.014111111111111126",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.02822222222222222",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_multi_sample_cell": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.070006917346899",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_pergroup_sets": [
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.007055555555555563",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.007055555555555563",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.007055555555555563",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.007055555555555563",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.007055555555555563",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.007055555555555563",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.007055555555555563",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.007055555555555563",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_profile_only_equivalence": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_series_heatmap_grid": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_x_runs": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.056444444444444505",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_basic": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_common_legend": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_dimensions": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_fill": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_grid_legends": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.03527777777777779",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_heatmap_mode": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_heatmap_mode_pergroup": [
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_panel_legends": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_pergroup": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_right_legends": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_se": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_title": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "profile_x_runs": [
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ]
+  },
+  "below_common_direct": {
+    "test_below_common_pareto_pruning_matches_exhaustive_greedy_oracle": [
+      {
+        "choices": [
+          0,
+          1,
+          1,
+          1,
+          1
+        ],
+        "solver": "below_common"
+      }
+    ],
+    "test_below_common_selector_prefers_legal_break_over_equal_geometry_fallback": [
+      {
+        "choices": [
+          1
+        ],
+        "solver": "below_common"
+      }
+    ]
+  },
+  "probe": {
+    "columns_12": [
+      {
+        "choices": [
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        ],
+        "objective_cost": "0.364",
+        "solver": "shared_gap"
+      }
+    ],
+    "columns_16": [
+      {
+        "choices": [
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        ],
+        "objective_cost": "0.364",
+        "solver": "shared_gap"
+      }
+    ],
+    "columns_4": [
+      {
+        "choices": [
+          [
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            1,
+            1,
+            1
+          ]
+        ],
+        "objective_cost": "0.364",
+        "solver": "shared_gap"
+      }
+    ],
+    "columns_8": [
+      {
+        "choices": [
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ]
+        ],
+        "objective_cost": "0.364",
+        "solver": "shared_gap"
+      }
+    ],
+    "mandatory_newline": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "r1": [
+      {
+        "choices": [
+          [
+            0,
+            1
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "secondary_width": [
+      {
+        "choices": [
+          [
+            1
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ]
+  },
+  "text_layout": {
+    "test_collision_free_layout_beats_a_prettier_but_overlapping_layout": [
+      {
+        "choices": [
+          [
+            1,
+            1
+          ]
+        ],
+        "objective_cost": "10000.16",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_global_extra_row_cost_is_paid_once_for_multiple_wrapped_titles": [
+      {
+        "choices": [
+          [
+            1,
+            0,
+            1
+          ]
+        ],
+        "objective_cost": "0.07735981384722661",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_global_title_optimizer_prices_small_edge_overhang_saving": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.11259259259259259",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_global_title_optimizer_wraps_when_it_saves_enough_gap": [
+      {
+        "choices": [
+          [
+            1,
+            1
+          ]
+        ],
+        "objective_cost": "0.16",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_hard_cap_many_columns_keeps_solver_bounded": [
+      {
+        "choices": [
+          [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ],
+          [
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2,
+            2
+          ]
+        ],
+        "objective_cost": "20.260709703120504",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_impossible_title_chain_chooses_the_least_residual_overlap": [
+      {
+        "choices": [
+          [
+            1,
+            0
+          ]
+        ],
+        "objective_cost": "0.4",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_many_columns_stop_widening_when_only_outer_overhang_remains": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.10543835861402147",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_max_secondary_frontier_keeps_lower_additive_path_for_later_max": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "1.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_max_secondary_hard_cap_frontier_keeps_same_future_max_path": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "1.0602409638554218",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_one_sided_midpoint_pressure_keeps_original_gap": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_optimizer_preserves_explicit_newlines_and_empty_titles": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_outer_allowance_makes_existing_edge_room_free": [
+      {
+        "choices": [
+          [
+            1
+          ]
+        ],
+        "objective_cost": "0.16",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_outer_overhang_survives_frontier_pruning_for_first_title": [
+      {
+        "choices": [
+          [
+            1,
+            0
+          ]
+        ],
+        "objective_cost": "0.01",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_per_label_line_preference_beats_balanced_extra_wrap": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.005",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_allocates_adjacent_common_gap_without_double_ownership": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.13318334746401733",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_bands_pay_one_common_gap_not_one_per_band": [
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.42",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_can_change_a_band_after_another_band_pays_gap": [
+      {
+        "choices": [
+          [
+            1,
+            1
+          ]
+        ],
+        "objective_cost": "0.16",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.47822436316703537",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_cost_grows_logarithmically_with_grid_boundaries": [
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.12",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.1366355323334387",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_cost_is_invariant_to_existing_private_reservations": [
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.02277258872223978",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.02277258872223978",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_does_not_compare_rectangles_between_bands": [
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_hard_cap_reports_residual_without_margin_expansion": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "1.4088888888888889",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "3.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_hard_containment_prefers_a_fitting_wrap_over_edge_overhang": [
+      {
+        "choices": [
+          [
+            1
+          ]
+        ],
+        "objective_cost": "20.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_height_projection_preserves_selected_original_and_thickness": [
+      {
+        "choices": [
+          [
+            1
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_is_orientation_neutral": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.30518518518518517",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.30518518518518517",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_many_bands_is_deterministic_and_bounded": [
+      {
+        "choices": [
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ]
+        ],
+        "objective_cost": "1.9199999999999997",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            1,
+            1
+          ]
+        ],
+        "objective_cost": "1.9199999999999997",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_multicell_span_uses_internal_common_space": [
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.2352492379723188",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.769906597000316",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_objective_includes_emergency_break_penalty": [
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.75",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_private_reservation_is_not_common_space": [
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.12831776616671933",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.12831776616671933",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_solver_supports_unequal_per_cell_extents": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.10693147180559946",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_title_uses_half_of_each_external_common_gutter": [
+      {
+        "choices": [
+          [
+            1
+          ]
+        ],
+        "objective_cost": "0.16",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_treats_one_cell_merged_and_nonmerged_spans_identically": [
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.12831776616671933",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.12831776616671933",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_gap_uses_explicit_orthogonal_thickness_costs": [
+      {
+        "choices": [
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.1",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_shared_midpoint_contact_reserves_four_point_clearance": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.2",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_title_optimizer_enforces_the_hard_gap_cap": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "1.045925925925926",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_typography_weights_break_identical_geometry_ties[balance_penalty]": [
+      {
+        "choices": [
+          [
+            1
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "test_typography_weights_break_identical_geometry_ties[orphan_penalty]": [
+      {
+        "choices": [
+          [
+            1
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ]
+  }
+}

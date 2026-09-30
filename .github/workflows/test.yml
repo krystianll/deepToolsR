@@ -1,0 +1,103 @@
+name: Build and test
+
+# Runs only when started by hand (workflow_dispatch).
+on: [workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install native build requirements
+        run: sudo apt-get update && sudo apt-get install -y autoconf automake libtool zlib1g-dev
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install build
+          python -m build
+      - name: Install wheel into a fresh environment
+        run: |
+          python -m venv wheel-venv
+          wheel-venv/bin/python -m pip install dist/*.whl
+      - name: Import extensions from the installed wheel
+        working-directory: ${{ runner.temp }}
+        run: ${{ github.workspace }}/wheel-venv/bin/python -c 'from deeptoolsr import _compute_matrix_io, _compute_matrix_native, _compute_matrix_stream, _statistics, _raster, _transform, _coverage, _bigwig, _cluster'
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.13']
+    env:
+      MPLCONFIGDIR: ${{ github.workspace }}/.cache/matplotlib
+      DEEPTOOLSR_CONFIG_DIR: ${{ github.workspace }}/.cache/deeptoolsr-config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install native build requirements
+        run: sudo apt-get update && sudo apt-get install -y autoconf automake libtool zlib1g-dev
+      - name: Install development dependencies
+        run: |
+          # deeptoolsintervals builds from sdist under --no-build-isolation and needs setuptools.
+          python -m pip install --upgrade pip scikit-build-core pybind11 setuptools
+          python -m pip install --no-build-isolation -e '.[actions]'
+      - name: Check syntax and undefined names
+        run: flake8 deeptoolsr tests
+      - name: Run full suite
+        run: python -m pytest -n auto -q -rs
+
+  parity:
+    runs-on: ubuntu-latest
+    env:
+      MPLCONFIGDIR: ${{ github.workspace }}/.cache/matplotlib
+      DEEPTOOLSR_CONFIG_DIR: ${{ github.workspace }}/.cache/deeptoolsr-config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install native build requirements
+        run: sudo apt-get update && sudo apt-get install -y autoconf automake libtool zlib1g-dev
+      - name: Install fork and reference
+        run: |
+          # deeptoolsintervals builds from sdist under --no-build-isolation and needs setuptools.
+          python -m pip install --upgrade pip scikit-build-core pybind11 setuptools
+          python -m pip install --no-build-isolation -e '.[actions]'
+          python -m pip install 'deepTools==3.5.6'
+      - name: Require reference parity
+        run: python -m pytest --require-reference -n auto -q -rs
+
+  pixels:
+    runs-on: ubuntu-latest
+    env:
+      MPLCONFIGDIR: ${{ github.workspace }}/.cache/matplotlib
+      DEEPTOOLSR_CONFIG_DIR: ${{ github.workspace }}/.cache/deeptoolsr-config
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install native build requirements
+        run: sudo apt-get update && sudo apt-get install -y autoconf automake libtool zlib1g-dev
+      - name: Install pinned renderer and development dependencies
+        run: |
+          # deeptoolsintervals builds from sdist under --no-build-isolation and needs setuptools.
+          python -m pip install --upgrade pip scikit-build-core pybind11 setuptools
+          python -m pip install --no-build-isolation -e '.[actions]'
+          python -m pip install 'matplotlib==3.11.2' 'pillow==12.3.0'
+      - name: Compare Linux PNG digests
+        run: python -m pytest tests/test_plot_baselines.py --require-pixels -q -rs
+      - name: Generate candidate Linux digests after a mismatch
+        if: failure()
+        run: python -m pytest tests/test_plot_baselines.py --rebaseline -q -rs
+      - name: Upload candidate baseline
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-pixel-baseline-candidate
+          path: tests/test_baselines/plot_baselines.json

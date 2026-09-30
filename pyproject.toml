@@ -1,0 +1,93 @@
+[build-system]
+requires = [
+    "scikit-build-core>=0.10",
+    "pybind11>=2.12"
+]
+# Native extensions are required for every supported installation.
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "deepToolsR"
+version = "0.9.0"
+authors = [
+    {name="Fidel Ramirez"},
+    {name="Devon P Ryan"},
+    {name="Björn Grüning"},
+    {name="Friederike Dündar"},
+    {name="Sarah Diehl"},
+    {name="Vivek Bhardwaj"},
+    {name="Fabian Kilpert"},
+    {name="Andreas S Richter"},
+    {name="Steffen Heyne"},
+    {name="Thomas Manke"},
+    {email="bioinfo-core@ie-freiburg.mpg.de"}
+]
+requires-python = ">=3.11"
+# Computation and I/O require bundled C++ extensions. pysam/pyBigWig are
+# test-only dependencies for generating inputs and comparing upstream tools.
+dependencies = [
+    "numpy >= 2.0.0",
+    "matplotlib >= 3.6",
+    "deeptoolsintervals >= 0.1.8",
+    "uniseg >= 0.10.1, < 0.11"
+]
+description = "C++-accelerated tools for analysing and plotting deep sequencing data, based on deepTools 3.5.6."
+license = {file = "LICENSE.txt"}
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics"
+]
+readme = "README.md"
+[project.optional-dependencies]
+reference = ["deepTools == 3.5.6; sys_platform != 'win32'"]
+# Dev/CI tooling; upstream comparison and synthetic input tests use pysam/pyBigWig.
+actions = [
+    "flake8",
+    "pytest",
+    "twine",
+    "build",
+    "pytest-xdist",
+    "pysam >= 0.14.0",
+    "pyBigWig >= 0.2.1",
+    "scipy >= 1.11"
+]
+[project.urls]
+Homepage = "https://github.com/krystianll/deepToolsR"
+"Upstream deepTools documentation" = "https://deeptools.readthedocs.io/en/latest/"
+Repository = "https://github.com/krystianll/deepToolsR"
+
+[tool.scikit-build]
+wheel.packages = ["deeptoolsr"]
+cmake.build-type = "Release"
+sdist.include = [
+    "CMakeLists.txt",
+    "cpp/**"
+]
+
+[tool.cibuildwheel]
+build = ["cp311-*", "cp312-*", "cp313-*", "cp314-*"]
+skip = ["*-win32", "*-win_amd64", "*-win_arm64", "*-musllinux_*"]
+# Every wheel must contain the required native extensions.
+test-command = "python -c \"from deeptoolsr import _compute_matrix_io, _compute_matrix_native, _compute_matrix_stream, _statistics, _raster, _transform, _coverage, _bigwig, _cluster\""
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64", "aarch64"]
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+
+[tool.pytest.ini_options]
+# Backups intentionally contain historical copies of the test suite. Limit
+# normal discovery to the active suite so ``pytest`` does not import those
+# duplicate module names as current tests.
+testpaths = ["tests"]
+
+[project.scripts]
+computeMatrixR = "deeptoolsr.computeMatrix:main"
+computeMatrixOperationsR = "deeptoolsr.computeMatrixOperations:main"
+deeptoolsr = "deeptoolsr.deeptoolsr_list_tools:main"
+plotHeatmapR = "deeptoolsr.plotHeatmap:main"
+plotMatrixR = "deeptoolsr.plotMatrix:main"
+plotProfileR = "deeptoolsr.plotProfile:main"
+bamCoverageR = "deeptoolsr.bamCoverage:main"
+bigWigOperationsR = "deeptoolsr.bigWigOperations:main"

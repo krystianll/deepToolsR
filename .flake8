@@ -1,0 +1,3 @@
+[flake8]
+extend-ignore = E501
+exclude = .git,.venv,.cache,build,dist,cpp/htslib,cpp/libBigWig,cpp/libdeflate,cpp/include

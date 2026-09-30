@@ -1,0 +1,203 @@
+{
+  "rendered": {
+    "legends": [
+      {
+        "entries": [
+          "Repeat",
+          "Repeat",
+          "Third"
+        ],
+        "scope": "cell/1/1/profile"
+      },
+      {
+        "entries": [
+          "Repeat",
+          "Repeat",
+          "Third"
+        ],
+        "scope": "cell/1/2/profile"
+      },
+      {
+        "entries": [
+          "Repeat",
+          "Repeat",
+          "Third"
+        ],
+        "scope": "cell/1/3/profile"
+      }
+    ],
+    "lines": [
+      [
+        {
+          "color": "#000080ff",
+          "label": "Repeat"
+        },
+        {
+          "color": "#00d4ffff",
+          "label": "Repeat"
+        },
+        {
+          "color": "#ffe600ff",
+          "label": "Third"
+        }
+      ],
+      [
+        {
+          "color": "#000080ff",
+          "label": "Repeat"
+        },
+        {
+          "color": "#00d4ffff",
+          "label": "Repeat"
+        },
+        {
+          "color": "#ffe600ff",
+          "label": "Third"
+        }
+      ],
+      [
+        {
+          "color": "#000080ff",
+          "label": "Repeat"
+        },
+        {
+          "color": "#00d4ffff",
+          "label": "Repeat"
+        },
+        {
+          "color": "#ffe600ff",
+          "label": "Third"
+        }
+      ]
+    ],
+    "slot_text": [
+      {
+        "slot": "cell/1/1/title",
+        "text": [
+          "First [n = 2]"
+        ]
+      },
+      {
+        "slot": "cell/1/2/title",
+        "text": [
+          "Other [n = 3]"
+        ]
+      },
+      {
+        "slot": "cell/1/3/title",
+        "text": [
+          "Last [n = 4]"
+        ]
+      },
+      {
+        "slot": "label/x/1/1",
+        "text": [
+          "gene distance"
+        ]
+      },
+      {
+        "slot": "label/x/2/1",
+        "text": [
+          "gene distance"
+        ]
+      },
+      {
+        "slot": "label/x/3/1",
+        "text": [
+          "gene distance"
+        ]
+      }
+    ]
+  },
+  "semantic": {
+    "color_list": [
+      "#000080ff",
+      "#00d4ffff",
+      "#ffe600ff"
+    ],
+    "panels": [
+      {
+        "column": 0,
+        "export_label": "Repeat, Repeat, Third \u2014 First [n = 2]",
+        "kind": "profile",
+        "row": 0,
+        "series": [
+          {
+            "color_index": 0,
+            "group": 0,
+            "label": "Repeat",
+            "sample": 0
+          },
+          {
+            "color_index": 1,
+            "group": 0,
+            "label": "Repeat",
+            "sample": 1
+          },
+          {
+            "color_index": 2,
+            "group": 0,
+            "label": "Third",
+            "sample": 2
+          }
+        ],
+        "title": "First [n = 2]"
+      },
+      {
+        "column": 1,
+        "export_label": "Repeat, Repeat, Third \u2014 Other [n = 3]",
+        "kind": "profile",
+        "row": 0,
+        "series": [
+          {
+            "color_index": 0,
+            "group": 1,
+            "label": "Repeat",
+            "sample": 0
+          },
+          {
+            "color_index": 1,
+            "group": 1,
+            "label": "Repeat",
+            "sample": 1
+          },
+          {
+            "color_index": 2,
+            "group": 1,
+            "label": "Third",
+            "sample": 2
+          }
+        ],
+        "title": "Other [n = 3]"
+      },
+      {
+        "column": 2,
+        "export_label": "Repeat, Repeat, Third \u2014 Last [n = 4]",
+        "kind": "profile",
+        "row": 0,
+        "series": [
+          {
+            "color_index": 0,
+            "group": 2,
+            "label": "Repeat",
+            "sample": 0
+          },
+          {
+            "color_index": 1,
+            "group": 2,
+            "label": "Repeat",
+            "sample": 1
+          },
+          {
+            "color_index": 2,
+            "group": 2,
+            "label": "Third",
+            "sample": 2
+          }
+        ],
+        "title": "Last [n = 4]"
+      }
+    ],
+    "row_labels": []
+  }
+}

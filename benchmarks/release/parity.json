@@ -1,0 +1,166 @@
+[
+ {
+  "check": "bamCoverage ChIP bs50 p8",
+  "vs": "3.5.6",
+  "max_abs_diff": 4.76837158203125e-06,
+  "bases_over_tol": 0,
+  "bases": 156146067
+ },
+ {
+  "check": "bamCoverage ChIP bs50 p8",
+  "vs": "4.0.0",
+  "max_abs_diff": 0.004987478256225586,
+  "bases_over_tol": 40017450,
+  "bases": 156146067
+ },
+ {
+  "check": "bamCoverage ChIP bs1 p8",
+  "vs": "3.5.6",
+  "max_abs_diff": 4.649162292480469e-06,
+  "bases_over_tol": 0,
+  "bases": 156146067
+ },
+ {
+  "check": "bamCoverage ChIP bs1 p8",
+  "vs": "4.0.0",
+  "max_abs_diff": 0.004987478256225586,
+  "bases_over_tol": 24217276,
+  "bases": 156146067
+ },
+ {
+  "check": "RNA bs10 forward (R split .plus)",
+  "vs": "3.5.6",
+  "max_abs_diff": 0.0,
+  "bases_over_tol": 0,
+  "bases": 156146067
+ },
+ {
+  "check": "RNA bs10 reverse (R split .minus)",
+  "vs": "3.5.6",
+  "max_abs_diff": 0.0,
+  "bases_over_tol": 0,
+  "bases": 156146067
+ },
+ {
+  "check": "RNA bs10 forward (R split .plus)",
+  "vs": "4.0.0",
+  "max_abs_diff": 0.0,
+  "bases_over_tol": 0,
+  "bases": 156146067
+ },
+ {
+  "check": "RNA bs10 reverse (R split .minus)",
+  "vs": "4.0.0",
+  "max_abs_diff": 0.0,
+  "bases_over_tol": 0,
+  "bases": 156146067
+ },
+ {
+  "check": "RNA bs1 forward (R split .plus)",
+  "vs": "3.5.6",
+  "max_abs_diff": 0.0,
+  "bases_over_tol": 0,
+  "bases": 156146067
+ },
+ {
+  "check": "RNA bs1 reverse (R split .minus)",
+  "vs": "3.5.6",
+  "max_abs_diff": 0.0,
+  "bases_over_tol": 0,
+  "bases": 156146067
+ },
+ {
+  "check": "RNA bs1 forward (R split .plus)",
+  "vs": "4.0.0",
+  "max_abs_diff": 0.0,
+  "bases_over_tol": 0,
+  "bases": 156146067
+ },
+ {
+  "check": "RNA bs1 reverse (R split .minus)",
+  "vs": "4.0.0",
+  "max_abs_diff": 0.0,
+  "bases_over_tol": 0,
+  "bases": 156146067
+ },
+ {
+  "check": "computeMatrix stranded medium p8 (rows matched by region)",
+  "vs": "3.5.6 rbind",
+  "rows_a": 9999,
+  "rows_b": 9999,
+  "rows_common": 9999,
+  "max_abs_diff": 0.0039059999980963767
+ },
+ {
+  "check": "computeMatrix stranded medium p8 (rows matched by region)",
+  "vs": "4.0.0 rbind",
+  "rows_a": 9999,
+  "rows_b": 9999,
+  "rows_common": 9999,
+  "max_abs_diff": 0.0
+ },
+ {
+  "check": "computeMatrix stranded big p8 (rows matched by region)",
+  "vs": "3.5.6 rbind",
+  "rows_a": 19997,
+  "rows_b": 19997,
+  "rows_common": 19997,
+  "max_abs_diff": 4.7108650000000125
+ },
+ {
+  "check": "computeMatrix stranded big p8 (rows matched by region)",
+  "vs": "4.0.0 rbind",
+  "rows_a": 19997,
+  "rows_b": 19997,
+  "rows_common": 19997,
+  "max_abs_diff": 0.0
+ },
+ {
+  "check": "computeMatrix small p8",
+  "vs": "3.5.6",
+  "rows_a": 3000,
+  "rows_b": 3000,
+  "rows_common": 3000,
+  "max_abs_diff": 0.00024500000017724233
+ },
+ {
+  "check": "computeMatrix small p8",
+  "vs": "4.0.0",
+  "rows_a": 3000,
+  "rows_b": 3000,
+  "rows_common": 3000,
+  "max_abs_diff": 0.0
+ },
+ {
+  "check": "computeMatrix medium p8",
+  "vs": "3.5.6",
+  "rows_a": 9999,
+  "rows_b": 9999,
+  "rows_common": 9999,
+  "max_abs_diff": 0.0039059999980963767
+ },
+ {
+  "check": "computeMatrix medium p8",
+  "vs": "4.0.0",
+  "rows_a": 9999,
+  "rows_b": 9999,
+  "rows_common": 9999,
+  "max_abs_diff": 0.0
+ },
+ {
+  "check": "computeMatrix big p8",
+  "vs": "3.5.6",
+  "rows_a": 19997,
+  "rows_b": 19997,
+  "rows_common": 19997,
+  "max_abs_diff": 3.2861500000000206
+ },
+ {
+  "check": "computeMatrix big p8",
+  "vs": "4.0.0",
+  "rows_a": 19997,
+  "rows_b": 19997,
+  "rows_common": 19997,
+  "max_abs_diff": 0.0
+ }
+]

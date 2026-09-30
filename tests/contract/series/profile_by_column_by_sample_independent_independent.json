@@ -1,0 +1,267 @@
+{
+  "rendered": {
+    "legends": [
+      {
+        "entries": [
+          "Repeat",
+          "Repeat"
+        ],
+        "scope": "cell/1/1/profile"
+      },
+      {
+        "entries": [
+          "Third"
+        ],
+        "scope": "cell/1/2/profile"
+      },
+      {
+        "entries": [
+          "Repeat",
+          "Repeat"
+        ],
+        "scope": "cell/2/1/profile"
+      },
+      {
+        "entries": [
+          "Third"
+        ],
+        "scope": "cell/2/2/profile"
+      },
+      {
+        "entries": [
+          "Repeat",
+          "Repeat"
+        ],
+        "scope": "cell/3/1/profile"
+      },
+      {
+        "entries": [
+          "Third"
+        ],
+        "scope": "cell/3/2/profile"
+      }
+    ],
+    "lines": [
+      [
+        {
+          "color": "#184060ff",
+          "label": "Repeat"
+        },
+        {
+          "color": "#304060ff",
+          "label": "Repeat"
+        }
+      ],
+      [
+        {
+          "color": "#484060ff",
+          "label": "Third"
+        }
+      ],
+      [
+        {
+          "color": "#184060ff",
+          "label": "Repeat"
+        },
+        {
+          "color": "#304060ff",
+          "label": "Repeat"
+        }
+      ],
+      [
+        {
+          "color": "#484060ff",
+          "label": "Third"
+        }
+      ],
+      [
+        {
+          "color": "#184060ff",
+          "label": "Repeat"
+        },
+        {
+          "color": "#304060ff",
+          "label": "Repeat"
+        }
+      ],
+      [
+        {
+          "color": "#484060ff",
+          "label": "Third"
+        }
+      ]
+    ],
+    "slot_text": [
+      {
+        "slot": "cell/1/1/title",
+        "text": [
+          "Repeated samples"
+        ]
+      },
+      {
+        "slot": "cell/1/2/title",
+        "text": [
+          "Third sample"
+        ]
+      },
+      {
+        "slot": "label/row/1",
+        "text": [
+          "Equal"
+        ]
+      },
+      {
+        "slot": "label/row/2",
+        "text": [
+          "Other"
+        ]
+      },
+      {
+        "slot": "label/row/3",
+        "text": [
+          "Equal"
+        ]
+      },
+      {
+        "slot": "label/x/1/1",
+        "text": [
+          "gene distance"
+        ]
+      },
+      {
+        "slot": "label/x/2/1",
+        "text": [
+          "gene distance"
+        ]
+      }
+    ]
+  },
+  "semantic": {
+    "color_list": [
+      "#184060ff",
+      "#304060ff",
+      "#484060ff",
+      "#604060ff",
+      "#784060ff",
+      "#904060ff",
+      "#a84060ff",
+      "#c04060ff",
+      "#d84060ff"
+    ],
+    "panels": [
+      {
+        "column": 0,
+        "export_label": "Repeated samples \u2014 Equal",
+        "kind": "profile",
+        "row": 0,
+        "series": [
+          {
+            "color_index": 0,
+            "group": 0,
+            "label": "Repeat",
+            "sample": 0
+          },
+          {
+            "color_index": 1,
+            "group": 0,
+            "label": "Repeat",
+            "sample": 1
+          }
+        ],
+        "title": "Repeated samples"
+      },
+      {
+        "column": 1,
+        "export_label": "Third sample \u2014 Equal",
+        "kind": "profile",
+        "row": 0,
+        "series": [
+          {
+            "color_index": 2,
+            "group": 0,
+            "label": "Third",
+            "sample": 2
+          }
+        ],
+        "title": "Third sample"
+      },
+      {
+        "column": 0,
+        "export_label": "Repeated samples \u2014 Other",
+        "kind": "profile",
+        "row": 1,
+        "series": [
+          {
+            "color_index": 0,
+            "group": 1,
+            "label": "Repeat",
+            "sample": 0
+          },
+          {
+            "color_index": 1,
+            "group": 1,
+            "label": "Repeat",
+            "sample": 1
+          }
+        ],
+        "title": ""
+      },
+      {
+        "column": 1,
+        "export_label": "Third sample \u2014 Other",
+        "kind": "profile",
+        "row": 1,
+        "series": [
+          {
+            "color_index": 2,
+            "group": 1,
+            "label": "Third",
+            "sample": 2
+          }
+        ],
+        "title": ""
+      },
+      {
+        "column": 0,
+        "export_label": "Repeated samples \u2014 Equal",
+        "kind": "profile",
+        "row": 2,
+        "series": [
+          {
+            "color_index": 0,
+            "group": 2,
+            "label": "Repeat",
+            "sample": 0
+          },
+          {
+            "color_index": 1,
+            "group": 2,
+            "label": "Repeat",
+            "sample": 1
+          }
+        ],
+        "title": ""
+      },
+      {
+        "column": 1,
+        "export_label": "Third sample \u2014 Equal",
+        "kind": "profile",
+        "row": 2,
+        "series": [
+          {
+            "color_index": 2,
+            "group": 2,
+            "label": "Third",
+            "sample": 2
+          }
+        ],
+        "title": ""
+      }
+    ],
+    "row_labels": [
+      "Equal",
+      "Other",
+      "Equal"
+    ]
+  }
+}

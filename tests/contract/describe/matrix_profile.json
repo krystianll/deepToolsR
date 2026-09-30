@@ -1,0 +1,236 @@
+{
+  "protocol": 1,
+  "tool": "plotMatrixR",
+  "groups": [
+    {
+      "index": 1,
+      "key": "First",
+      "label": "First",
+      "regions": 2
+    },
+    {
+      "index": 2,
+      "key": "Other",
+      "label": "Other",
+      "regions": 3
+    },
+    {
+      "index": 3,
+      "key": "Last",
+      "label": "Last",
+      "regions": 4
+    }
+  ],
+  "samples": [
+    {
+      "index": 1,
+      "label": "Repeat"
+    },
+    {
+      "index": 2,
+      "label": "Repeat"
+    },
+    {
+      "index": 3,
+      "label": "Third"
+    }
+  ],
+  "panels": [
+    {
+      "index": 1,
+      "kind": "profile",
+      "title": "Repeat",
+      "row": 1,
+      "column": 1,
+      "series": [
+        "g1:s1",
+        "g2:s1",
+        "g3:s1"
+      ]
+    },
+    {
+      "index": 2,
+      "kind": "profile",
+      "title": "Repeat",
+      "row": 1,
+      "column": 2,
+      "series": [
+        "g1:s2",
+        "g2:s2",
+        "g3:s2"
+      ]
+    },
+    {
+      "index": 3,
+      "kind": "profile",
+      "title": "Third",
+      "row": 1,
+      "column": 3,
+      "series": [
+        "g1:s3",
+        "g2:s3",
+        "g3:s3"
+      ]
+    }
+  ],
+  "row_labels": [],
+  "cells": [
+    {
+      "index": 1,
+      "row": 1,
+      "column": 1,
+      "samples": [
+        1
+      ],
+      "groups": [
+        1,
+        2,
+        3
+      ],
+      "title": "Repeat",
+      "profile": 1,
+      "blocks": [],
+      "stack_labels": []
+    },
+    {
+      "index": 2,
+      "row": 1,
+      "column": 2,
+      "samples": [
+        2
+      ],
+      "groups": [
+        1,
+        2,
+        3
+      ],
+      "title": "Repeat",
+      "profile": 2,
+      "blocks": [],
+      "stack_labels": []
+    },
+    {
+      "index": 3,
+      "row": 1,
+      "column": 3,
+      "samples": [
+        3
+      ],
+      "groups": [
+        1,
+        2,
+        3
+      ],
+      "title": "Third",
+      "profile": 3,
+      "blocks": [],
+      "stack_labels": []
+    }
+  ],
+  "series": [
+    {
+      "key": "g1:s1",
+      "group": 1,
+      "sample": 1,
+      "label": "First"
+    },
+    {
+      "key": "g2:s1",
+      "group": 2,
+      "sample": 1,
+      "label": "Other"
+    },
+    {
+      "key": "g3:s1",
+      "group": 3,
+      "sample": 1,
+      "label": "Last"
+    },
+    {
+      "key": "g1:s2",
+      "group": 1,
+      "sample": 2,
+      "label": "First"
+    },
+    {
+      "key": "g2:s2",
+      "group": 2,
+      "sample": 2,
+      "label": "Other"
+    },
+    {
+      "key": "g3:s2",
+      "group": 3,
+      "sample": 2,
+      "label": "Last"
+    },
+    {
+      "key": "g1:s3",
+      "group": 1,
+      "sample": 3,
+      "label": "First"
+    },
+    {
+      "key": "g2:s3",
+      "group": 2,
+      "sample": 3,
+      "label": "Other"
+    },
+    {
+      "key": "g3:s3",
+      "group": 3,
+      "sample": 3,
+      "label": "Last"
+    }
+  ],
+  "color_domains": [
+    {
+      "option": "--colorsPerSample",
+      "kind": "series",
+      "slots": [
+        {
+          "position": 1,
+          "series": [
+            "g1:s1",
+            "g1:s2",
+            "g1:s3"
+          ],
+          "panels": [
+            1,
+            2,
+            3
+          ],
+          "cells": []
+        },
+        {
+          "position": 2,
+          "series": [
+            "g2:s1",
+            "g2:s2",
+            "g2:s3"
+          ],
+          "panels": [
+            1,
+            2,
+            3
+          ],
+          "cells": []
+        },
+        {
+          "position": 3,
+          "series": [
+            "g3:s1",
+            "g3:s2",
+            "g3:s3"
+          ],
+          "panels": [
+            1,
+            2,
+            3
+          ],
+          "cells": []
+        }
+      ]
+    }
+  ]
+}

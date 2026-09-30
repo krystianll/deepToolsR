@@ -1,0 +1,6975 @@
+{
+  "computeMatrixR": {
+    "actions": [
+      {
+        "flags": [
+          "-h",
+          "--help"
+        ],
+        "dest": "help",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_HelpAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--version"
+        ],
+        "dest": "version",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_VersionAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--config"
+        ],
+        "dest": "config",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [],
+        "dest": "command",
+        "default": "None",
+        "choices": [
+          "scale-regions",
+          "reference-point"
+        ],
+        "nargs": "A...",
+        "type": null,
+        "action": "_SubParsersAction",
+        "required": false,
+        "mutex_group": null
+      }
+    ],
+    "subcommands": {
+      "scale-regions": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--regionsFileName",
+              "-R"
+            ],
+            "dest": "regionsFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scoreFileName",
+              "-S"
+            ],
+            "dest": "scoreFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scoreFileNameMinus",
+              "-s"
+            ],
+            "dest": "scoreFileNameMinus",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-out",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "writableFile",
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileNameMatrix"
+            ],
+            "dest": "outFileNameMatrix",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "writableFile",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileSortedRegions"
+            ],
+            "dest": "outFileSortedRegions",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "writableFile",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--version"
+            ],
+            "dest": "version",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_VersionAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--regionBodyLength",
+              "-m"
+            ],
+            "dest": "regionBodyLength",
+            "default": "1000",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--beforeRegionStartLength",
+              "-b",
+              "--upstream"
+            ],
+            "dest": "beforeRegionStartLength",
+            "default": "0",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--afterRegionStartLength",
+              "-a",
+              "--downstream"
+            ],
+            "dest": "afterRegionStartLength",
+            "default": "0",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--unscaled5prime"
+            ],
+            "dest": "unscaled5prime",
+            "default": "0",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--unscaled3prime"
+            ],
+            "dest": "unscaled3prime",
+            "default": "0",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--binSize",
+              "-bs"
+            ],
+            "dest": "binSize",
+            "default": "10",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--sortRegions"
+            ],
+            "dest": "sortRegions",
+            "default": "'keep'",
+            "choices": [
+              "descend",
+              "ascend",
+              "no",
+              "keep"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--sortUsing"
+            ],
+            "dest": "sortUsing",
+            "default": "'mean'",
+            "choices": [
+              "mean",
+              "median",
+              "max",
+              "min",
+              "sum",
+              "region_length",
+              "score"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--sortUsingSamples"
+            ],
+            "dest": "sortUsingSamples",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--quantileSortedRegions",
+              "--quantiles"
+            ],
+            "dest": "quantileSortedRegions",
+            "default": "1",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--averageTypeBins"
+            ],
+            "dest": "averageTypeBins",
+            "default": "'mean'",
+            "choices": [
+              "mean",
+              "median",
+              "min",
+              "max",
+              "sum"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--missingDataAsZero"
+            ],
+            "dest": "missingDataAsZero",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--skipZeros"
+            ],
+            "dest": "skipZeros",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--minThreshold"
+            ],
+            "dest": "minThreshold",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "lower_bound_float",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--maxThreshold"
+            ],
+            "dest": "maxThreshold",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "upper_bound_float",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--blackListFileName",
+              "-bl"
+            ],
+            "dest": "blackListFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--samplesLabel"
+            ],
+            "dest": "samplesLabel",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--quiet",
+              "-q"
+            ],
+            "dest": "quiet",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--verbose"
+            ],
+            "dest": "verbose",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scale"
+            ],
+            "dest": "scale",
+            "default": "1",
+            "choices": null,
+            "nargs": null,
+            "type": "float32_finite",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scalePlus"
+            ],
+            "dest": "scalePlus",
+            "default": "1",
+            "choices": null,
+            "nargs": null,
+            "type": "float32_finite",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scaleMinus"
+            ],
+            "dest": "scaleMinus",
+            "default": "1",
+            "choices": null,
+            "nargs": null,
+            "type": "float32_finite",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scaleAntisense"
+            ],
+            "dest": "scaleAntisense",
+            "default": "1",
+            "choices": null,
+            "nargs": null,
+            "type": "float32_finite",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--antisense"
+            ],
+            "dest": "antisense",
+            "default": "'skip'",
+            "choices": [
+              "skip",
+              "as_groups",
+              "as_samples"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--unstranded"
+            ],
+            "dest": "unstranded",
+            "default": "'sum_strands'",
+            "choices": [
+              "as_plus",
+              "as_minus",
+              "sum_strands"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--metagene"
+            ],
+            "dest": "keepExons",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--transcriptID"
+            ],
+            "dest": "transcriptID",
+            "default": "'transcript'",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--exonID"
+            ],
+            "dest": "exonID",
+            "default": "'exon'",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--transcript_id_designator"
+            ],
+            "dest": "transcript_id_designator",
+            "default": "'transcript_id'",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "reference-point": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--regionsFileName",
+              "-R"
+            ],
+            "dest": "regionsFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scoreFileName",
+              "-S"
+            ],
+            "dest": "scoreFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scoreFileNameMinus",
+              "-s"
+            ],
+            "dest": "scoreFileNameMinus",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-out",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "writableFile",
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileNameMatrix"
+            ],
+            "dest": "outFileNameMatrix",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "writableFile",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileSortedRegions"
+            ],
+            "dest": "outFileSortedRegions",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "writableFile",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--version"
+            ],
+            "dest": "version",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_VersionAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--referencePoint"
+            ],
+            "dest": "referencePoint",
+            "default": "'TSS'",
+            "choices": [
+              "TSS",
+              "TES",
+              "center"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--regionBodyLength"
+            ],
+            "dest": "regionBodyLength",
+            "default": "0",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--unscaled5prime"
+            ],
+            "dest": "unscaled5prime",
+            "default": "0",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--unscaled3prime"
+            ],
+            "dest": "unscaled3prime",
+            "default": "0",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--beforeRegionStartLength",
+              "-b",
+              "--upstream"
+            ],
+            "dest": "beforeRegionStartLength",
+            "default": "500",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--afterRegionStartLength",
+              "-a",
+              "--downstream"
+            ],
+            "dest": "afterRegionStartLength",
+            "default": "1500",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--nanAfterEnd"
+            ],
+            "dest": "nanAfterEnd",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--binSize",
+              "-bs"
+            ],
+            "dest": "binSize",
+            "default": "10",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--sortRegions"
+            ],
+            "dest": "sortRegions",
+            "default": "'keep'",
+            "choices": [
+              "descend",
+              "ascend",
+              "no",
+              "keep"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--sortUsing"
+            ],
+            "dest": "sortUsing",
+            "default": "'mean'",
+            "choices": [
+              "mean",
+              "median",
+              "max",
+              "min",
+              "sum",
+              "region_length",
+              "score"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--sortUsingSamples"
+            ],
+            "dest": "sortUsingSamples",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--quantileSortedRegions",
+              "--quantiles"
+            ],
+            "dest": "quantileSortedRegions",
+            "default": "1",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--averageTypeBins"
+            ],
+            "dest": "averageTypeBins",
+            "default": "'mean'",
+            "choices": [
+              "mean",
+              "median",
+              "min",
+              "max",
+              "sum"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--missingDataAsZero"
+            ],
+            "dest": "missingDataAsZero",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--skipZeros"
+            ],
+            "dest": "skipZeros",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--minThreshold"
+            ],
+            "dest": "minThreshold",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "lower_bound_float",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--maxThreshold"
+            ],
+            "dest": "maxThreshold",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "upper_bound_float",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--blackListFileName",
+              "-bl"
+            ],
+            "dest": "blackListFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--samplesLabel"
+            ],
+            "dest": "samplesLabel",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--quiet",
+              "-q"
+            ],
+            "dest": "quiet",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--verbose"
+            ],
+            "dest": "verbose",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scale"
+            ],
+            "dest": "scale",
+            "default": "1",
+            "choices": null,
+            "nargs": null,
+            "type": "float32_finite",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scalePlus"
+            ],
+            "dest": "scalePlus",
+            "default": "1",
+            "choices": null,
+            "nargs": null,
+            "type": "float32_finite",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scaleMinus"
+            ],
+            "dest": "scaleMinus",
+            "default": "1",
+            "choices": null,
+            "nargs": null,
+            "type": "float32_finite",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scaleAntisense"
+            ],
+            "dest": "scaleAntisense",
+            "default": "1",
+            "choices": null,
+            "nargs": null,
+            "type": "float32_finite",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--antisense"
+            ],
+            "dest": "antisense",
+            "default": "'skip'",
+            "choices": [
+              "skip",
+              "as_groups",
+              "as_samples"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--unstranded"
+            ],
+            "dest": "unstranded",
+            "default": "'sum_strands'",
+            "choices": [
+              "as_plus",
+              "as_minus",
+              "sum_strands"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--metagene"
+            ],
+            "dest": "keepExons",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--transcriptID"
+            ],
+            "dest": "transcriptID",
+            "default": "'transcript'",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--exonID"
+            ],
+            "dest": "exonID",
+            "default": "'exon'",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--transcript_id_designator"
+            ],
+            "dest": "transcript_id_designator",
+            "default": "'transcript_id'",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      }
+    }
+  },
+  "computeMatrixOperationsR": {
+    "actions": [
+      {
+        "flags": [
+          "-h",
+          "--help"
+        ],
+        "dest": "help",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_HelpAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [],
+        "dest": "command",
+        "default": "None",
+        "choices": [
+          "info",
+          "relabel",
+          "subset",
+          "reorder",
+          "filterStrand",
+          "filterValues",
+          "rbind",
+          "cbind",
+          "sort",
+          "dataRange",
+          "transform"
+        ],
+        "nargs": "A...",
+        "type": null,
+        "action": "_SubParsersAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--version"
+        ],
+        "dest": "version",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_VersionAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--config"
+        ],
+        "dest": "config",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      }
+    ],
+    "subcommands": {
+      "info": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--matrixFile",
+              "-m"
+            ],
+            "dest": "matrixFile",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--json"
+            ],
+            "dest": "json",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "relabel": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--matrixFile",
+              "-m"
+            ],
+            "dest": "matrixFile",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--groupLabels"
+            ],
+            "dest": "groupLabels",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--sampleLabels"
+            ],
+            "dest": "sampleLabels",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--setGroupLabel"
+            ],
+            "dest": "setGroupLabel",
+            "default": "None",
+            "choices": null,
+            "nargs": 2,
+            "type": null,
+            "action": "_AppendAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--setSampleLabel"
+            ],
+            "dest": "setSampleLabel",
+            "default": "None",
+            "choices": null,
+            "nargs": 2,
+            "type": null,
+            "action": "_AppendAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "subset": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--matrixFile",
+              "-m"
+            ],
+            "dest": "matrixFile",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--groups"
+            ],
+            "dest": "groups",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--samples"
+            ],
+            "dest": "samples",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--mergeSameNamedGroups"
+            ],
+            "dest": "mergeSameNamedGroups",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "reorder": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--matrixFile",
+              "-m"
+            ],
+            "dest": "matrixFile",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--groups"
+            ],
+            "dest": "groups",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--samples"
+            ],
+            "dest": "samples",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--mergeSameNamedGroups"
+            ],
+            "dest": "mergeSameNamedGroups",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "filterStrand": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--matrixFile",
+              "-m"
+            ],
+            "dest": "matrixFile",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--strand",
+              "-s"
+            ],
+            "dest": "strand",
+            "default": "None",
+            "choices": [
+              "+",
+              "-",
+              "."
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "filterValues": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--matrixFile",
+              "-m"
+            ],
+            "dest": "matrixFile",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--min"
+            ],
+            "dest": "min",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "lower_bound_float",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--max"
+            ],
+            "dest": "max",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "upper_bound_float",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--filterUsingSamples"
+            ],
+            "dest": "filterUsingSamples",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--filterUsingStatistic"
+            ],
+            "dest": "filterUsingStatistic",
+            "default": "'perBin'",
+            "choices": [
+              "perBin",
+              "mean",
+              "median",
+              "sum",
+              "min",
+              "max"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--filterNans"
+            ],
+            "dest": "filterNans",
+            "default": "'keep'",
+            "choices": [
+              "keep",
+              "any_bin",
+              "any_sample",
+              "all_bins"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--onFilterFail"
+            ],
+            "dest": "onFilterFail",
+            "default": "'removeRegion'",
+            "choices": [
+              "removeRegion",
+              "maskSample"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "rbind": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--matrixFile",
+              "-m"
+            ],
+            "dest": "matrixFile",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--sameGroupLabels"
+            ],
+            "dest": "sameGroupLabels",
+            "default": "'merge'",
+            "choices": [
+              "merge",
+              "separate"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--blind"
+            ],
+            "dest": "blind",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "cbind": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--matrixFile",
+              "-m"
+            ],
+            "dest": "matrixFile",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--blind"
+            ],
+            "dest": "blind",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "sort": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--matrixFile",
+              "-m"
+            ],
+            "dest": "matrixFile",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--regionsFileName",
+              "-R"
+            ],
+            "dest": "regionsFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--transcriptID"
+            ],
+            "dest": "transcriptID",
+            "default": "'transcript'",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--transcript_id_designator"
+            ],
+            "dest": "transcript_id_designator",
+            "default": "'transcript_id'",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "dataRange": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--matrixFile",
+              "-m"
+            ],
+            "dest": "matrixFile",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "transform": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--matrixFile",
+              "-m"
+            ],
+            "dest": "matrixFile",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--blind"
+            ],
+            "dest": "blind",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--add"
+            ],
+            "dest": "pipeline",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "TransformAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--subtract"
+            ],
+            "dest": "pipeline",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "TransformAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scale"
+            ],
+            "dest": "pipeline",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "TransformAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--log2"
+            ],
+            "dest": "pipeline",
+            "default": "None",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "TransformAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--sum"
+            ],
+            "dest": "pipeline",
+            "default": "None",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "TransformAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--mean"
+            ],
+            "dest": "pipeline",
+            "default": "None",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "TransformAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--difference"
+            ],
+            "dest": "pipeline",
+            "default": "None",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "TransformAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--ratio"
+            ],
+            "dest": "pipeline",
+            "default": "None",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "TransformAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--log2FC"
+            ],
+            "dest": "pipeline",
+            "default": "None",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "TransformAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--pseudocount"
+            ],
+            "dest": "pseudocount",
+            "default": "'0'",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scaleUsing"
+            ],
+            "dest": "scaleUsing",
+            "default": "'all'",
+            "choices": [
+              "all",
+              "upstream",
+              "body",
+              "downstream"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--missingDataAsZero"
+            ],
+            "dest": "missingDataAsZero",
+            "default": "False",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_StoreTrueAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--zeroHandling"
+            ],
+            "dest": "zeroHandling",
+            "default": "'keep'",
+            "choices": [
+              "keep",
+              "any",
+              "both"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      }
+    }
+  },
+  "plotHeatmapR": {
+    "actions": [
+      {
+        "flags": [
+          "--matrixFile",
+          "-m"
+        ],
+        "dest": "matrixFile",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileName",
+          "-out",
+          "-o"
+        ],
+        "dest": "outFileName",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": true,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileSortedRegions"
+        ],
+        "dest": "outFileSortedRegions",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileNameMatrix"
+        ],
+        "dest": "outFileNameMatrix",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--interpolationMethod"
+        ],
+        "dest": "interpolationMethod",
+        "default": "'auto'",
+        "choices": [
+          "auto",
+          "nearest",
+          "bilinear",
+          "bicubic",
+          "gaussian"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--dpi"
+        ],
+        "dest": "dpi",
+        "default": "200",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--kmeans"
+        ],
+        "dest": "kmeans",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_0"
+      },
+      {
+        "flags": [
+          "--hclust"
+        ],
+        "dest": "hclust",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_0"
+      },
+      {
+        "flags": [
+          "--silhouette"
+        ],
+        "dest": "silhouette",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "dest": "help",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_HelpAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--version"
+        ],
+        "dest": "version",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_VersionAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--clusterUsingSamples"
+        ],
+        "dest": "clusterUsingSamples",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sortRegions"
+        ],
+        "dest": "sortRegions",
+        "default": "'ascend'",
+        "choices": [
+          "descend",
+          "ascend",
+          "no",
+          "keep"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sortUsing"
+        ],
+        "dest": "sortUsing",
+        "default": "'mean'",
+        "choices": [
+          "mean",
+          "median",
+          "max",
+          "min",
+          "sum",
+          "region_length",
+          "score"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sortUsingSamples"
+        ],
+        "dest": "sortUsingSamples",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--quantileSortedRegions",
+          "--quantiles"
+        ],
+        "dest": "quantileSortedRegions",
+        "default": "1",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--filterNans"
+        ],
+        "dest": "filterNans",
+        "default": "'keep'",
+        "choices": [
+          "keep",
+          "any_bin",
+          "any_sample",
+          "all_bins"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--whatToShow"
+        ],
+        "dest": "whatToShow",
+        "default": "'plot, heatmap and colorbar'",
+        "choices": [
+          "plot, heatmap and colorbar",
+          "heatmap and colorbar"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--heatmapHeight"
+        ],
+        "dest": "heatmapHeight",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--heatmapWidth"
+        ],
+        "dest": "cellWidth",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--aspectRatio"
+        ],
+        "dest": "heatmapAspectRatio",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--regionsLabel",
+          "--regionLabels",
+          "-z"
+        ],
+        "dest": "regionsLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "decode_text_escapes",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--regionLabelLocation"
+        ],
+        "dest": "regionLabelLocation",
+        "default": "'right'",
+        "choices": [
+          "left",
+          "right"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--showRegionCounts"
+        ],
+        "dest": "showRegionCounts",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--samplesLabel",
+          "--sampleLabels"
+        ],
+        "dest": "samplesLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--arrangeSamples"
+        ],
+        "dest": "arrangeSamples",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--commonLegend"
+        ],
+        "dest": "commonLegend",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sampleSetLabels"
+        ],
+        "dest": "sampleSetLabels",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sampleSetGroupArrangement"
+        ],
+        "dest": "sampleSetGroupArrangement",
+        "default": "'overlay'",
+        "choices": [
+          "overlay",
+          "adjacent",
+          "end",
+          "by_row",
+          "by_column"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--gridColumns"
+        ],
+        "dest": "gridColumns",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_1"
+      },
+      {
+        "flags": [
+          "--gridRows"
+        ],
+        "dest": "gridRows",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_1"
+      },
+      {
+        "flags": [
+          "--sameGroupLabels"
+        ],
+        "dest": "sameGroupLabels",
+        "default": "'independent'",
+        "choices": [
+          "independent",
+          "together",
+          "merge"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sameSampleLabels"
+        ],
+        "dest": "sameSampleLabels",
+        "default": "'independent'",
+        "choices": [
+          "independent",
+          "together"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--xAxisLabel",
+          "-x"
+        ],
+        "dest": "xAxisLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yAxisLabel",
+          "-y"
+        ],
+        "dest": "heatmapYAxisLabel",
+        "default": "['']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--xAxisVisibility"
+        ],
+        "dest": "xAxisVisibility",
+        "default": "'outer'",
+        "choices": [
+          "show_all",
+          "outer",
+          "outer_merged"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--axisVisibility"
+        ],
+        "dest": "axisVisibility",
+        "default": "None",
+        "choices": [
+          "show_all",
+          "outer",
+          "outer_merged"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--distanceUnit"
+        ],
+        "dest": "distanceUnit",
+        "default": "'auto'",
+        "choices": [
+          "auto",
+          "bp",
+          "kb",
+          "mb"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--distanceUnitLocation"
+        ],
+        "dest": "distanceUnitLocation",
+        "default": "'ticks'",
+        "choices": [
+          "ticks",
+          "axis"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--startLabel"
+        ],
+        "dest": "startLabel",
+        "default": "['TSS']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--endLabel"
+        ],
+        "dest": "endLabel",
+        "default": "['TES']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--refPointLabel"
+        ],
+        "dest": "refPointLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--labelRotation"
+        ],
+        "dest": "label_rotation",
+        "default": "0.0",
+        "choices": null,
+        "nargs": null,
+        "type": "finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--linesAtTickMarks"
+        ],
+        "dest": "linesAtTickMarks",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--minorTickMarks"
+        ],
+        "dest": "minorTickMarks",
+        "default": "'none'",
+        "choices": null,
+        "nargs": null,
+        "type": "minor_tick_setting",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorbarLocation"
+        ],
+        "dest": "colorbarLocation",
+        "default": "'best'",
+        "choices": [
+          "best",
+          "right",
+          "right_common",
+          "bottom",
+          "below",
+          "below_common"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorbarLabels"
+        ],
+        "dest": "colorbarLabels",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sortIndicator"
+        ],
+        "dest": "sortIndicator",
+        "default": "'auto'",
+        "choices": [
+          "auto",
+          "none"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorMap"
+        ],
+        "dest": "colorMap",
+        "default": "['RdYlBu']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--alpha"
+        ],
+        "dest": "alpha",
+        "default": "1.0",
+        "choices": null,
+        "nargs": null,
+        "type": "check_float_0_1",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorList"
+        ],
+        "dest": "colorList",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "check_list_of_comma_values",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorNumber"
+        ],
+        "dest": "colorNumber",
+        "default": "256",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--missingDataColor"
+        ],
+        "dest": "missingDataColor",
+        "default": "'black'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--boxAroundHeatmaps"
+        ],
+        "dest": "boxAroundHeatmaps",
+        "default": "'yes'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--zMin",
+          "-min"
+        ],
+        "dest": "zMin",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--zMax",
+          "-max"
+        ],
+        "dest": "zMax",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--zMid"
+        ],
+        "dest": "zMid",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileNameData"
+        ],
+        "dest": "outFileNameData",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--heightSummaryPlot"
+        ],
+        "dest": "profileHeight",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotTypeSummaryPlot"
+        ],
+        "dest": "plotType",
+        "default": "'lines'",
+        "choices": [
+          "lines",
+          "fill",
+          "se",
+          "std",
+          "ci",
+          "bootstrap"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--averageTypeSummaryPlot"
+        ],
+        "dest": "averageType",
+        "default": "'mean'",
+        "choices": [
+          "mean",
+          "geom_mean",
+          "trim_mean",
+          "median",
+          "min",
+          "max",
+          "std",
+          "sum"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--pseudocountSummaryPlot"
+        ],
+        "dest": "pseudocount",
+        "default": "-1",
+        "choices": null,
+        "nargs": null,
+        "type": "finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--trimPercSummaryPlot"
+        ],
+        "dest": "trim_perc",
+        "default": "0.05",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--aspectRatioSummaryPlot"
+        ],
+        "dest": "profileAspectRatio",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yAxisVisibilitySummaryPlot"
+        ],
+        "dest": "yAxisVisibility",
+        "default": "'outer'",
+        "choices": [
+          "show_all",
+          "outer",
+          "outer_merged"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yAxisLimitsSummaryPlot"
+        ],
+        "dest": "yAxisLimits",
+        "default": "'per_y_label'",
+        "choices": [
+          "common",
+          "per_panel",
+          "per_sample_set",
+          "per_y_label"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yMinSummaryPlot"
+        ],
+        "dest": "yMin",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yMaxSummaryPlot"
+        ],
+        "dest": "yMax",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yAxisLabelSummaryPlot"
+        ],
+        "dest": "yAxisLabel",
+        "default": "['']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorsSummaryPlot",
+          "--plotColorsSummaryPlot"
+        ],
+        "dest": "colors",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--legendLocationSummaryPlot"
+        ],
+        "dest": "legendLocation",
+        "default": "'best'",
+        "choices": [
+          "best",
+          "upper-right",
+          "upper-left",
+          "upper-center",
+          "lower-left",
+          "lower-right",
+          "lower-center",
+          "center",
+          "center-left",
+          "center-right",
+          "above",
+          "top",
+          "below",
+          "bottom",
+          "right",
+          "none"
+        ],
+        "nargs": null,
+        "type": "legend_location_alias",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--ci_level"
+        ],
+        "dest": "ci_level",
+        "default": "0.95",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--bootstrapReplicates"
+        ],
+        "dest": "bootstrapReplicates",
+        "default": "300",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--nanAfterEnd"
+        ],
+        "dest": "nanAfterEnd",
+        "default": "False",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotTitle",
+          "-T"
+        ],
+        "dest": "plotTitle",
+        "default": "''",
+        "choices": null,
+        "nargs": null,
+        "type": "decode_text_escapes",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--perGroup"
+        ],
+        "dest": "perGroup",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotFileFormat"
+        ],
+        "dest": "plotFileFormat",
+        "default": "None",
+        "choices": [
+          "png",
+          "pdf",
+          "svg",
+          "eps"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--verbose"
+        ],
+        "dest": "verbose",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--config"
+        ],
+        "dest": "config",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "-p",
+          "--numberOfProcessors"
+        ],
+        "dest": "numberOfProcessors",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": "parse",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      }
+    ],
+    "subcommands": {}
+  },
+  "plotMatrixR": {
+    "actions": [
+      {
+        "flags": [
+          "--matrixFile",
+          "-m"
+        ],
+        "dest": "matrixFile",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileName",
+          "-out",
+          "-o"
+        ],
+        "dest": "outFileName",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": true,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileSortedRegions"
+        ],
+        "dest": "outFileSortedRegions",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileNameMatrix"
+        ],
+        "dest": "outFileNameMatrix",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileNameData"
+        ],
+        "dest": "outFileNameData",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--dpi"
+        ],
+        "dest": "dpi",
+        "default": "200",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--kmeans"
+        ],
+        "dest": "kmeans",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_0"
+      },
+      {
+        "flags": [
+          "--hclust"
+        ],
+        "dest": "hclust",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_0"
+      },
+      {
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "dest": "help",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_HelpAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--version"
+        ],
+        "dest": "version",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_VersionAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--clusterUsingSamples"
+        ],
+        "dest": "clusterUsingSamples",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sortRegions"
+        ],
+        "dest": "sortRegions",
+        "default": "'ascend'",
+        "choices": [
+          "descend",
+          "ascend",
+          "no",
+          "keep"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sortUsing"
+        ],
+        "dest": "sortUsing",
+        "default": "'mean'",
+        "choices": [
+          "mean",
+          "median",
+          "max",
+          "min",
+          "sum",
+          "region_length",
+          "score"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sortUsingSamples"
+        ],
+        "dest": "sortUsingSamples",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--quantileSortedRegions",
+          "--quantiles"
+        ],
+        "dest": "quantileSortedRegions",
+        "default": "1",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--profile"
+        ],
+        "dest": "show_profile",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--heatmap"
+        ],
+        "dest": "show_heatmap",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--cellWidth"
+        ],
+        "dest": "cellWidth",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--filterNans"
+        ],
+        "dest": "filterNans",
+        "default": "'keep'",
+        "choices": [
+          "keep",
+          "any_bin",
+          "any_sample",
+          "all_bins"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotHeight",
+          "--profileHeight"
+        ],
+        "dest": "profileHeight",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--profileAspectRatio"
+        ],
+        "dest": "profileAspectRatio",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--arrangeSamples"
+        ],
+        "dest": "arrangeSamples",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--commonLegend"
+        ],
+        "dest": "commonLegend",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sampleSetLabels"
+        ],
+        "dest": "sampleSetLabels",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sampleSetGroupArrangement"
+        ],
+        "dest": "sampleSetGroupArrangement",
+        "default": "'overlay'",
+        "choices": [
+          "overlay",
+          "adjacent",
+          "end",
+          "by_row",
+          "by_column"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--gridColumns"
+        ],
+        "dest": "gridColumns",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_1"
+      },
+      {
+        "flags": [
+          "--gridRows"
+        ],
+        "dest": "gridRows",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_1"
+      },
+      {
+        "flags": [
+          "--xAxisLabel",
+          "-x"
+        ],
+        "dest": "xAxisLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yAxisLabel",
+          "-y"
+        ],
+        "dest": "yAxisLabel",
+        "default": "['']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--xAxisVisibility"
+        ],
+        "dest": "xAxisVisibility",
+        "default": "'outer'",
+        "choices": [
+          "show_all",
+          "outer",
+          "outer_merged"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yAxisVisibility"
+        ],
+        "dest": "yAxisVisibility",
+        "default": "'outer'",
+        "choices": [
+          "show_all",
+          "outer",
+          "outer_merged"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--axisVisibility"
+        ],
+        "dest": "axisVisibility",
+        "default": "None",
+        "choices": [
+          "show_all",
+          "outer",
+          "outer_merged"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yAxisLimits"
+        ],
+        "dest": "yAxisLimits",
+        "default": "'per_y_label'",
+        "choices": [
+          "common",
+          "per_panel",
+          "per_sample_set",
+          "per_y_label"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yMin"
+        ],
+        "dest": "yMin",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yMax"
+        ],
+        "dest": "yMax",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--distanceUnit"
+        ],
+        "dest": "distanceUnit",
+        "default": "'auto'",
+        "choices": [
+          "auto",
+          "bp",
+          "kb",
+          "mb"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--distanceUnitLocation"
+        ],
+        "dest": "distanceUnitLocation",
+        "default": "'ticks'",
+        "choices": [
+          "ticks",
+          "axis"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--startLabel"
+        ],
+        "dest": "startLabel",
+        "default": "['TSS']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--endLabel"
+        ],
+        "dest": "endLabel",
+        "default": "['TES']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--refPointLabel"
+        ],
+        "dest": "refPointLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--labelRotation"
+        ],
+        "dest": "label_rotation",
+        "default": "0.0",
+        "choices": null,
+        "nargs": null,
+        "type": "finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--linesAtTickMarks"
+        ],
+        "dest": "linesAtTickMarks",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--regionsLabel",
+          "--regionLabels",
+          "-z"
+        ],
+        "dest": "regionsLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "decode_text_escapes",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--showRegionCounts"
+        ],
+        "dest": "showRegionCounts",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--samplesLabel",
+          "--sampleLabels"
+        ],
+        "dest": "samplesLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sameGroupLabels"
+        ],
+        "dest": "sameGroupLabels",
+        "default": "'independent'",
+        "choices": [
+          "independent",
+          "together",
+          "merge"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sameSampleLabels"
+        ],
+        "dest": "sameSampleLabels",
+        "default": "'independent'",
+        "choices": [
+          "independent",
+          "together"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorsPerSample",
+          "--colors",
+          "--plotColors"
+        ],
+        "dest": "colors",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--legendLocation"
+        ],
+        "dest": "legendLocation",
+        "default": "'best'",
+        "choices": [
+          "best",
+          "upper-right",
+          "upper-left",
+          "upper-center",
+          "lower-left",
+          "lower-right",
+          "lower-center",
+          "center",
+          "center-left",
+          "center-right",
+          "above",
+          "top",
+          "below",
+          "bottom",
+          "right",
+          "none"
+        ],
+        "nargs": null,
+        "type": "legend_location_alias",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--nanAfterEnd"
+        ],
+        "dest": "nanAfterEnd",
+        "default": "False",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotTitle",
+          "-T"
+        ],
+        "dest": "plotTitle",
+        "default": "''",
+        "choices": null,
+        "nargs": null,
+        "type": "decode_text_escapes",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--perGroup"
+        ],
+        "dest": "perGroup",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotFileFormat"
+        ],
+        "dest": "plotFileFormat",
+        "default": "None",
+        "choices": [
+          "png",
+          "pdf",
+          "svg",
+          "eps"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--verbose"
+        ],
+        "dest": "verbose",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotType"
+        ],
+        "dest": "plotType",
+        "default": "'lines'",
+        "choices": [
+          "lines",
+          "fill",
+          "se",
+          "std",
+          "ci",
+          "bootstrap",
+          "heatmap"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--averageType"
+        ],
+        "dest": "averageType",
+        "default": "'mean'",
+        "choices": [
+          "mean",
+          "geom_mean",
+          "trim_mean",
+          "median",
+          "min",
+          "max",
+          "std",
+          "sum"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--pseudocount"
+        ],
+        "dest": "pseudocount",
+        "default": "-1",
+        "choices": null,
+        "nargs": null,
+        "type": "finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--trim_perc"
+        ],
+        "dest": "trim_perc",
+        "default": "0.05",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--ci_level"
+        ],
+        "dest": "ci_level",
+        "default": "0.95",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--bootstrapReplicates"
+        ],
+        "dest": "bootstrapReplicates",
+        "default": "300",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "-p",
+          "--numberOfProcessors"
+        ],
+        "dest": "numberOfProcessors",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": "parse",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--silhouette"
+        ],
+        "dest": "silhouette",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--heatmapHeight"
+        ],
+        "dest": "heatmapHeight",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--heatmapAspectRatio"
+        ],
+        "dest": "heatmapAspectRatio",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--heatmapYAxisLabel"
+        ],
+        "dest": "heatmapYAxisLabel",
+        "default": "['']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--regionLabelLocation"
+        ],
+        "dest": "regionLabelLocation",
+        "default": "'right'",
+        "choices": [
+          "left",
+          "right"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--interpolationMethod"
+        ],
+        "dest": "interpolationMethod",
+        "default": "'auto'",
+        "choices": [
+          "auto",
+          "nearest",
+          "bilinear",
+          "bicubic",
+          "gaussian"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--minorTickMarks"
+        ],
+        "dest": "minorTickMarks",
+        "default": "'none'",
+        "choices": null,
+        "nargs": null,
+        "type": "minor_tick_setting",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorbarLocation"
+        ],
+        "dest": "colorbarLocation",
+        "default": "'best'",
+        "choices": [
+          "best",
+          "right",
+          "right_common",
+          "bottom",
+          "below",
+          "below_common"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorbarLabels"
+        ],
+        "dest": "colorbarLabels",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sortIndicator"
+        ],
+        "dest": "sortIndicator",
+        "default": "'auto'",
+        "choices": [
+          "auto",
+          "none"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorMap"
+        ],
+        "dest": "colorMap",
+        "default": "['RdYlBu']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--alpha"
+        ],
+        "dest": "alpha",
+        "default": "1.0",
+        "choices": null,
+        "nargs": null,
+        "type": "check_float_0_1",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorList"
+        ],
+        "dest": "colorList",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "check_list_of_comma_values",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorNumber"
+        ],
+        "dest": "colorNumber",
+        "default": "256",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--missingDataColor"
+        ],
+        "dest": "missingDataColor",
+        "default": "'black'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--boxAroundHeatmaps"
+        ],
+        "dest": "boxAroundHeatmaps",
+        "default": "'yes'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--zMin",
+          "-min"
+        ],
+        "dest": "zMin",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--zMax",
+          "-max"
+        ],
+        "dest": "zMax",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--zMid"
+        ],
+        "dest": "zMid",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--config"
+        ],
+        "dest": "config",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      }
+    ],
+    "subcommands": {}
+  },
+  "plotProfileR": {
+    "actions": [
+      {
+        "flags": [
+          "--matrixFile",
+          "-m"
+        ],
+        "dest": "matrixFile",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileName",
+          "-out",
+          "-o"
+        ],
+        "dest": "outFileName",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": true,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileSortedRegions"
+        ],
+        "dest": "outFileSortedRegions",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileNameMatrix"
+        ],
+        "dest": "outFileNameMatrix",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileNameData"
+        ],
+        "dest": "outFileNameData",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--dpi"
+        ],
+        "dest": "dpi",
+        "default": "200",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--kmeans"
+        ],
+        "dest": "kmeans",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_0"
+      },
+      {
+        "flags": [
+          "--hclust"
+        ],
+        "dest": "hclust",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_0"
+      },
+      {
+        "flags": [
+          "--silhouette"
+        ],
+        "dest": "silhouette",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--help",
+          "-h"
+        ],
+        "dest": "help",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_HelpAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--version"
+        ],
+        "dest": "version",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_VersionAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--clusterUsingSamples"
+        ],
+        "dest": "clusterUsingSamples",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sortRegions"
+        ],
+        "dest": "sortRegions",
+        "default": "'ascend'",
+        "choices": [
+          "descend",
+          "ascend",
+          "no",
+          "keep"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sortUsing"
+        ],
+        "dest": "sortUsing",
+        "default": "'mean'",
+        "choices": [
+          "mean",
+          "median",
+          "max",
+          "min",
+          "sum",
+          "region_length",
+          "score"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sortUsingSamples"
+        ],
+        "dest": "sortUsingSamples",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--quantileSortedRegions",
+          "--quantiles"
+        ],
+        "dest": "quantileSortedRegions",
+        "default": "1",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--filterNans"
+        ],
+        "dest": "filterNans",
+        "default": "'keep'",
+        "choices": [
+          "keep",
+          "any_bin",
+          "any_sample",
+          "all_bins"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotType"
+        ],
+        "dest": "plotType",
+        "default": "'lines'",
+        "choices": [
+          "lines",
+          "fill",
+          "se",
+          "std",
+          "ci",
+          "bootstrap",
+          "heatmap"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--averageType"
+        ],
+        "dest": "averageType",
+        "default": "'mean'",
+        "choices": [
+          "mean",
+          "geom_mean",
+          "trim_mean",
+          "median",
+          "min",
+          "max",
+          "std",
+          "sum"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--pseudocount"
+        ],
+        "dest": "pseudocount",
+        "default": "-1",
+        "choices": null,
+        "nargs": null,
+        "type": "finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--trim_perc"
+        ],
+        "dest": "trim_perc",
+        "default": "0.05",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--ci_level"
+        ],
+        "dest": "ci_level",
+        "default": "0.95",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--bootstrapReplicates"
+        ],
+        "dest": "bootstrapReplicates",
+        "default": "300",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "-p",
+          "--numberOfProcessors"
+        ],
+        "dest": "numberOfProcessors",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": "parse",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotHeight",
+          "--profileHeight"
+        ],
+        "dest": "profileHeight",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotWidth",
+          "--profileWidth"
+        ],
+        "dest": "cellWidth",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--aspectRatio"
+        ],
+        "dest": "profileAspectRatio",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--arrangeSamples"
+        ],
+        "dest": "arrangeSamples",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--commonLegend"
+        ],
+        "dest": "commonLegend",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sampleSetLabels"
+        ],
+        "dest": "sampleSetLabels",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sampleSetGroupArrangement"
+        ],
+        "dest": "sampleSetGroupArrangement",
+        "default": "'overlay'",
+        "choices": [
+          "overlay",
+          "adjacent",
+          "end",
+          "by_row",
+          "by_column"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--gridColumns"
+        ],
+        "dest": "gridColumns",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_1"
+      },
+      {
+        "flags": [
+          "--gridRows"
+        ],
+        "dest": "gridRows",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": "group_1"
+      },
+      {
+        "flags": [
+          "--xAxisLabel",
+          "-x"
+        ],
+        "dest": "xAxisLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yAxisLabel",
+          "-y"
+        ],
+        "dest": "yAxisLabel",
+        "default": "['']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--xAxisVisibility"
+        ],
+        "dest": "xAxisVisibility",
+        "default": "'outer'",
+        "choices": [
+          "show_all",
+          "outer",
+          "outer_merged"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yAxisVisibility"
+        ],
+        "dest": "yAxisVisibility",
+        "default": "'outer'",
+        "choices": [
+          "show_all",
+          "outer",
+          "outer_merged"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--axisVisibility"
+        ],
+        "dest": "axisVisibility",
+        "default": "None",
+        "choices": [
+          "show_all",
+          "outer",
+          "outer_merged"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yAxisLimits"
+        ],
+        "dest": "yAxisLimits",
+        "default": "'per_y_label'",
+        "choices": [
+          "common",
+          "per_panel",
+          "per_sample_set",
+          "per_y_label"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yMin"
+        ],
+        "dest": "yMin",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yMax"
+        ],
+        "dest": "yMax",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--distanceUnit"
+        ],
+        "dest": "distanceUnit",
+        "default": "'auto'",
+        "choices": [
+          "auto",
+          "bp",
+          "kb",
+          "mb"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--distanceUnitLocation"
+        ],
+        "dest": "distanceUnitLocation",
+        "default": "'ticks'",
+        "choices": [
+          "ticks",
+          "axis"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--startLabel"
+        ],
+        "dest": "startLabel",
+        "default": "['TSS']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--endLabel"
+        ],
+        "dest": "endLabel",
+        "default": "['TES']",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--refPointLabel"
+        ],
+        "dest": "refPointLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--labelRotation"
+        ],
+        "dest": "label_rotation",
+        "default": "0.0",
+        "choices": null,
+        "nargs": null,
+        "type": "finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--linesAtTickMarks"
+        ],
+        "dest": "linesAtTickMarks",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--regionsLabel",
+          "--regionLabels",
+          "-z"
+        ],
+        "dest": "regionsLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": "decode_text_escapes",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--showRegionCounts"
+        ],
+        "dest": "showRegionCounts",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--samplesLabel",
+          "--sampleLabels"
+        ],
+        "dest": "samplesLabel",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sameGroupLabels"
+        ],
+        "dest": "sameGroupLabels",
+        "default": "'independent'",
+        "choices": [
+          "independent",
+          "together",
+          "merge"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--sameSampleLabels"
+        ],
+        "dest": "sameSampleLabels",
+        "default": "'independent'",
+        "choices": [
+          "independent",
+          "together"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--colorsPerSample",
+          "--colors",
+          "--plotColors"
+        ],
+        "dest": "colors",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--legendLocation"
+        ],
+        "dest": "legendLocation",
+        "default": "'best'",
+        "choices": [
+          "best",
+          "upper-right",
+          "upper-left",
+          "upper-center",
+          "lower-left",
+          "lower-right",
+          "lower-center",
+          "center",
+          "center-left",
+          "center-right",
+          "above",
+          "top",
+          "below",
+          "bottom",
+          "right",
+          "none"
+        ],
+        "nargs": null,
+        "type": "legend_location_alias",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--minorTickMarks"
+        ],
+        "dest": "minorTickMarks",
+        "default": "'none'",
+        "choices": null,
+        "nargs": null,
+        "type": "minor_tick_setting",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--nanAfterEnd"
+        ],
+        "dest": "nanAfterEnd",
+        "default": "False",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotTitle",
+          "-T"
+        ],
+        "dest": "plotTitle",
+        "default": "''",
+        "choices": null,
+        "nargs": null,
+        "type": "decode_text_escapes",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--perGroup"
+        ],
+        "dest": "perGroup",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--plotFileFormat"
+        ],
+        "dest": "plotFileFormat",
+        "default": "None",
+        "choices": [
+          "png",
+          "pdf",
+          "svg",
+          "eps"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--verbose"
+        ],
+        "dest": "verbose",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--config"
+        ],
+        "dest": "config",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      }
+    ],
+    "subcommands": {}
+  },
+  "bamCoverageR": {
+    "actions": [
+      {
+        "flags": [
+          "-h",
+          "--help"
+        ],
+        "dest": "help",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_HelpAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--version"
+        ],
+        "dest": "version",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_VersionAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--config"
+        ],
+        "dest": "config",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--bam",
+          "-b"
+        ],
+        "dest": "bam",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": true,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileName",
+          "-o"
+        ],
+        "dest": "outFileName",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": true,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--binSize",
+          "-bs"
+        ],
+        "dest": "binSize",
+        "default": "50",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "-p",
+          "--numberOfProcessors"
+        ],
+        "dest": "numberOfProcessors",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": "parse",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--outFileFormat",
+          "-of"
+        ],
+        "dest": "outFileFormat",
+        "default": "'bigwig'",
+        "choices": [
+          "bigwig",
+          "bedgraph"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--compressionLevel"
+        ],
+        "dest": "compressionLevel",
+        "default": "-1",
+        "choices": null,
+        "nargs": null,
+        "type": "compression_level",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--zoomLevels"
+        ],
+        "dest": "zoomLevels",
+        "default": "10",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--extendReads",
+          "-e"
+        ],
+        "dest": "extendReads",
+        "default": "0",
+        "choices": null,
+        "nargs": "?",
+        "type": "extend_reads",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--collapse"
+        ],
+        "dest": "collapse",
+        "default": "'none'",
+        "choices": [
+          "none",
+          "5prime",
+          "5",
+          "3prime",
+          "3",
+          "center"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--collapsedLength"
+        ],
+        "dest": "collapsedLength",
+        "default": "1",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--minMappingQuality"
+        ],
+        "dest": "minMappingQuality",
+        "default": "0",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--samFlagInclude"
+        ],
+        "dest": "samFlagInclude",
+        "default": "0",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--samFlagExclude"
+        ],
+        "dest": "samFlagExclude",
+        "default": "0",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--ignoreDuplicates"
+        ],
+        "dest": "ignoreDuplicates",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--minFragmentLength"
+        ],
+        "dest": "minFragmentLength",
+        "default": "0",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--maxFragmentLength"
+        ],
+        "dest": "maxFragmentLength",
+        "default": "0",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--filterMode"
+        ],
+        "dest": "filterMode",
+        "default": "'primary'",
+        "choices": [
+          "primary",
+          "deeptools"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--blackListFileName",
+          "-bl"
+        ],
+        "dest": "blackListFileName",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--whiteListFileName",
+          "-wl"
+        ],
+        "dest": "whiteListFileName",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--featureTouchStrand"
+        ],
+        "dest": "featureTouchStrand",
+        "default": "'ignore'",
+        "choices": [
+          "ignore",
+          "sense",
+          "antisense"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--filterByOverlap"
+        ],
+        "dest": "filterByOverlap",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--filterByOverlapHalo"
+        ],
+        "dest": "filterByOverlapHalo",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--strandedness"
+        ],
+        "dest": "strandedness",
+        "default": "'none'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--filterRNAstrand"
+        ],
+        "dest": "filterRNAstrand",
+        "default": "'none'",
+        "choices": [
+          "none",
+          "forward",
+          "reverse",
+          "split"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--suffix"
+        ],
+        "dest": "suffix",
+        "default": "['.plus', '.minus']",
+        "choices": null,
+        "nargs": 2,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--normalizeUsing"
+        ],
+        "dest": "normalizeUsing",
+        "default": "'coverage-mean'",
+        "choices": null,
+        "nargs": null,
+        "type": "_normalization_metric",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--normalizationDenominator"
+        ],
+        "dest": "normalizationDenominator",
+        "default": "'library'",
+        "choices": [
+          "library",
+          "filtered"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--exactScaling"
+        ],
+        "dest": "exactScaling",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--scaleFactor"
+        ],
+        "dest": "scaleFactor",
+        "default": "1.0",
+        "choices": null,
+        "nargs": null,
+        "type": "float32_finite",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--scaleFactorMinus"
+        ],
+        "dest": "scaleFactorMinus",
+        "default": "1.0",
+        "choices": null,
+        "nargs": null,
+        "type": "float32_finite",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--ignoreForNormalization",
+          "-ignore"
+        ],
+        "dest": "ignoreForNormalization",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      }
+    ],
+    "subcommands": {}
+  },
+  "bigWigOperationsR": {
+    "actions": [
+      {
+        "flags": [
+          "-h",
+          "--help"
+        ],
+        "dest": "help",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_HelpAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--version"
+        ],
+        "dest": "version",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_VersionAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--config"
+        ],
+        "dest": "config",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [],
+        "dest": "command",
+        "default": "None",
+        "choices": [
+          "info",
+          "scale",
+          "merge"
+        ],
+        "nargs": "A...",
+        "type": null,
+        "action": "_SubParsersAction",
+        "required": true,
+        "mutex_group": null
+      }
+    ],
+    "subcommands": {
+      "info": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [],
+            "dest": "bigwig",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--chromSizes",
+              "-c"
+            ],
+            "dest": "chromSizes",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "scale": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--bigwig",
+              "-b"
+            ],
+            "dest": "bigwig",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scaleFactor",
+              "-s"
+            ],
+            "dest": "scaleFactor",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "float32_finite",
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--zoomLevels"
+            ],
+            "dest": "zoomLevels",
+            "default": "10",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--compressionLevel"
+            ],
+            "dest": "compressionLevel",
+            "default": "-1",
+            "choices": null,
+            "nargs": null,
+            "type": "compression_level",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "merge": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--bigwig",
+              "-b"
+            ],
+            "dest": "bigwig",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileName",
+              "-o"
+            ],
+            "dest": "outFileName",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--operation"
+            ],
+            "dest": "operation",
+            "default": "'sum'",
+            "choices": [
+              "sum",
+              "mean"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--binSize",
+              "-bs"
+            ],
+            "dest": "binSize",
+            "default": "1",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--scale"
+            ],
+            "dest": "scale",
+            "default": "1.0",
+            "choices": null,
+            "nargs": null,
+            "type": "float32_finite",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "'auto'",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--outFileFormat",
+              "-of"
+            ],
+            "dest": "outFileFormat",
+            "default": "'bigwig'",
+            "choices": [
+              "bigwig",
+              "bedgraph"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--zoomLevels"
+            ],
+            "dest": "zoomLevels",
+            "default": "10",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--compressionLevel"
+            ],
+            "dest": "compressionLevel",
+            "default": "-1",
+            "choices": null,
+            "nargs": null,
+            "type": "compression_level",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      }
+    }
+  },
+  "deeptoolsr": {
+    "actions": [
+      {
+        "flags": [
+          "-h",
+          "--help"
+        ],
+        "dest": "help",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_HelpAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--version"
+        ],
+        "dest": "version",
+        "default": "'==SUPPRESS=='",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_VersionAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--config"
+        ],
+        "dest": "config",
+        "default": "'auto'",
+        "choices": null,
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [],
+        "dest": "command",
+        "default": "None",
+        "choices": [
+          "options",
+          "describe",
+          "serve"
+        ],
+        "nargs": "A...",
+        "type": null,
+        "action": "_SubParsersAction",
+        "required": false,
+        "mutex_group": null
+      }
+    ],
+    "subcommands": {
+      "options": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--rasterFilter"
+            ],
+            "dest": "rasterFilter",
+            "default": "None",
+            "choices": [
+              "triangle",
+              "mitchell",
+              "catmullrom",
+              "cubic",
+              "box",
+              "point"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--rasterBitDepth"
+            ],
+            "dest": "rasterBitDepth",
+            "default": "None",
+            "choices": [
+              8,
+              16
+            ],
+            "nargs": null,
+            "type": "int",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--fontFamily"
+            ],
+            "dest": "fontFamily",
+            "default": "None",
+            "choices": null,
+            "nargs": "+",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--fontMultiplier"
+            ],
+            "dest": "fontMultiplier",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "describe": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [],
+            "dest": "tool",
+            "default": "None",
+            "choices": [
+              "plotHeatmapR",
+              "plotProfileR",
+              "plotMatrixR"
+            ],
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": true,
+            "mutex_group": null
+          },
+          {
+            "flags": [],
+            "dest": "tool_args",
+            "default": "None",
+            "choices": null,
+            "nargs": "...",
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      },
+      "serve": {
+        "actions": [
+          {
+            "flags": [
+              "-h",
+              "--help"
+            ],
+            "dest": "help",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": 0,
+            "type": null,
+            "action": "_HelpAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--config"
+            ],
+            "dest": "config",
+            "default": "'==SUPPRESS=='",
+            "choices": null,
+            "nargs": null,
+            "type": null,
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "-p",
+              "--numberOfProcessors"
+            ],
+            "dest": "numberOfProcessors",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "parse",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--cacheBytes"
+            ],
+            "dest": "cacheBytes",
+            "default": "None",
+            "choices": null,
+            "nargs": null,
+            "type": "convert",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          }
+        ],
+        "subcommands": {}
+      }
+    }
+  }
+}

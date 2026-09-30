@@ -1,0 +1,233 @@
+deepToolsR 0.9.0
+
+First public release of deepToolsR, a C++-accelerated reimplementation of
+selected deepTools 3.5.6 tools. All items below are phrased against deepTools
+3.5.6 behaviour.
+
+Tools and packaging
+* Commands carry an R suffix and can be installed beside deepTools:
+  bamCoverageR, computeMatrixR, computeMatrixOperationsR, plotHeatmapR and
+  plotProfileR. The Python package is `deeptoolsr`.
+* New `plotMatrixR` plots profiles, heatmaps or both from one matrix
+  (`--profile`, `--heatmap`) on a grid of cells; plotProfileR and plotHeatmapR
+  are kept for compatibility and share its engine.
+* New `bigWigOperationsR` with `info` (header statistics, `--chromSizes`),
+  `scale` (multiply by `--scaleFactor`, keeping the interval resolution;
+  negative factors flip signal) and `merge` (`--operation sum|mean` over any
+  number of tracks, optional `--binSize`, multicore; a missing chromosome
+  counts as zero, conflicting lengths are an error).
+* New `deeptoolsr` helper: `options` (persistent settings), `describe` (plot
+  metadata as JSON without rendering) and `serve` (a persistent JSON-lines
+  plotting worker for GUIs and other front ends).
+* Every command accepts `--config PATH|auto`; commands with parallel work
+  accept `-p N|max|auto` (auto = stored setting or half the CPUs). Persistent
+  typography and geometry settings are described in PLOTTING_STYLE.md.
+* All other deepTools commands are not included. Plotly output is removed.
+* Minimum Python is 3.11. Native C++ extensions (built with scikit-build-core
+  and pybind11) are required; bundled htslib and libBigWig replace pysam and
+  pyBigWig at run time, and SciPy is not a runtime dependency.
+* Every command prints `<tool> <version>` with `--version`.
+
+Performance and memory
+* bamCoverage, computeMatrix, bigWig reading/writing, matrix statistics,
+  clustering, bootstrap and heatmap rasterisation run in native multicore
+  code with bounded memory.
+* Matrices are held as 32-bit floats with NaN as the missing-value marker,
+  roughly halving matrix memory.
+* computeMatrixOperationsR streams most operations (filterValues,
+  filterStrand, column subset, relabel, rbind, cbind --blind) in chunks and
+  reorders rows at write time, cutting peak memory several-fold.
+* plotProfileR and plotHeatmapR use several times less memory; heatmaps are
+  rasterised natively at the on-screen size.
+* Long-running work can be stopped with Control-C.
+
+Safety and validation
+* Outputs are written to staging files first; a failed or interrupted command
+  leaves existing outputs intact, and input/output path aliases are rejected.
+* Damaged bigWig, BAM and matrix inputs (bad indexes, truncated gzip,
+  inconsistent rows or sample metadata) are rejected with a clear error
+  instead of crashing or being read as zero signal.
+* Numeric options and incompatible option combinations are checked before
+  any work starts; explicitly supplied options that have no effect warn.
+* Multi-output commands stage every track, matrix, table, BED file and plot
+  before replacing any destination; the BAM index actually used is checked,
+  and duplicate output paths are rejected before expensive work starts.
+* bigWig and BAM read failures abort the command instead of becoming missing
+  or zero signal; a corrupt bigWig index, truncated zoom header or incomplete
+  gzip trailer is an error, not a crash. Valid sparse gaps, empty tracks,
+  CRLF and concatenated gzip members remain supported.
+* Non-finite values stored in input bigWigs are treated as missing coverage
+  with one warning per file. Numeric options are checked for type, range,
+  overflow, float32 range and silent underflow before work starts.
+* Matrix operations (subset/reorder, filters, relabel, rbind, blind cbind)
+  reject mismatched row/column counts, malformed blocks and bad numeric
+  tokens before any output is replaced. Combining transforms also require
+  matching reference-point anchors, even with `--blind`.
+* Chromosomes longer than 2^31 bases and long chromosome names in bedGraph
+  output are handled correctly; native bigWig output works on Windows.
+
+bamCoverageR
+* `--normalizeUsing` accepts `coverage-mean` (default; mean per-base depth),
+  `coverage-sum`, `read-count`, `CPM`, `RPKM` and `BPM`. Normalised metrics
+  are always read-count based. RPGC and `None` are removed.
+* `--normalizationDenominator library|filtered` (default `library`: shared
+  library size, comparable across filters and strand outputs) and
+  `--exactScaling` (exact primary-read count).
+  `--ignoreDuplicates` uses the BAM duplicate flag. Normalisation options
+  that do not apply to the chosen method warn.
+* `--strandedness` sets library orientation, including inference from
+  known-strand BED features (`file=BED`). `--filterRNAstrand split` writes
+  known-strand BED features (`file=BED`; skipped introns and deletions give
+  no strand evidence, ambiguous opposite-strand overlaps are omitted, and
+  the bounded sample of at most 20,000 templates is reported as such).
+  `--filterRNAstrand split` writes
+  forward and reverse tracks in one pass, named with `--suffix`;
+  `--scaleFactorMinus` scales the minus track on top of `--scaleFactor`.
+* `--collapse 5prime|3prime|center` with `--collapsedLength` for end- or
+  centre-focused tracks (replacing `--Offset`, `--MNase`, `--centerReads`);
+  mutually exclusive with `--extendReads`. Paired `--extendReads` uses the
+  actual fragment span.
+  Each proper fragment counts once for depth metrics; a retained pair adds
+  two reads to read-count metrics; singletons and discordant alignments add
+  one. Read extension never truncates longer or spliced reads, and false
+  proper-pair flags fall back to singleton handling.
+* `--whiteListFileName`; whitelists and blacklists mask coverage by default,
+  while `--filterByOverlap` keeps or removes whole reads/pairs touching them
+  (pair- and splice-aware), with `--featureTouchStrand ignore|sense|antisense`
+  and `--filterByOverlapHalo`.
+  Mates are located with 10 kb padding and exact indexed lookups, so distant,
+  cross-chromosome and spliced mates are decided correctly.
+* Automatic read/fragment-length inference samples the whole BAM
+  deterministically instead of a coordinate prefix.
+* `--filterMode primary|deeptools` (see Changed defaults).
+* bigWig writer controls `--zoomLevels` and `--compressionLevel`; bedGraph
+  output is gzipped when the file name ends in `.gz`.
+* BED inputs and `--ignoreForNormalization` match `chr`/no-`chr` and
+  `MT`/`chrM` names and warn once about names that cannot be matched.
+
+computeMatrixR
+* Paired minus-strand bigWigs with `--scoreFileNameMinus`; coding-strand
+  signal is taken from the matching physical track for each feature strand.
+* `--antisense skip|as_groups|as_samples`, `--unstranded
+  as_plus|as_minus|sum_strands`, and multipliers `--scalePlus`,
+  `--scaleMinus` and `--scaleAntisense`.
+* `--quantileSortedRegions`/`--quantiles` split sorted regions into
+  quantile groups.
+* Matrix input detects gzip from content; output is gzipped only for `.gz`
+  names.
+
+computeMatrixOperationsR
+* New `reorder` (alias of `subset`); `subset`/`reorder` take names or 1-based
+  indices and `--mergeSameNamedGroups`.
+* New `transform` pipeline: `--add`, `--subtract`, `--scale`, `--scaleUsing`,
+  `--log`, `--sum`, `--mean`, `--difference`, `--ratio` (and log2 fold
+  change) with numeric or data-derived `--pseudocount`, `--missingDataAsZero`
+  and `--zeroHandling`.
+  Operations can be chained in one call and are validated at each pipeline
+  step; `--scaleUsing all|upstream|body|downstream` scales each region by its
+  row sum, maximum, minimum or mean. Zero handling (`keep|any|both`) runs
+  after missing-data replacement and before pseudocounts. By default the
+  first matrix defines the output rows and later matrices are aligned by
+  full BED identity within groups.
+* `rbind --sameGroupLabels merge|separate`; `rbind`/`cbind --blind` combine
+  by position without content checks. Validated `cbind` matches rows by full
+  BED identity within groups and rejects duplicates.
+* `filterValues` adds `--filterUsingStatistic`, `--filterUsingSamples`,
+  `--onFilterFail removeRegion|maskSample` and `--filterNans`.
+  `perBin` (default) keeps the 3.5.6 per-bin test; `maskSample` sets only
+  the failing sample's bins to NaN; `--filterNans keep|any_bin|any_sample|
+  all_bins` drops regions that are entirely or partly missing.
+* `relabel --setGroupLabel`/`--setSampleLabel` relabel single entries.
+* `info --json` reports matrix metadata as JSON.
+
+Plotting (plotMatrixR, plotHeatmapR, plotProfileR)
+* Layout: samples can form sample sets (`--arrangeSamples`,
+  `--sampleSetLabels`); region groups are overlaid or placed with
+  `--sampleSetGroupArrangement overlay|adjacent|end|by_row|by_column`; grids
+  via `--gridColumns`/`--gridRows` (replacing `--numPlotsPerRow`). Samples of
+  different geometry can share one figure.
+* Collision-aware layout: titles, labels, ticks and legends are measured and
+  placed without overlap; wrapped labels, new legend positions (`above`,
+  `below`, `right`), `--commonLegend`, `--axisVisibility`,
+  `--xAxisVisibility`/`--yAxisVisibility show_all|outer|outer_merged` and
+  `--yAxisLimits common|per_panel|per_sample_set|per_y_label`.
+* Statistics: `--averageType geom_mean|trim_mean` (with `--pseudocount`,
+  `--trim_perc`), `--plotType ci|bootstrap` (`--ci_level`,
+  `--bootstrapReplicates`, multicore); se/std/ci bands are computed per bin
+  from finite observations (in log space for geom_mean) and drawn
+  semi-transparent. se/std/ci bands are rejected for median, sum, min, max
+  and trim_mean (bootstrap works for every average type).
+  Automatic geom_mean pseudocounts (negative `--pseudocount` = automatic)
+  are fixed per series across bootstrap resamples; bands are hidden below
+  two observations. plotHeatmapR's summary plot offers the same bands
+  (`--plotTypeSummaryPlot ci|bootstrap` with `--ci_level` and
+  `--bootstrapReplicates`).
+* Heatmaps: `--zMid`, `--colorbarLocation best|right|right_common|bottom|
+  below_common`, `--colorbarLabels`, `--regionLabelLocation left|right`,
+  `--sortIndicator`, multi-sample cells and per-row colorbars.
+* Axes: `--distanceUnit auto|bp|kb|mb`, `--distanceUnitLocation ticks|axis`,
+  `--minorTickMarks`, trailing-zero and duplicate landmark label removal.
+* Data: `--filterNans`, `--quantileSortedRegions`/`--quantiles`,
+  `--sortUsing score`, `--showRegionCounts`, `--sameGroupLabels
+  independent|together|merge`, `--sameSampleLabels`.
+  `--sortUsing score` places invalid or missing scores last; `--zMin`,
+  `--zMax` and `--zMid` are recycled across heatmaps and each pair is
+  validated (`zMax > zMin`). Quantile regrouping also works in plotProfileR
+  and plotHeatmapR. Clustering, silhouette and dimension options are
+  cross-checked up front.
+* plotProfileR gains `--sortRegions`, `--sortUsing`, `--sortUsingSamples`,
+  `--xAxisLabel`, `--linesAtTickMarks`, `--colorsPerSample` and
+  `--outFileNameMatrix`; plotHeatmapR gains `--outFileNameData`, `-p`, and
+  summary-plot options with a `SummaryPlot` suffix (for example
+  `--yMinSummaryPlot`, `--plotTypeSummaryPlot`, `--colorsSummaryPlot`).
+* Aliases `--sampleLabels`/`--regionLabels`; per-sample and per-group values
+  can be assigned explicitly with `N=value`.
+* Sizes are exact: `--profileWidth`/`--profileHeight` (`--plotWidth`/
+  `--plotHeight` as aliases), `--heatmapWidth`/`--heatmapHeight` and
+  `--aspectRatio` set the data area only, excluding labels and colorbars.
+* `--outFileNameData` describes the displayed panels and series in one wide
+  table; it also works with a heatmap in plotMatrixR.
+
+Changed defaults and deliberate divergences
+* Plot tools default to `--sortRegions ascend` (deepTools plotHeatmap:
+  `descend`), so default plotHeatmapR region order differs from 3.5.6.
+* Profile Y limits default to `--yAxisLimits per_y_label`.
+* Plot tools no longer re-filter rows by the matrix header's `min
+  threshold`/`max threshold`; computeMatrixR applies those filters before
+  `--scale`. Use `--filterNans` for plot-time filtering.
+* bamCoverageR `--filterMode primary` (default) excludes secondary and
+  supplementary alignments; `--filterMode deeptools` restores the 3.5.6
+  policy. CPM/RPKM use the shared library size by default.
+* Figure sizes are solved from one cell width (5 cm default; `--cellWidth` in
+  plotMatrixR): profile panels 5 x 5 cm and heatmaps 5 x 10 cm, so figure
+  dimensions differ from deepTools.
+* `-p` defaults to `auto` instead of 1.
+
+Removed options
+* bamCoverageR: `--effectiveGenomeSize` and RPGC, `--Offset`, `--MNase`,
+  `--centerReads`, `--smoothLength`, `--region`, `--skipNonCoveredRegions`/
+  `--skipNAs`, `--samExcludeFlag`, `--verbose`.
+* computeMatrixR: `--smartLabels`, `--startLabel`, `--endLabel` (sample
+  names are shortened automatically; landmark labels are plot options) and
+  `--averageTypeBins std`.
+* plotProfileR: `--numPlotsPerRow`, `--plotType overlapped_lines`.
+* plotHeatmapR: `--whatToShow` accepts only `plot, heatmap and colorbar` and
+  `heatmap and colorbar`; `--yMin`, `--yMax` and `--legendLocation` became
+  `--yMinSummaryPlot`, `--yMaxSummaryPlot` and `--legendLocationSummaryPlot`.
+* Plotly output formats.
+
+Output differences
+* Scale-regions bin edges that fall exactly on an integer are placed exactly;
+  3.5.6 computes them in floating point and truncates 1 bp early. Bin sums
+  are unchanged; single-base values can move to the adjacent bin.
+* Matrix values are 32-bit floats, so last-digit float rounding differs.
+* Standard-error bands use the per-bin finite count, not the total row count.
+* K-means uses a fixed seeded native generator and Ward uses fastcluster, so
+  cluster memberships may differ from SciPy. Confidence-interval quantiles
+  come from Cephes code (within 1e-12 relative of SciPy).
+* Automatic heatmap colour limits use t-digest quantiles, independent of the
+  thread count.
+* Compressed matrices, PDF and SVG are byte-reproducible (no timestamps).
+* Plain-text matrix operations keep the input's numeric tokens; matrix
+  headers record the resolved thread count and the sort actually applied.
+* Text outputs are always UTF-8.

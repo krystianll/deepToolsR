@@ -1,0 +1,82 @@
+{
+  "rendered": {
+    "colorbars": [
+      "colorbar/cell/1",
+      "colorbar/cell/2",
+      "colorbar/cell/3"
+    ],
+    "legends": [],
+    "lines": [],
+    "slot_text": [
+      {
+        "slot": "cell/1/1/title",
+        "text": [
+          "Repeat"
+        ]
+      },
+      {
+        "slot": "cell/1/2/title",
+        "text": [
+          "Repeat"
+        ]
+      },
+      {
+        "slot": "cell/1/3/title",
+        "text": [
+          "Third"
+        ]
+      },
+      {
+        "slot": "label/x/1/1",
+        "text": [
+          "gene distance"
+        ]
+      },
+      {
+        "slot": "label/x/2/1",
+        "text": [
+          "gene distance"
+        ]
+      },
+      {
+        "slot": "label/x/3/1",
+        "text": [
+          "gene distance"
+        ]
+      },
+      {
+        "slot": "label/stack/1/1/1",
+        "text": [
+          "Equal"
+        ]
+      },
+      {
+        "slot": "label/stack/1/1/2",
+        "text": [
+          "Other"
+        ]
+      },
+      {
+        "slot": "label/stack/1/1/3",
+        "text": [
+          "Equal"
+        ]
+      }
+    ]
+  },
+  "semantic": {
+    "color_lists": {
+      "heatmap": [
+        "Reds",
+        "Blues"
+      ]
+    },
+    "heatmap_color_option": "--colorMap",
+    "panels": [],
+    "resolved_colormap_names": [
+      "Reds",
+      "Blues"
+    ],
+    "row_labels": []
+  }
+}
