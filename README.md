@@ -18,6 +18,12 @@ with RNA-seq in mind, and so they can be installed beside the originals.
 | `plotHeatmapR`, `plotProfileR` | deepTools-style front ends to the same plot engine                      |
 | `deeptoolsr`                   | list commands, configure options, `describe` and `serve` for front ends |
 
+## Motivation
+
+I've been developing a fast, multithreaded, Rcpp-backed R package for extracting coverage from bigWig files and plotting it with ggplot2. As my Python skills are limited, I asked Claude and Codex to refactor deepTools as a quick stopgap to speed up matrix generation and enable more advanced plotting features used in our common workflows. I provided them with my existing C++ and R code, along with solutions I had already developed.
+
+The results were good enough that I decided to put a cleaned-up version on GitHub in the hope that it might be useful to someone else. I don't take too much credit for the work beyond providing guidance and doing tons of visual inspections.
+
 ## Install
 
 Python 3.11 or newer is required. From a source checkout:
