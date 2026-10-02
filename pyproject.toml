@@ -10,17 +10,10 @@ build-backend = "scikit_build_core.build"
 name = "deepToolsR"
 version = "0.9.1"
 authors = [
-    {name="Fidel Ramirez"},
-    {name="Devon P Ryan"},
-    {name="Björn Grüning"},
-    {name="Friederike Dündar"},
-    {name="Sarah Diehl"},
-    {name="Vivek Bhardwaj"},
-    {name="Fabian Kilpert"},
-    {name="Andreas S Richter"},
-    {name="Steffen Heyne"},
-    {name="Thomas Manke"},
-    {email="bioinfo-core@ie-freiburg.mpg.de"}
+    {name="Krystian Łazowski", email="k.lazowski@exeter.ac.uk"}
+]
+maintainers = [
+    {name="Krystian Łazowski", email="k.lazowski@exeter.ac.uk"}
 ]
 requires-python = ">=3.11"
 # Computation and I/O require bundled C++ extensions. pysam/pyBigWig are
@@ -31,7 +24,7 @@ dependencies = [
     "deeptoolsintervals >= 0.1.8",
     "uniseg >= 0.10.1, < 0.11"
 ]
-description = "C++-accelerated tools for analysing and plotting deep sequencing data, based on deepTools 3.5.6."
+description = "C++-accelerated tools for analysing and plotting deep sequencing data; an independent reimplementation based on deepTools 3.5.6 (by Ramírez et al.), not affiliated with the deepTools project."
 license = {file = "LICENSE.txt"}
 classifiers = [
     "Intended Audience :: Science/Research",
@@ -53,6 +46,7 @@ actions = [
 ]
 [project.urls]
 Homepage = "https://github.com/krystianll/deepToolsR"
+"deepTools (upstream)" = "https://github.com/deeptools/deepTools"
 "Upstream deepTools documentation" = "https://deeptools.readthedocs.io/en/latest/"
 Repository = "https://github.com/krystianll/deepToolsR"
 
