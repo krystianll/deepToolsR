@@ -187,9 +187,16 @@ method, confidence intervals, all cases and how to reproduce them.
 
 ## Licence and credits
 
-deepToolsR is derived from deepTools by the Max Planck Institute for
-Immunobiology and Epigenetics and its contributors, and is released under the
-MIT licence (`LICENSE.txt`).
+deepToolsR is derived from [deepTools](https://github.com/deeptools/deepTools),
+developed at the Max Planck Institute for Immunobiology and Epigenetics by
+Fidel Ramírez, Devon P. Ryan, Björn Grüning, Friederike Dündar, Sarah Diehl,
+Vivek Bhardwaj, Fabian Kilpert, Andreas S. Richter, Steffen Heyne, Thomas Manke
+and the deepTools contributors. Much of deepToolsR's Python layer, its command
+options and its test data descend from their work. deepToolsR is maintained
+independently by Krystian Łazowski and is not affiliated with or endorsed by
+the deepTools project; please report deepToolsR issues here, not upstream.
+It is released under the MIT licence (`LICENSE.txt`), which keeps the deepTools
+copyright notice.
 Licences of bundled third-party components (htslib, libBigWig, libdeflate,
 fastcluster, fast_float, SciPy/Cephes, digestible, stb and others) are in
 [LICENSES/](LICENSES/README.md).
@@ -199,4 +206,6 @@ fastcluster, fast_float, SciPy/Cephes, digestible, stb and others) are in
 Please cite deepTools: Ramírez F, Ryan DP, Grüning B, et al. deepTools2: a next
 generation web server for deep-sequencing data analysis. *Nucleic Acids
 Research* 2016; doi:[10.1093/nar/gkw257](https://doi.org/10.1093/nar/gkw257),
-and this repository (https://github.com/krystianll/deepToolsR).
+and this repository (https://github.com/krystianll/deepToolsR). Citation
+metadata for both is in [CITATION.cff](CITATION.cff); GitHub's "Cite this
+repository" button uses it.
