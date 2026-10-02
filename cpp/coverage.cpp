@@ -5,11 +5,13 @@
 #include <pybind11/stl.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -17,6 +19,8 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <tuple>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -221,7 +225,7 @@ constexpr uint16_t SAM_QC_FAIL        = 0x200;  // fails platform/vendor QC
 constexpr uint16_t SAM_DUPLICATE      = 0x400;  // PCR or optical duplicate
 constexpr uint16_t SAM_SUPPLEMENTARY  = 0x800;  // supplementary alignment
 
-// Library strandedness (which mate is sense) -- see BAMCOVERAGE_ROADMAP.md.
+// Library strandedness: which read of a pair is sense to the transcript.
 //   Forward = second/fr/secondstrand: read1 sense.
 //   Reverse = first/rf/firststrand (dUTP): read2 sense.
 enum class Strand { None, Forward, Reverse };
@@ -346,6 +350,24 @@ inline bool is_proper_fragment(const bam1_t *rec) {
                    : rec->core.pos <= rec->core.mpos;
 }
 
+// A proper fragment spans [forward mate's aligned start, reverse mate's aligned
+// end), whatever the aligner's TLEN sign or soft-clip-inclusive |TLEN|. The
+// reverse mate holds both bounds; a forward mate alone extends by |TLEN| as in
+// deepTools 3.5.6. Returns false for a non-proper record.
+inline bool proper_fragment_bounds(const bam1_t *rec, uint32_t chrom_len,
+                                   int64_t &fs, int64_t &fe) {
+    if (!is_proper_fragment(rec)) return false;
+    if (rec->core.flag & SAM_READ_REVERSE) {
+        fs = rec->core.mpos;
+        fe = std::min<int64_t>(bam_endpos(rec), chrom_len);
+    } else {
+        fs = rec->core.pos;
+        fe = fs >= chrom_len ? fs : fs + static_cast<int64_t>(std::min<uint64_t>(
+            fragment_length_for_filter(rec), chrom_len - fs));
+    }
+    return true;
+}
+
 // pysam.AlignedSegment.infer_query_length(always=False): query-consuming CIGAR
 // operations, excluding hard clips.  This is the relevant lower bound when an
 // explicit --extendReads value must not shorten an alignment.
@@ -403,18 +425,14 @@ inline int shape_read(const bam1_t *rec, const CovParams &P, uint32_t chrom_len,
     read_weight = 1;
     if (P.collapse != Collapse::None) {
         int64_t fs, fe;
-        const bool proper = is_proper_fragment(rec);
-        if (proper) {
-            fs = rec->core.isize > 0 ? rec->core.pos : rec->core.mpos;
-            if (fs < 0 || fs >= chrom_len) return -1;
-            fe = fs + std::min<uint64_t>(fragment_length_for_filter(rec), chrom_len - fs);
-        } else {
+        const bool proper = proper_fragment_bounds(rec, chrom_len, fs, fe);
+        if (!proper) {
             fs = rec->core.pos;
             fe = bam_endpos(rec);
         }
         if (fe <= fs) return -1;
-        const bool reverse = proper && rec->core.isize < 0
-            ? (flag & SAM_MATE_REVERSE) : (flag & SAM_READ_REVERSE);
+        // An unstranded proper fragment takes its forward mate's orientation.
+        const bool reverse = !proper && (flag & SAM_READ_REVERSE);
         const int sign = (P.strand != Strand::None)
                              ? transcript_strand(rec, P.strand)
                              : (reverse ? -1 : +1);
@@ -438,22 +456,18 @@ inline int shape_read(const bam1_t *rec, const CovParams &P, uint32_t chrom_len,
         if (b > a) iv.emplace_back(a, b);
     } else if (P.extend) {
         int64_t fs, fe;
-        const bool proper = is_proper_fragment(rec);
-        if (proper) {
-            fs = rec->core.isize > 0 ? rec->core.pos : rec->core.mpos;
-            if (fs < 0 || fs >= chrom_len) return -1;
-            fe = fs + std::min<uint64_t>(fragment_length_for_filter(rec), chrom_len - fs);
-        } else if (P.extend_len > inferred_query_length(rec)) {
+        if (!proper_fragment_bounds(rec, chrom_len, fs, fe)) {
+            if (P.extend_len <= inferred_query_length(rec)) {
+                // An extension shorter than the read is a no-op.  In particular,
+                // preserve a spliced alignment's blocks instead of replacing them
+                // by a shorter, solid interval.
+                extract_blocks(rec, iv);
+                if (iv.empty()) return -1;
+                if (P.split) return (transcript_strand(rec, P.strand) == +1) ? 0 : 1;
+                return 0;
+            }
             if (flag & SAM_READ_REVERSE) { fe = bam_endpos(rec); fs = fe - P.extend_len; }
             else { fs = rec->core.pos; fe = fs + P.extend_len; }
-        } else {
-            // An extension shorter than the read is a no-op.  In particular,
-            // preserve a spliced alignment's blocks instead of replacing them
-            // by a shorter, solid interval.
-            extract_blocks(rec, iv);
-            if (iv.empty()) return -1;
-            if (P.split) return (transcript_strand(rec, P.strand) == +1) ? 0 : 1;
-            return 0;
         }
         if (fs < 0) fs = 0;
         if (fe > chrom_len) fe = chrom_len;
@@ -666,12 +680,12 @@ std::vector<std::vector<FetchBounds>> prepare_coverage(
 
 struct MateInfo {
     bool eligible = false;
-    uint64_t positive_span = 0;
+    uint64_t reverse_span = 0;  // |TLEN| of an eligible proper reverse mate
     uint8_t touch = 0;  // bit 0 whitelist; bit 1 blacklist
 };
 
 inline bool same_mate_info(const MateInfo &a, const MateInfo &b) {
-    return a.eligible == b.eligible && a.positive_span == b.positive_span &&
+    return a.eligible == b.eligible && a.reverse_span == b.reverse_span &&
            a.touch == b.touch;
 }
 
@@ -716,104 +730,528 @@ uint8_t record_touch(const bam1_t *rec, const CovParams &P,
     return touch;
 }
 
-struct PendingNonprimaryTouch {
-    uint8_t touch = 0;
-    int32_t primary_tid = -1;
-    int64_t primary_pos = -1;
-    bool has_primary = false;
-    bool primary_eligible = false;
-    bool ambiguous = false;
+// Stable across platforms and runs, unlike std::hash: two independent 64-bit
+// hashes of the key bytes (FNV-1a and a rotate-multiply hash), each with a
+// splitmix64 finaliser. Keys are joined by hash across all coordinates, so the
+// pair keeps accidental collisions out of reach (about n^2 / 2^129).
+struct KeyHash {
+    uint64_t hi = 0, lo = 0;
+    bool operator<(const KeyHash &o) const { return std::tie(hi, lo) < std::tie(o.hi, o.lo); }
+    bool operator==(const KeyHash &o) const { return hi == o.hi && lo == o.lo; }
 };
 
-// Nonprimary alignments can occur after their primary pair in coordinate order.
-// A small preliminary index (only names of nonprimary alignments that actually
-// touch a filter region) lets the primary pair receive their touch decision in
-// either direction.  A second scan resolves each loose same-end identity to one
-// primary coordinate; collisions are rejected rather than mixed.
-std::unordered_map<std::string, uint8_t> build_nonprimary_touch_index(
+uint64_t splitmix_finish(uint64_t hash) {
+    hash ^= hash >> 30; hash *= 0xbf58476d1ce4e5b9ull;
+    hash ^= hash >> 27; hash *= 0x94d049bb133111ebull;
+    return hash ^ (hash >> 31);
+}
+
+KeyHash stable_key_hash(const std::string &key) {
+    uint64_t a = 1469598103934665603ull, b = key.size() ^ 0x9e3779b97f4a7c15ull;
+    for (const unsigned char c : key) {
+        a ^= c; a *= 1099511628211ull;
+        b ^= c; b = ((b << 23) | (b >> 41)) * 0xff51afd7ed558ccdull;
+    }
+    return {splitmix_finish(a), splitmix_finish(b)};
+}
+
+// A scratch file beside the output's own temporary, removed on every exit path.
+struct TempFile {
+    std::string path;
+    TempFile() = default;
+    explicit TempFile(std::string p) : path(std::move(p)) {}
+    TempFile(TempFile &&other) noexcept : path(std::move(other.path)) { other.path.clear(); }
+    TempFile &operator=(TempFile &&other) noexcept { std::swap(path, other.path); return *this; }
+    TempFile(const TempFile &) = delete;
+    TempFile &operator=(const TempFile &) = delete;
+    ~TempFile() { if (!path.empty()) std::remove(path.c_str()); }
+};
+
+// Spill streams read and write through a buffer of our size, so that it
+// counts against the budget.
+std::size_t spill_stream_bytes(std::size_t share) {
+    return std::min<std::size_t>(64u << 10, std::max<std::size_t>(64, share / 16));
+}
+
+template <class Stream>
+void open_spill(Stream &stream, std::vector<char> &buffer, std::size_t bytes, const std::string &path) {
+    constexpr bool output = std::is_base_of<std::ostream, Stream>::value;
+    buffer.resize(bytes);
+    stream.rdbuf()->pubsetbuf(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    stream.open(path, std::ios::binary | (output ? std::ios::out | std::ios::trunc : std::ios::in));
+    if (!stream)
+        throw std::runtime_error(std::string("could not ") + (output ? "create" : "open") +
+                                 " the non-primary overlap index spill file");
+}
+
+template <class T>
+void write_records(std::ofstream &out, const T *data, std::size_t count) {
+    out.write(reinterpret_cast<const char *>(data), static_cast<std::streamsize>(count * sizeof(T)));
+    if (!out) throw std::runtime_error("could not write the non-primary overlap index spill file");
+}
+
+template <class T>
+std::size_t read_records(std::ifstream &in, T *data, std::size_t count) {
+    in.read(reinterpret_cast<char *>(data), static_cast<std::streamsize>(count * sizeof(T)));
+    if (in.bad() || in.gcount() % sizeof(T))
+        throw std::runtime_error("could not read the non-primary overlap index spill file");
+    return static_cast<std::size_t>(in.gcount()) / sizeof(T);
+}
+
+// Grows a vector without ever reserving beyond `limit` elements, so that its
+// capacity (what the budget accounts) never exceeds the limit.
+template <class T>
+void bounded_push(std::vector<T> &items, const T &item, std::size_t limit) {
+    if (items.size() == items.capacity())
+        items.reserve(std::min(std::max<std::size_t>(16, 2 * items.capacity()), limit));
+    items.push_back(item);
+}
+
+// Byte accounting of the non-primary index: every component reports what it
+// holds, and the high-water mark of the sum is the peak.
+struct NonprimaryStats {
+    std::size_t live = 0, peak_bytes = 0, passes = 0;
+    bool spilled = false;
+    void account(std::size_t &held, std::size_t now) {
+        live += now - held;
+        held = now;
+        peak_bytes = std::max(peak_bytes, live);
+    }
+};
+
+// Sorts plain records (ordered by T::operator<) within `share` bytes. Records
+// beyond the share are sorted into runs in a temporary file; finish() merges
+// runs at most fan_in at a time until one merge remains, and next() streams
+// the records back in order, from memory or from that merge.
+template <class T>
+class SpillSorter {
+    struct Source { std::vector<char> buffer; std::ifstream in; uint64_t left = 0; };
+    using Head = std::pair<T, std::size_t>;
+    static bool later(const Head &a, const Head &b) { return b.first < a.first; }
+
+    NonprimaryStats &stats_;
+    const std::size_t stream_bytes_, limit_, fan_in_;  // limit_ records in memory
+    TempFile files_[2];
+    int from_ = 0;  // the file holding runs_
+    bool spilled_ = false;
+    std::vector<T> items_;
+    std::size_t at_ = 0, held_ = 0;
+    uint64_t pushed_ = 0;
+    std::vector<char> out_buffer_;
+    std::ofstream out_;
+    std::vector<std::pair<uint64_t, uint64_t>> runs_;  // (first record, records)
+    std::vector<Source> sources_;
+    std::vector<Head> heads_;
+
+    void account() {
+        stats_.account(held_, items_.capacity() * sizeof(T) + out_buffer_.capacity() +
+                       sources_.size() * (stream_bytes_ + sizeof(Head)));
+    }
+    void close_output() {
+        out_.close();
+        if (!out_) throw std::runtime_error("could not write the non-primary overlap index spill file");
+        std::vector<char>().swap(out_buffer_);
+        account();
+    }
+    void spill() {
+        if (!spilled_) {
+            open_spill(out_, out_buffer_, stream_bytes_, files_[0].path);
+            spilled_ = stats_.spilled = true;
+        }
+        std::sort(items_.begin(), items_.end());
+        write_records(out_, items_.data(), items_.size());
+        runs_.emplace_back(runs_.empty() ? 0 : runs_.back().first + runs_.back().second, items_.size());
+        items_.clear();
+        account();
+    }
+    static bool pull(Source &source, T &item) {
+        if (!source.left) return false;
+        if (read_records(source.in, &item, 1) != 1)
+            throw std::runtime_error("truncated non-primary overlap index spill file");
+        --source.left;
+        return true;
+    }
+    void open(std::size_t first, std::size_t width) {
+        sources_.clear();
+        heads_.clear();
+        sources_.resize(width);
+        for (std::size_t i = 0; i < width; ++i) {
+            Source &source = sources_[i];
+            open_spill(source.in, source.buffer, stream_bytes_, files_[from_].path);
+            source.in.seekg(static_cast<std::streamoff>(runs_[first + i].first * sizeof(T)));
+            source.left = runs_[first + i].second;
+            T item;
+            if (pull(source, item)) heads_.emplace_back(item, i);
+        }
+        std::make_heap(heads_.begin(), heads_.end(), later);
+        account();
+    }
+
+public:
+    SpillSorter(std::size_t share, const std::string &path, NonprimaryStats &stats)
+        : stats_(stats), stream_bytes_(spill_stream_bytes(share)),
+          limit_(std::max<std::size_t>(1, (share - std::min(share, stream_bytes_)) / sizeof(T))),
+          fan_in_(std::max<std::size_t>(2, share / stream_bytes_ - 1)),
+          files_{TempFile(path + ".0"), TempFile(path + ".1")} {}
+    ~SpillSorter() { release(); }
+
+    bool full() const { return items_.size() == limit_; }
+    const std::vector<T> &items() const { return items_; }  // sorted after finish() unless spilled
+    bool spilled() const { return spilled_; }
+    uint64_t pushed() const { return pushed_; }
+
+    void push(const T &item) {
+        if (full()) spill();
+        bounded_push(items_, item, limit_);
+        ++pushed_;
+        account();
+    }
+
+    void finish() {
+        if (!spilled_) { std::sort(items_.begin(), items_.end()); return; }
+        if (!items_.empty()) spill();
+        std::vector<T>().swap(items_);
+        close_output();
+        while (runs_.size() > fan_in_) {
+            open_spill(out_, out_buffer_, stream_bytes_, files_[1 - from_].path);
+            std::vector<std::pair<uint64_t, uint64_t>> merged;
+            uint64_t written = 0;
+            for (std::size_t group = 0; group < runs_.size(); group += fan_in_) {
+                const uint64_t first = written;
+                open(group, std::min(fan_in_, runs_.size() - group));
+                for (T item; next(item); ++written) write_records(out_, &item, 1);
+                merged.emplace_back(first, written - first);
+            }
+            close_output();
+            runs_.swap(merged);
+            from_ = 1 - from_;
+        }
+        open(0, runs_.size());
+    }
+
+    bool next(T &item) {
+        if (!spilled_) {
+            if (at_ == items_.size()) return false;
+            item = items_[at_++];
+            return true;
+        }
+        if (heads_.empty()) return false;
+        std::pop_heap(heads_.begin(), heads_.end(), later);
+        item = heads_.back().first;
+        const std::size_t i = heads_.back().second;
+        heads_.pop_back();
+        T following;
+        if (pull(sources_[i], following)) {
+            heads_.emplace_back(following, i);
+            std::push_heap(heads_.begin(), heads_.end(), later);
+        }
+        return true;
+    }
+
+    void release() {
+        std::vector<T>().swap(items_);
+        std::vector<Source>().swap(sources_);
+        std::vector<Head>().swap(heads_);
+        account();
+    }
+};
+
+// Overlap-filter touch bits inherited from non-primary alignments. One entry
+// per alignment that inherits: (tid, pos, hash of its same-end key, bits),
+// sorted. Held in memory, or in a sorted spill file with every block_-th entry
+// in memory. Read-only once built; each MateLookup reads through its own Reader.
+// Caveat: two distinct same-end keys at one coordinate whose 64-bit hashes
+// collide would share bits (probability about n^2 / 2^65 per coordinate).
+class NonprimaryTouchIndex {
+public:
+    struct Entry {
+        int64_t pos = 0;
+        uint64_t hash = 0;
+        int32_t tid = 0;
+        uint8_t touch = 0;
+        bool operator<(const Entry &o) const { return std::tie(tid, pos, hash) < std::tie(o.tid, o.pos, o.hash); }
+        bool same(const Entry &o) const { return tid == o.tid && pos == o.pos && hash == o.hash; }
+    };
+    bool empty() const { return count_ == 0; }
+
+    class Reader {
+        const NonprimaryTouchIndex &index_;
+        std::ifstream in_;
+        std::vector<Entry> block_;
+        std::size_t cached_ = std::numeric_limits<std::size_t>::max();
+    public:
+        explicit Reader(const NonprimaryTouchIndex &index) : index_(index) {}
+        uint8_t touch(const bam1_t *rec) {
+            if (index_.empty()) return 0;
+            Entry wanted;
+            wanted.tid = rec->core.tid; wanted.pos = rec->core.pos;
+            const Entry *first = index_.memory_.data(), *last = first + index_.memory_.size();
+            if (index_.file_.path.empty()) {
+                // Most records inherit nothing: rule out their coordinate before hashing.
+                const Entry *at = std::lower_bound(first, last, wanted);
+                if (at == last || at->tid != wanted.tid || at->pos != wanted.pos) return 0;
+                wanted.hash = stable_key_hash(same_end_key(rec)).hi;
+                first = at;
+            } else {
+                wanted.hash = stable_key_hash(same_end_key(rec)).hi;
+                const std::size_t block = std::upper_bound(first, last, wanted) - first;
+                if (!block) return 0;
+                load(block - 1);
+                first = block_.data(); last = first + block_.size();
+            }
+            const Entry *found = std::lower_bound(first, last, wanted);
+            return found != last && found->same(wanted) ? found->touch : 0;
+        }
+    private:
+        // Window processing is coordinate ordered, so one cached block serves
+        // nearly every lookup of a window.
+        void load(std::size_t block) {
+            if (block == cached_) return;
+            if (!in_.is_open()) {
+                in_.open(index_.file_.path, std::ios::binary);
+                if (!in_) throw std::runtime_error("could not open the non-primary overlap index spill file");
+            }
+            const uint64_t begin = static_cast<uint64_t>(block) * index_.block_;
+            block_.resize(std::min<uint64_t>(index_.block_, index_.count_ - begin));
+            in_.clear();
+            in_.seekg(static_cast<std::streamoff>(begin * sizeof(Entry)));
+            if (read_records(in_, block_.data(), block_.size()) != block_.size())
+                throw std::runtime_error("truncated non-primary overlap index spill file");
+            cached_ = block;
+        }
+    };
+
+    std::vector<Entry> memory_;  // all entries, or each block's first entry
+    TempFile file_;
+    uint64_t count_ = 0;
+    std::size_t block_ = 1;
+};
+
+// Non-primary alignments can occur after their primary pair in coordinate
+// order. An index of the same-end identities whose secondary or supplementary
+// alignments touch a filter region lets the primary pair (and every eligible
+// alignment of that read end) receive their touch decision in either
+// direction. Each identity must resolve to one eligible primary coordinate;
+// ambiguous identities are rejected rather than mixed.
+//
+// An external-sort hash join in two sequential BAM passes, within `budget`
+// bytes (plus a few records of slack at tiny budgets):
+//  1. (key hash, touch) for each touching non-primary alignment. Beyond a
+//     quarter of the budget they are sorted into runs on disk, and a Bloom
+//     filter of another quarter remembers their keys.
+//  2. (key hash, coordinate, primary, eligible) for each alignment whose key
+//     is known (exactly while pass 1 fit in memory, else by the Bloom filter;
+//     false positives find no touch in the join), sorted the same way.
+//  3. Both streams are merged by key hash; each valid identity yields one
+//     (tid, pos, hash, touch) entry per eligible alignment, sorted by
+//     coordinate into the index (a quarter of the budget, then disk).
+NonprimaryTouchIndex build_nonprimary_touch_index(
         const std::string &path, const CovParams &P,
         const std::vector<RegionSet> &black,
-        const std::vector<RegionSet> &white) {
-    std::unordered_map<std::string, PendingNonprimaryTouch> pending;
-    std::vector<std::pair<int64_t, int64_t>> blocks;
+        const std::vector<RegionSet> &white,
+        std::size_t budget, const std::string &spill_path, NonprimaryStats &stats) {
+    using Entry = NonprimaryTouchIndex::Entry;
+    struct Touching {
+        KeyHash key;
+        uint8_t touch;
+        bool operator<(const Touching &o) const { return key < o.key; }
+    };
+    struct Occurrence {  // primaries first within a key
+        KeyHash key;
+        int64_t pos;
+        int32_t tid;
+        bool primary, eligible;
+        bool operator<(const Occurrence &o) const { return std::tie(key, o.primary) < std::tie(o.key, primary); }
+    };
+    constexpr std::size_t MAX_KEY_BYTES = 4096;
+    const std::size_t share = std::max<std::size_t>(1, budget / 4);
 
-    auto scan = [&](bool nonprimary_pass) {
+    std::vector<std::pair<int64_t, int64_t>> blocks;
+    auto scan = [&](auto &&visit) {
+        ++stats.passes;
         HtsFilePtr file;
         file.reset(hts_open(path.c_str(), "r"));
         if (!file.get()) throw std::runtime_error("could not reopen BAM: " + path);
         HdrPtr header;
         header.reset(sam_hdr_read(file.get()));
         if (!header.get()) throw std::runtime_error("could not read BAM header: " + path);
-        BamRecordPtr record(bam_init1());
+        BamRecordPtr record{bam_init1()};
         if (!record.get()) throw std::runtime_error("could not allocate a BAM record");
         uint64_t scanned = 0;
         while (checked_bam_status(sam_read1(file.get(), header.get(), record.get())) >= 0) {
             poll_coverage_work(++scanned);
-            const uint16_t flag = record.get()->core.flag;
-            if (!(flag & SAM_READ_PAIRED) || (flag & SAM_MATE_UNMAPPED) ||
-                record.get()->core.mtid < 0 || record.get()->core.mpos < 0)
-                continue;
-            const bool nonprimary = flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY);
-            if (nonprimary_pass) {
-                if (!nonprimary || !passes_filters(record.get(), P)) continue;
-                const uint8_t touch = record_touch(record.get(), P, black, white, blocks);
-                if (!touch) continue;
-                std::string key = same_end_key(record.get());
-                if (key.size() <= 4096) pending[std::move(key)].touch |= touch;
-            } else {
-                if (nonprimary) continue;
-                const std::string key = same_end_key(record.get());
-                auto found = pending.find(key);
-                if (found == pending.end()) continue;
-                PendingNonprimaryTouch &entry = found->second;
-                const bool eligible = passes_filters(record.get(), P);
-                if (!entry.has_primary) {
-                    entry.primary_tid = record.get()->core.tid;
-                    entry.primary_pos = record.get()->core.pos;
-                    entry.primary_eligible = eligible;
-                    entry.has_primary = true;
-                } else if (entry.primary_tid != record.get()->core.tid ||
-                           entry.primary_pos != record.get()->core.pos ||
-                           entry.primary_eligible != eligible) {
-                    entry.ambiguous = true;
-                }
-            }
+            const bam1_t *rec = record.get();
+            // Every same-end key in the index has non-negative mate coordinates.
+            if (rec->core.mtid < 0 || rec->core.mpos < 0) continue;
+            visit(rec);
         }
     };
-    scan(true);
-    if (pending.empty()) return {};
-    scan(false);
+    auto primary_pair = [](const bam1_t *rec) {
+        const uint16_t flag = rec->core.flag;
+        return (flag & SAM_READ_PAIRED) && !(flag & SAM_MATE_UNMAPPED) &&
+               !(flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY));
+    };
 
-    std::unordered_map<std::string, uint8_t> result;
-    result.reserve(pending.size());
-    for (auto &item : pending) {
-        const PendingNonprimaryTouch &entry = item.second;
-        if (entry.has_primary && entry.primary_eligible && !entry.ambiguous)
-            result.emplace(std::move(item.first), entry.touch);
+    std::vector<uint64_t> bloom;
+    std::size_t bloom_held = 0;
+    auto bloom_probe = [&](const KeyHash &key, bool add) {
+        bool present = true;
+        for (uint64_t i = 0; i < 3; ++i) {
+            const uint64_t bit = (key.hi + i * key.lo) % (bloom.size() * 64);
+            const uint64_t mask = uint64_t(1) << (bit % 64);
+            present = present && (bloom[bit / 64] & mask);
+            if (add) bloom[bit / 64] |= mask;
+        }
+        return present;
+    };
+
+    SpillSorter<Touching> touching(share, spill_path + ".n", stats);
+    scan([&](const bam1_t *rec) {
+        const uint16_t flag = rec->core.flag;
+        if (!(flag & SAM_READ_PAIRED) || (flag & SAM_MATE_UNMAPPED) ||
+            !(flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) || !passes_filters(rec, P)) return;
+        const uint8_t touch = record_touch(rec, P, black, white, blocks);
+        if (!touch) return;
+        const std::string key = same_end_key(rec);
+        if (key.size() > MAX_KEY_BYTES) return;
+        const Touching item{stable_key_hash(key), touch};
+        if (touching.full() && bloom.empty()) {  // about to spill: remember keys from now on
+            bloom.assign(std::max<std::size_t>(1, share / sizeof(uint64_t)), 0);
+            stats.account(bloom_held, bloom.capacity() * sizeof(uint64_t));
+            for (const Touching &held : touching.items()) bloom_probe(held.key, true);
+        }
+        if (!bloom.empty()) bloom_probe(item.key, true);
+        touching.push(item);
+    });
+    if (!touching.pushed()) return {};
+    touching.finish();
+
+    SpillSorter<Occurrence> occurrences(share, spill_path + ".o", stats);
+    scan([&](const bam1_t *rec) {
+        const bool primary = primary_pair(rec), eligible = passes_filters(rec, P);
+        if (!primary && !eligible) return;
+        const std::string key = same_end_key(rec);
+        if (key.size() > MAX_KEY_BYTES) return;
+        const KeyHash hash = stable_key_hash(key);
+        const auto &known = touching.items();
+        if (bloom.empty() ? !std::binary_search(known.begin(), known.end(), Touching{hash, 0})
+                          : !bloom_probe(hash, false)) return;
+        occurrences.push(Occurrence{hash, rec->core.pos, rec->core.tid, primary, eligible});
+    });
+    std::vector<uint64_t>().swap(bloom);
+    stats.account(bloom_held, 0);
+    occurrences.finish();
+
+    SpillSorter<Entry> results(share, spill_path + ".r", stats);
+    Touching n;
+    Occurrence o;
+    bool has_n = touching.next(n), has_o = occurrences.next(o);
+    while (has_o) {
+        const KeyHash key = o.key;
+        uint8_t touch = 0;
+        for (; has_n && n.key < key; has_n = touching.next(n)) {}
+        for (; has_n && n.key == key; has_n = touching.next(n)) touch |= n.touch;
+        Occurrence primary{};
+        bool has_primary = false, ambiguous = false;
+        for (; has_o && o.key == key && o.primary; has_o = occurrences.next(o)) {
+            ambiguous = ambiguous || (has_primary && (o.tid != primary.tid || o.pos != primary.pos ||
+                                                      o.eligible != primary.eligible));
+            if (!has_primary) { primary = o; has_primary = true; }
+        }
+        const bool valid = touch && has_primary && primary.eligible && !ambiguous;
+        if (valid) results.push(Entry{primary.pos, key.hi, primary.tid, touch});
+        for (; has_o && o.key == key; has_o = occurrences.next(o))
+            if (valid && o.eligible) results.push(Entry{o.pos, key.hi, o.tid, touch});
     }
-    return result;
+    touching.release();
+    occurrences.release();
+    results.finish();
+
+    // Merge entries of one coordinate and key; when spilled, write them to the
+    // index file and keep each block's first entry in memory.
+    NonprimaryTouchIndex index;
+    std::vector<char> out_buffer;
+    std::ofstream out;
+    if (results.spilled()) {
+        index.file_ = TempFile(spill_path + ".index");
+        open_spill(out, out_buffer, spill_stream_bytes(share), index.file_.path);
+        index.block_ = std::max<std::size_t>(64, static_cast<std::size_t>(results.pushed() / (share / sizeof(Entry) + 1) + 1));
+    }
+    std::size_t index_held = 0;
+    index.memory_.reserve(static_cast<std::size_t>(results.pushed() / index.block_ + 1));
+    stats.account(index_held, index.memory_.capacity() * sizeof(Entry) + out_buffer.capacity());
+    auto put = [&](const Entry &entry) {
+        if (index.count_++ % index.block_ == 0) index.memory_.push_back(entry);
+        if (out.is_open()) write_records(out, &entry, 1);
+    };
+    Entry entry, last;
+    bool any = false;
+    while (results.next(entry)) {
+        if (any && last.same(entry)) { last.touch |= entry.touch; continue; }
+        if (any) put(last);
+        last = entry;
+        any = true;
+    }
+    if (any) put(last);
+    if (out.is_open()) {
+        out.close();
+        if (!out) throw std::runtime_error("could not write the non-primary overlap index spill file");
+    }
+    index.memory_.shrink_to_fit();
+    return index;
 }
 
 // Each worker has its own lazy htslib handle. Most nearby mates are served from
-// a bounded window prefetch. Cache misses use the indexed mate coordinate,
-// including other references. Genomic padding affects speed, never correctness.
+// a bounded window prefetch whose summaries live in a cache with a fixed
+// entry/byte budget. Genomic padding affects speed, never correctness. A read
+// whose mate is not cached (budget pressure, distant or other-reference mates)
+// is deferred into a batch with its own fixed budget; a full batch resolves
+// all its mates with one sequential query per cluster of nearby coordinates.
+// Accumulators are order-independent sums, so deferring a read never changes
+// the output. High-water marks are reported through the test-only knob.
+struct MateBudget {
+    std::size_t cache_entries = 32768, cache_bytes = 8u << 20;
+    std::size_t batch_entries = 16384, batch_bytes = 4u << 20;
+    std::atomic<std::size_t> peak_cache_entries{0}, peak_cache_bytes{0};
+    std::atomic<std::size_t> peak_batch_entries{0}, peak_batch_bytes{0};
+    std::size_t nonprimary_bytes = 64u << 20;  // see build_nonprimary_touch_index
+};
+
 class MateLookup {
+    using Intervals = std::vector<std::pair<int64_t, int64_t>>;
     const std::string &path_;
     hts_idx_t *idx_;
     const CovParams &P_;
+    MateBudget &budget_;
     const std::vector<RegionSet> &black_, &white_;
-    const std::unordered_map<std::string, uint8_t> &nonprimary_touch_;
+    NonprimaryTouchIndex::Reader nonprimary_touch_;
     HtsFilePtr file_;
     HdrPtr header_;
     BamRecordPtr record_{bam_init1()};
-    std::vector<std::pair<int64_t, int64_t>> blocks_;
+    Intervals blocks_, shape_;
     std::unordered_map<std::string, CachedMate> full_cache_, loose_cache_;
-    static constexpr std::size_t CACHE_ENTRIES = 32768;
-    static constexpr std::size_t CACHE_BYTES = 8u << 20;
     static constexpr std::size_t MAX_CACHE_KEY_BYTES = 4096;
     std::size_t cache_bytes_ = 0;
     std::string observation_key_;
     std::vector<uint64_t> positive_full_, positive_loose_, zero_full_, zero_loose_, positive_positions_;
+    // What a read's keep/drop decision needs from its mate.
+    struct Need { bool drop = false, touch = false, once = false; uint64_t span = 0; };
+    struct Deferred {
+        std::string key;
+        int32_t tid;
+        int64_t pos;
+        bool loose;
+        uint8_t touch;
+        Need need;
+        int stream, weight;
+        std::size_t iv_begin, iv_end;
+    };
+    struct Match { MateInfo info; bool found = false, ambiguous = false; };
+    std::vector<Deferred> batch_;
+    Intervals batch_iv_;
+    std::size_t batch_bytes_ = 0;
+    std::size_t peak_cache_entries_ = 0, peak_cache_bytes_ = 0;
+    std::size_t peak_batch_entries_ = 0, peak_batch_bytes_ = 0;
     static void bloom_add(std::vector<uint64_t> &bits, const std::string &key) {
         const uint64_t hash = std::hash<std::string>{}(key);
         for (unsigned shift : {0u, 21u, 42u}) {
@@ -830,7 +1268,10 @@ class MateLookup {
         }
         return true;
     }
-    bool prefetched_ = false;
+    static void raise_peak(std::atomic<std::size_t> &peak, std::size_t value) {
+        std::size_t seen = peak.load();
+        while (seen < value && !peak.compare_exchange_weak(seen, value)) {}
+    }
     int prefetch_tid_ = -1;
     int64_t prefetch_begin_ = 0, prefetch_end_ = 0;
 
@@ -872,43 +1313,30 @@ class MateLookup {
             result.append(reinterpret_cast<const char *>(reciprocal), sizeof(reciprocal));
         }
     }
-    static std::string loose_key(const bam1_t *rec, bool mate) {
-        std::string key; build_key(key, rec, mate, true); return key;
-    }
-    static std::string full_key(const bam1_t *rec, bool mate) {
-        std::string key; build_key(key, rec, mate, false); return key;
-    }
-    void make_room() {
-        if (prefetched_) return;
-        if (full_cache_.size() + loose_cache_.size() < CACHE_ENTRIES && cache_bytes_ < CACHE_BYTES) return;
-        clear_cache();
-    }
     void remember_in(std::unordered_map<std::string, CachedMate> &cache,
                             const std::string &name, const MateInfo &info) {
         if (name.size() > MAX_CACHE_KEY_BYTES) return;
         auto found = cache.find(name);
         if (found == cache.end()) {
             const auto bytes = name.size() + sizeof(CachedMate) + sizeof(std::string) + 64;
-            if (full_cache_.size() + loose_cache_.size() >= CACHE_ENTRIES ||
-                bytes > CACHE_BYTES - cache_bytes_) return;
+            const std::size_t entries = full_cache_.size() + loose_cache_.size();
+            if (entries >= budget_.cache_entries || cache_bytes_ + bytes > budget_.cache_bytes) return;
             cache_bytes_ += bytes;
             cache.emplace(name, CachedMate{info, false});
+            peak_cache_entries_ = std::max(peak_cache_entries_, entries + 1);
+            peak_cache_bytes_ = std::max(peak_cache_bytes_, cache_bytes_);
         } else if (!same_mate_info(found->second.info, info)) {
             found->second.ambiguous = true;
         }
     }
     void remember_primary(const bam1_t *rec, const MateInfo &info) {
-        if (rec->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) return;
         // Overhanging alignments before the query start are incomplete evidence
         // for a coordinate: another same-key record may end before this window.
-        if (prefetched_ && (rec->core.tid != prefetch_tid_ ||
-            rec->core.pos < prefetch_begin_ || rec->core.pos >= prefetch_end_)) return;
-        make_room();
+        if (rec->core.pos < prefetch_begin_ || rec->core.pos >= prefetch_end_) return;
         build_key(observation_key_, rec, false, false);
-        const bool useful = info.touch || (info.positive_span && P_.agg != Agg::Count &&
+        const bool useful = info.touch || (info.reverse_span && P_.agg != Agg::Count &&
                               (P_.extend || P_.collapse != Collapse::None));
         auto remember = [&](auto &cache, auto &positive, auto &zero, const std::string &key) {
-            if (!prefetched_) { remember_in(cache, key, info); return; }
             if (!useful) {
                 bloom_add(zero, key);
                 const auto existing = cache.find(key);
@@ -921,7 +1349,7 @@ class MateLookup {
             const auto existing = cache.find(key);
             if (existing != cache.end()) existing->second.verify |= verify;
         };
-        if (prefetched_ && useful) {
+        if (useful) {
             const uint64_t bit = static_cast<uint64_t>(rec->core.pos - prefetch_begin_) % (positive_positions_.size() * 64);
             positive_positions_[bit >> 6] |= uint64_t(1) << (bit & 63);
         }
@@ -939,42 +1367,86 @@ class MateLookup {
         MateInfo info;
         info.eligible = passes_filters(rec, P_);
         if (!info.eligible) return info;
-        if (is_proper_fragment(rec) && rec->core.isize > 0)
-            info.positive_span = fragment_length_for_filter(rec);
+        if (is_proper_fragment(rec) && (rec->core.flag & SAM_READ_REVERSE))
+            info.reverse_span = fragment_length_for_filter(rec);
         if (P_.overlap_filter && (P_.has_whitelist || P_.has_blacklist)) {
             info.touch = record_touch(rec, P_, black_, white_, blocks_);
-            if (!nonprimary_touch_.empty()) {
-                const auto inherited = nonprimary_touch_.find(same_end_key(rec));
-                if (inherited != nonprimary_touch_.end()) info.touch |= inherited->second;
-            }
+            info.touch |= nonprimary_touch_.touch(rec);
         }
         return info;
     }
+    Need need(const bam1_t *rec, const MateInfo &own, bool fragment_once) const {
+        Need result;
+        if (!own.eligible) { result.drop = true; return result; }
+        if (P_.overlap_filter && (P_.has_whitelist || P_.has_blacklist)) {
+            if (P_.has_blacklist && (own.touch & 2)) { result.drop = true; return result; }
+            result.touch = P_.has_blacklist || !(own.touch & 1);
+        }
+        // Depth counts a retained fragment once, at its reverse mate; read-count
+        // instead places each eligible alignment with unit weight.
+        result.once = fragment_once && is_proper_fragment(rec) &&
+                      !(rec->core.flag & SAM_READ_REVERSE);
+        if (result.once) result.span = fragment_length_for_filter(rec);
+        return result;
+    }
+    bool keeps(uint8_t own_touch, const Need &need, const MateInfo &mate) const {
+        const uint8_t touch = own_touch | mate.touch;
+        if (need.touch && !((!P_.has_whitelist || (touch & 1)) &&
+                            (!P_.has_blacklist || !(touch & 2)))) return false;
+        return !need.once || mate.reverse_span != need.span;
+    }
+    // Answers from the prefetched summaries; false when only the BAM can tell.
+    bool cached(const bam1_t *rec, MateInfo &info) {
+        info = {};
+        if (!(rec->core.flag & SAM_READ_PAIRED) || (rec->core.flag & SAM_MATE_UNMAPPED) ||
+            rec->core.mtid < 0 || rec->core.mpos < 0) return true;
+        const bool nonprimary = rec->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY);
+        const bool in_prefetch = rec->core.mtid == prefetch_tid_ &&
+            rec->core.mpos >= prefetch_begin_ && rec->core.mpos < prefetch_end_;
+        if (in_prefetch) {
+            const uint64_t bit = static_cast<uint64_t>(rec->core.mpos - prefetch_begin_) % (positive_positions_.size() * 64);
+            if (!(positive_positions_[bit >> 6] & (uint64_t(1) << (bit & 63)))) return true;
+        }
+        build_key(observation_key_, rec, true, nonprimary);
+        // Bloom negatives prove absence. Every positive is verified exactly.
+        if (in_prefetch && !bloom_contains(nonprimary ? positive_loose_ : positive_full_, observation_key_))
+            return true;
+        const auto &cache = nonprimary ? loose_cache_ : full_cache_;
+        const auto found = cache.find(observation_key_);
+        if (found == cache.end() || found->second.verify) return false;
+        info = cached_value(found->second);
+        return true;
+    }
 public:
-    MateLookup(const std::string &path, hts_idx_t *idx, const CovParams &P,
+    enum class Decision { Drop, Keep, Defer };
+    MateLookup(const std::string &path, hts_idx_t *idx, const CovParams &P, MateBudget &budget,
                const std::vector<RegionSet> &black, const std::vector<RegionSet> &white,
-               const std::unordered_map<std::string, uint8_t> &nonprimary_touch)
-        : path_(path), idx_(idx), P_(P), black_(black), white_(white),
+               const NonprimaryTouchIndex &nonprimary_touch)
+        : path_(path), idx_(idx), P_(P), budget_(budget), black_(black), white_(white),
           nonprimary_touch_(nonprimary_touch) {
         if (!record_.get()) throw std::runtime_error("could not allocate a mate record");
     }
+    ~MateLookup() {
+        raise_peak(budget_.peak_cache_entries, peak_cache_entries_);
+        raise_peak(budget_.peak_cache_bytes, peak_cache_bytes_);
+        raise_peak(budget_.peak_batch_entries, peak_batch_entries_);
+        raise_peak(budget_.peak_batch_bytes, peak_batch_bytes_);
+    }
     // One sequential query supplies nearby mate summaries before any output
-    // decisions. A fixed entry/byte budget bounds each worker's cache. Keys
-    // omitted under pressure and distant/cross-chromosome mates retain exact
-    // indexed fallback. Prefetched entries are never evicted mid-window.
+    // decisions. Prefetched entries are never evicted mid-window; keys omitted
+    // under budget pressure and distant/cross-chromosome mates are deferred.
     void prefetch(int tid, int64_t begin, int64_t end) {
-        if (prefetched_ && tid == prefetch_tid_ &&
-            begin >= prefetch_begin_ && end <= prefetch_end_) return;
+        if (tid == prefetch_tid_ && begin >= prefetch_begin_ && end <= prefetch_end_) return;
         // Tiny output windows must not clear megabytes of membership storage
         // and decode the same nearby reads for every few bases. Coalesce only
-        // mate queries; output windows and exact fallback remain independent.
+        // mate queries; output windows remain independent.
         constexpr int64_t minimum_span = 1 << 16;
         if (end - begin < minimum_span) {
             begin = begin / minimum_span * minimum_span;
             end = ((end + minimum_span - 1) / minimum_span) * minimum_span;
         }
         open_lookup();
-        clear_cache(); prefetched_ = true;
+        clear_cache();
         positive_full_.assign(65536, 0); zero_full_.assign(65536, 0);
         positive_loose_.assign(65536, 0); zero_loose_.assign(65536, 0);
         positive_positions_.assign((std::min<int64_t>(end - begin, 1u << 22) + 63) / 64, 0);
@@ -999,64 +1471,88 @@ public:
         const int64_t padding = P_.halo + P_.mate_prefetch_padding;
         prefetch(tid, std::max<int64_t>(0, begin - padding), begin + width + padding);
     }
-    MateInfo observe(const bam1_t *rec) {
-        MateInfo info = summarize(rec);
-        if (!prefetched_ && (rec->core.flag & SAM_READ_PAIRED)) remember_primary(rec, info);
-        return info;
+    MateInfo observe(const bam1_t *rec) { return summarize(rec); }
+    // Keep/drop from the read and its cached mate. `fragment_once` counts a
+    // proper fragment only at its reverse mate. Defer hands the read to
+    // defer(), which decides it when its batch resolves.
+    Decision decide(const bam1_t *rec, const MateInfo &own, bool fragment_once) {
+        const Need wanted = need(rec, own, fragment_once);
+        if (wanted.drop) return Decision::Drop;
+        if (!wanted.touch && !wanted.once) return Decision::Keep;
+        MateInfo mate;
+        if (!cached(rec, mate)) return Decision::Defer;
+        return keeps(own.touch, wanted, mate) ? Decision::Keep : Decision::Drop;
     }
-    MateInfo mate(const bam1_t *rec) {
-        if (!(rec->core.flag & SAM_READ_PAIRED) || (rec->core.flag & SAM_MATE_UNMAPPED) ||
-            rec->core.mtid < 0 || rec->core.mpos < 0) return {};
-        const bool nonprimary = rec->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY);
-        const bool in_prefetch = prefetched_ && rec->core.mtid == prefetch_tid_ &&
-            rec->core.mpos >= prefetch_begin_ && rec->core.mpos < prefetch_end_;
-        if (in_prefetch) {
-            const uint64_t bit = static_cast<uint64_t>(rec->core.mpos - prefetch_begin_) % (positive_positions_.size() * 64);
-            if (!(positive_positions_[bit >> 6] & (uint64_t(1) << (bit & 63)))) return {};
+    // `keep(stream, weight, intervals)` receives every deferred read retained.
+    template <class Keep>
+    void defer(const bam1_t *rec, const MateInfo &own, bool fragment_once,
+               int stream, int weight, const Intervals &iv, Keep &&keep) {
+        Deferred read{std::string(), rec->core.mtid, rec->core.mpos,
+                      (rec->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) != 0,
+                      own.touch, need(rec, own, fragment_once), stream, weight, 0, 0};
+        build_key(read.key, rec, true, read.loose);
+        const std::size_t bytes = sizeof(Deferred) + read.key.size() + iv.size() * sizeof(iv[0]);
+        if (!batch_.empty() && batch_bytes_ + bytes > budget_.batch_bytes) flush(keep);
+        read.iv_begin = batch_iv_.size();
+        batch_iv_.insert(batch_iv_.end(), iv.begin(), iv.end());
+        read.iv_end = batch_iv_.size();
+        batch_.push_back(std::move(read));
+        batch_bytes_ += bytes;
+        peak_batch_entries_ = std::max(peak_batch_entries_, batch_.size());
+        peak_batch_bytes_ = std::max(peak_batch_bytes_, batch_bytes_);
+        if (batch_.size() >= budget_.batch_entries || batch_bytes_ >= budget_.batch_bytes) flush(keep);
+    }
+    // Resolves every deferred mate exactly: same key (name, read group, both
+    // coordinates, mate end), primary, and ambiguous duplicates count as no
+    // mate. Nearby wanted coordinates share one sequential query.
+    template <class Keep>
+    void flush(Keep &&keep) {
+        if (batch_.empty()) return;
+        std::unordered_map<std::string, Match> matches[2];  // full, loose keys
+        std::vector<std::pair<int32_t, int64_t>> wanted;
+        wanted.reserve(batch_.size());
+        for (const auto &read : batch_) {
+            matches[read.loose].emplace(read.key, Match{});
+            wanted.emplace_back(read.tid, read.pos);
         }
-        std::string wanted = nonprimary ? loose_key(rec, true) : full_key(rec, true);
-        // Bloom negatives prove absence. Every positive is verified exactly.
-        if (in_prefetch && !bloom_contains(nonprimary ? positive_loose_ : positive_full_, wanted)) return {};
-        auto &cache = nonprimary ? loose_cache_ : full_cache_;
-        const auto cached = cache.find(wanted);
-        if (cached != cache.end() && !cached->second.verify) return cached_value(cached->second);
+        std::sort(wanted.begin(), wanted.end());
+        wanted.erase(std::unique(wanted.begin(), wanted.end()), wanted.end());
+        constexpr int64_t cluster_gap = 1 << 16;
         open_lookup();
-        IteratorPtr iterator;
-        iterator.reset(sam_itr_queryi(idx_, rec->core.mtid, rec->core.mpos, rec->core.mpos + 1));
-        if (!iterator.get()) throw std::runtime_error("could not query BAM mate coordinate");
-        MateInfo info;
-        bool found = false, ambiguous = false;
-        uint64_t scanned = 0;
-        while (checked_bam_status(sam_itr_next(file_.get(), iterator.get(), record_.get())) >= 0) {
-            poll_coverage_work(++scanned);
-            if (record_.get()->core.pos != rec->core.mpos ||
-                !(record_.get()->core.flag & SAM_READ_PAIRED) ||
-                (record_.get()->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) ||
-                std::strcmp(bam_get_qname(record_.get()), bam_get_qname(rec)) != 0 ||
-                (nonprimary ? loose_key(record_.get(), false) : full_key(record_.get(), false))
-                    != wanted)
-                continue;
-            const MateInfo candidate = summarize(record_.get());
-            if (!found) {
-                info = candidate;
-                found = true;
-            } else if (!same_mate_info(info, candidate)) {
-                ambiguous = true;
+        bam1_t *mate = record_.get();
+        for (std::size_t first = 0, last = 0; first < wanted.size(); first = last) {
+            for (last = first + 1; last < wanted.size() && wanted[last].first == wanted[first].first &&
+                 wanted[last].second - wanted[last - 1].second <= cluster_gap; ++last) {}
+            IteratorPtr iterator;
+            iterator.reset(sam_itr_queryi(idx_, wanted[first].first, wanted[first].second,
+                                          wanted[last - 1].second + 1));
+            if (!iterator.get()) throw std::runtime_error("could not query BAM mate coordinates");
+            uint64_t scanned = 0;
+            while (checked_bam_status(sam_itr_next(file_.get(), iterator.get(), mate)) >= 0) {
+                poll_coverage_work(++scanned);
+                if (!(mate->core.flag & SAM_READ_PAIRED) ||
+                    (mate->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) ||
+                    !std::binary_search(wanted.begin() + first, wanted.begin() + last,
+                                        std::make_pair(mate->core.tid, int64_t(mate->core.pos))))
+                    continue;
+                for (bool loose : {false, true}) {
+                    if (matches[loose].empty()) continue;
+                    build_key(observation_key_, mate, false, loose);
+                    const auto match = matches[loose].find(observation_key_);
+                    if (match == matches[loose].end()) continue;
+                    const MateInfo candidate = summarize(mate);
+                    if (!match->second.found) match->second = Match{candidate, true, false};
+                    else if (!same_mate_info(match->second.info, candidate)) match->second.ambiguous = true;
+                }
             }
         }
-        make_room();
-        remember_in(cache, wanted, info);
-        const auto stored = cache.find(wanted);
-        if (stored != cache.end()) stored->second = CachedMate{info, ambiguous, false};
-        return ambiguous ? MateInfo{} : info;
-    }
-    bool retained(const bam1_t *rec, const MateInfo &own) {
-        if (!own.eligible) return false;
-        if (!P_.overlap_filter || !(P_.has_whitelist || P_.has_blacklist)) return true;
-        if (P_.has_blacklist && (own.touch & 2)) return false;
-        if (!P_.has_blacklist && (!P_.has_whitelist || (own.touch & 1))) return true;
-        const uint8_t touch = own.touch | mate(rec).touch;
-        return (!P_.has_whitelist || (touch & 1)) && (!P_.has_blacklist || !(touch & 2));
+        for (const auto &read : batch_) {
+            const Match &match = matches[read.loose].at(read.key);
+            if (!keeps(read.touch, read.need, match.ambiguous ? MateInfo{} : match.info)) continue;
+            shape_.assign(batch_iv_.begin() + read.iv_begin, batch_iv_.begin() + read.iv_end);
+            keep(read.stream, read.weight, shape_);
+        }
+        batch_.clear(); batch_iv_.clear(); batch_bytes_ = 0;
     }
 };
 
@@ -1109,28 +1605,33 @@ inline void compute_window(htsFile *fp, hts_idx_t *idx, const Window &w,
     if (do_overlap || fragment_depth)
         mates.prefetch(w.tid, std::max<int64_t>(0, qstart - P.mate_prefetch_padding),
                        std::min<int64_t>(chrom_len, qend + P.mate_prefetch_padding));
+    auto keep = [&](int s, int weight, const std::vector<std::pair<int64_t, int64_t>> &shape) {
+        accumulate_read(shape, P, w.bin0, nbins, ws_bp, we_bp, acc[s], rng[s], cdiff[s], weight);
+    };
     uint64_t scanned = 0;
     IteratorPtr itr;
     itr.reset(sam_itr_queryi(idx, w.tid, qstart, qend));
     if (itr.get()) {
         while (checked_bam_status(sam_itr_next(fp, itr.get(), rec)) >= 0) {
             poll_coverage_work(++scanned);
+            MateInfo own;
+            auto decision = MateLookup::Decision::Keep;
             if (do_overlap || fragment_depth) {
-                const MateInfo own = mates.observe(rec);
-                if (!mates.retained(rec, own)) continue;
-                // Depth counts a retained fragment once; read-count instead
-                // places each eligible alignment with unit weight.
-                if (fragment_depth && is_proper_fragment(rec) && rec->core.isize < 0 &&
-                    mates.mate(rec).positive_span == fragment_length_for_filter(rec)) continue;
+                own = mates.observe(rec);
+                decision = mates.decide(rec, own, fragment_depth);
+                if (decision == MateLookup::Decision::Drop) continue;
             }
             int read_weight = 1;
             const int s = shape_read(rec, P, chrom_len, iv, read_weight,
                                      do_overlap || fragment_depth);
             if (s < 0) continue;
-            accumulate_read(iv, P, w.bin0, nbins, ws_bp, we_bp,
-                            acc[s], rng[s], cdiff[s], read_weight);
+            if (decision == MateLookup::Decision::Defer)
+                mates.defer(rec, own, fragment_depth, s, read_weight, iv, keep);
+            else
+                keep(s, read_weight, iv);
         }
     }
+    mates.flush(keep);
 
     values.resize(ns);
     for (int s = 0; s < ns; ++s) {
@@ -1225,7 +1726,8 @@ void bam_coverage_bigwig(const std::string &bam_path,
                          int compression_level,
                          bool filter_by_overlap,
                          const std::string &feature_touch_strand,
-                         int filter_by_overlap_halo) {
+                         int filter_by_overlap_halo,
+                         py::object mate_budget_knob) {
     if (bin_size == 0) throw std::runtime_error("binSize must be > 0");
     if (min_mapping_quality < 0 || min_mapping_quality > 255)
         throw std::runtime_error("min_mapping_quality must be in 0..255");
@@ -1366,6 +1868,21 @@ void bam_coverage_bigwig(const std::string &bam_path,
         std::max(0, filter_by_overlap_halo), max_fragment_length);
     P.mate_prefetch_padding = filter_by_overlap_halo < 0 ? 10000 : 0;
     P.window_bins = coverage_window_bins(bin_size, window_size);
+    // Test-only: {"entries": n[, "bytes": n][, "nonprimary_bytes": n]} shrinks
+    // the mate and non-primary index budgets, and the same dict receives their
+    // high-water marks.
+    MateBudget mate_budget;
+    if (!mate_budget_knob.is_none()) {
+        const auto knob = mate_budget_knob.cast<py::dict>();
+        if (knob.contains("entries"))
+            mate_budget.cache_entries = mate_budget.batch_entries = knob["entries"].cast<std::size_t>();
+        if (knob.contains("bytes"))
+            mate_budget.cache_bytes = mate_budget.batch_bytes = knob["bytes"].cast<std::size_t>();
+        if (knob.contains("nonprimary_bytes"))
+            mate_budget.nonprimary_bytes = knob["nonprimary_bytes"].cast<std::size_t>();
+        if (!mate_budget.cache_entries || !mate_budget.cache_bytes || !mate_budget.nonprimary_bytes)
+            throw std::runtime_error("mate budgets must be positive");
+    }
 
     // Index required for random-access windows (shared read-only by producers).
     hts_idx_t *shared_idx = sam_index_load(file.get(), bam_path.c_str());
@@ -1378,12 +1895,14 @@ void bam_coverage_bigwig(const std::string &bam_path,
     const bool admits_nonprimary =
         (P.exclude & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) !=
         (SAM_SECONDARY | SAM_SUPPLEMENTARY);
-    const std::unordered_map<std::string, uint8_t> nonprimary_touch =
+    NonprimaryStats nonprimary_stats;
+    const NonprimaryTouchIndex nonprimary_touch =
         (P.overlap_filter && (P.has_whitelist || P.has_blacklist) &&
          admits_nonprimary)
             ? build_nonprimary_touch_index(
-                  bam_path, P, blacklist_by_tid, whitelist_by_tid)
-            : std::unordered_map<std::string, uint8_t>{};
+                  bam_path, P, blacklist_by_tid, whitelist_by_tid,
+                  mate_budget.nonprimary_bytes, out_path + ".nonprimary", nonprimary_stats)
+            : NonprimaryTouchIndex{};
 
     // Chromosome exclusions have one meaning in read-count and BPM denominators.
     std::vector<char> ignore(n_targets, 0);
@@ -1403,9 +1922,12 @@ void bam_coverage_bigwig(const std::string &bam_path,
     std::vector<std::vector<FetchBounds>> fetch_bounds;
     if (plan_fetches || count_reads) {
         std::unique_ptr<MateLookup> count_mates;
+        auto count = [&](int, int, const std::vector<std::pair<int64_t, int64_t>> &) {
+            counted_denominator += 1;
+        };
         if (count_reads && filtered)
             count_mates = std::make_unique<MateLookup>(
-                bam_path, shared_idx, P, blacklist_by_tid, whitelist_by_tid, nonprimary_touch);
+                bam_path, shared_idx, P, mate_budget, blacklist_by_tid, whitelist_by_tid, nonprimary_touch);
         // Both tasks inspect the same records. Keep their distinct eligibility
         // rules, but perform the BAM decode only once when both are requested.
         fetch_bounds = prepare_coverage(bam_path, P, lengths, plan_fetches,
@@ -1415,11 +1937,15 @@ void bam_coverage_bigwig(const std::string &bam_path,
                 if (filtered) {
                     if (P.overlap_filter && (P.has_whitelist || P.has_blacklist))
                         count_mates->prefetch_for_record(record);
-                    if (count_mates->retained(record, count_mates->observe(record)))
-                        counted_denominator += 1;
+                    const MateInfo own = count_mates->observe(record);
+                    const auto decision = count_mates->decide(record, own, false);
+                    if (decision == MateLookup::Decision::Keep) count(0, 1, {});
+                    else if (decision == MateLookup::Decision::Defer)
+                        count_mates->defer(record, own, false, 0, 1, {}, count);
                 } else if (!(record->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)))
                     counted_denominator += 1;
             });
+        if (count_mates) count_mates->flush(count);
         if (plan_fetches) P.fetch_bounds = &fetch_bounds;
     }
 
@@ -1511,7 +2037,7 @@ void bam_coverage_bigwig(const std::string &bam_path,
                     std::vector<std::pair<int64_t, int64_t>> iv;
                     std::vector<std::vector<float>> vals;
                     CoverageScratch scratch;
-                    MateLookup mates(bam_path, shared_idx, Pt, blacklist_by_tid,
+                    MateLookup mates(bam_path, shared_idx, Pt, mate_budget, blacklist_by_tid,
                                      whitelist_by_tid, nonprimary_touch);
                     dtp::CompensatedSum sum;
                     while (!dtp::interruption_requested()) {
@@ -1586,7 +2112,7 @@ void bam_coverage_bigwig(const std::string &bam_path,
                 w.rec.reset(bam_init1());
                 if (!w.rec) throw std::runtime_error("could not allocate a BAM record");
                 w.mates = std::make_unique<MateLookup>(
-                    bam_path, shared_idx, P, blacklist_by_tid, whitelist_by_tid,
+                    bam_path, shared_idx, P, mate_budget, blacklist_by_tid, whitelist_by_tid,
                     nonprimary_touch);
                 return w;
             },
@@ -1600,6 +2126,16 @@ void bam_coverage_bigwig(const std::string &bam_path,
     }
 
     finalize();
+    if (!mate_budget_knob.is_none()) {
+        auto knob = mate_budget_knob.cast<py::dict>();
+        knob["peak_cache_entries"] = mate_budget.peak_cache_entries.load();
+        knob["peak_cache_bytes"] = mate_budget.peak_cache_bytes.load();
+        knob["peak_batch_entries"] = mate_budget.peak_batch_entries.load();
+        knob["peak_batch_bytes"] = mate_budget.peak_batch_bytes.load();
+        knob["peak_nonprimary_bytes"] = nonprimary_stats.peak_bytes;
+        knob["nonprimary_passes"] = nonprimary_stats.passes;
+        knob["nonprimary_spilled"] = nonprimary_stats.spilled;
+    }
 }
 
 // --- P9: library-strandedness inference (RSeQC infer_experiment analogue) ------
@@ -1972,6 +2508,7 @@ PYBIND11_MODULE(_coverage, m) {
           py::arg("filter_by_overlap") = false,
           py::arg("feature_touch_strand") = "ignore",
           py::arg("filter_by_overlap_halo") = -1,
+          py::arg("mate_budget") = py::none(),
           "Binned coverage -> bigWig with inline filters, read extension/collapse, "
           "and strand selection. Multicore via a producer/single-writer streaming "
           "model (threads<=0 = all cores). aggregation: mean|sum|count. "

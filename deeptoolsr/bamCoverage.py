@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 """bamCoverageR -- fast native BAM -> bigWig coverage.
 
-A multicore htslib/libBigWig backend (see BAMCOVERAGE_ROADMAP.md). Coverage is
-provided solely by the native ``_coverage`` extension; there is no pure-Python
-fallback for this tool.
+A multicore htslib/libBigWig backend. Coverage is provided solely by the
+native ``_coverage`` extension; there is no pure-Python fallback for this tool.
 """
 
 import argparse

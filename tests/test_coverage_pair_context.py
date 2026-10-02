@@ -1000,3 +1000,356 @@ def test_all_normalizations_against_independent_bin_oracle(tmp_path, metric, sce
             value = {'coverage-mean': math.fsum(depths[tid][start:end]) / width, 'coverage-sum': math.fsum(depths[tid][start:end]), 'read-count': count, 'CPM': count * 1000000.0 / denominator, 'RPKM': count * 1000000000.0 / (denominator * width), 'BPM': count * 1000000.0 / bpm_total}[metric]
             expected[start:end] = 2 * value
         np.testing.assert_allclose(values(output, f'chr{tid + 1}'), expected, rtol=2e-07, atol=1e-06)
+
+
+def _mate_matrix_bam(path):
+    """Pairs near, far, on another chromosome, stacked, and non-primary."""
+    rng = np.random.default_rng(7)
+    reads = []
+    for i in range(500):
+        kind, name = i % 6, f't{i}'
+        group = 'AB'[i % 2] if i % 7 == 0 else None
+        a = int(rng.integers(0, 9500))
+        b = a + int(rng.integers(0, 400))
+        left, right = (99, 147) if rng.random() < 0.5 else (163, 83)
+        if kind == 1:
+            b = a + int(rng.integers(20000, 25000))
+        elif kind == 4:
+            name, a, b = f'stack{i % 9}', 30000, 30000 + int(rng.integers(0, 60))
+        if kind == 2:
+            reads += [record(name, a, b, 97, 0, mtid=1, group=group),
+                      record(name, b, a, 145, 0, tid=1, mtid=0, group=group)]
+            continue
+        if kind == 5:
+            reads.append(record(name, a, 0, 73, 0, group=group))
+            continue
+        tlen = b + 10 - a
+        reads += [record(name, a, b, left, tlen, group=group),
+                  record(name, b, a, right, -tlen, group=group)]
+        if kind == 3:
+            elsewhere = int(rng.integers(0, 39000))
+            reads += [record(name, elsewhere, b, left | 256, 0, group=group),
+                      record(name, elsewhere + 7, b, left | 2048, 0, group=group)]
+    write_bam(path, reads, (40000, 12000))
+
+
+_REGIONS = {'chr1': [(100, 400), (2000, 2600), (20500, 22000), (30000, 30005)],
+            'chr2': [(0, 3000)]}
+_MATE_OPTIONS = {
+    'collapse-5prime': dict(collapse='5prime'),
+    'collapse-3prime': dict(collapse='3prime'),
+    'collapse-center': dict(collapse='center'),
+    'extend': dict(extend_reads=50),
+    'split': dict(collapse='5prime', strandedness='forward', filter_rna_strand='split'),
+    'whitelist': dict(aggregation='count', filter_by_overlap=True, whitelist=_REGIONS),
+    'blacklist-collapse': dict(collapse='5prime', filter_by_overlap=True, blacklist=_REGIONS),
+    'filtered-denominator': dict(aggregation='count', normalization='cpm',
+                                 normalization_denominator='filtered',
+                                 filter_by_overlap=True, whitelist=_REGIONS),
+    'nonprimary': dict(filter_mode='deeptools', extend_reads=30,
+                       filter_by_overlap=True, whitelist=_REGIONS),
+}
+
+
+def _budget_run(bam, out, options, budget=None):
+    paths = [out.with_suffix('.fwd.bedgraph'), out.with_suffix('.rev.bedgraph')]
+    _coverage.bam_coverage_bigwig(
+        str(bam), str(paths[0]), out_path_reverse=str(paths[1]), out_format='bedgraph',
+        bin_size=10, window_size=500, mate_budget=budget, **options)
+    return [p.read_bytes() for p in paths if p.exists()]
+
+
+@pytest.mark.parametrize('threads', [1, 4])
+@pytest.mark.parametrize('option', sorted(_MATE_OPTIONS))
+def test_tiny_mate_budgets_are_byte_identical(tmp_path, option, threads):
+    bam = tmp_path / 'matrix.bam'
+    _mate_matrix_bam(bam)
+    options = dict(_MATE_OPTIONS[option], threads=threads)
+    expected = _budget_run(bam, tmp_path / 'default', options)
+    assert expected[0]
+    for entries in (1, 4):
+        budget = {'entries': entries}
+        assert _budget_run(bam, tmp_path / f'tiny{entries}', options, budget) == expected
+        assert 0 < budget['peak_batch_entries'] <= entries
+        assert budget['peak_cache_entries'] <= entries
+
+
+def _deep_pileup_bam(path, pairs):
+    reads = []
+    for i in range(pairs):
+        reads += [record(f'p{i}', 1000, 1100, 99, 110), record(f'p{i}', 1100, 1000, 147, -110)]
+    write_bam(path, reads, (5000,))
+
+
+def test_deep_pileup_collapse_is_linear_and_memory_bounded(tmp_path):
+    """More pairs than the mate cache holds once stalled per-read queries."""
+    import time
+    bam, out = tmp_path / 'deep.bam', tmp_path / 'deep.bw'
+    _deep_pileup_bam(bam, 80000)
+    budget = {}
+    started = time.monotonic()
+    _coverage.bam_coverage_bigwig(str(bam), str(out), bin_size=1, collapse='5prime',
+                                  threads=4, max_zooms=0, mate_budget=budget)
+    assert time.monotonic() - started < 30
+    expected = np.zeros(5000)
+    expected[1000] = 80000
+    np.testing.assert_array_equal(read_values(out), expected)
+    assert budget['peak_cache_entries'] <= 32768
+    assert budget['peak_cache_bytes'] <= 8 << 20
+    assert 0 < budget['peak_batch_entries'] <= 16384
+    assert budget['peak_batch_bytes'] <= 4 << 20
+
+
+def test_deep_pileup_batch_flushes_repeatedly_within_one_window(tmp_path):
+    bam, out = tmp_path / 'deep.bam', tmp_path / 'deep.bw'
+    _deep_pileup_bam(bam, 6000)
+    budget = {'entries': 256, 'bytes': 64 << 10}
+    _coverage.bam_coverage_bigwig(str(bam), str(out), bin_size=1, extend_reads=50,
+                                  threads=4, max_zooms=0, mate_budget=budget)
+    expected = np.zeros(5000)
+    expected[1000:1110] = 6000
+    np.testing.assert_array_equal(read_values(out), expected)
+    # Over 5000 deferred fragments through a 256-entry batch: many flushes.
+    assert budget['peak_batch_entries'] <= 256
+    assert budget['peak_batch_bytes'] <= 64 << 10
+    assert budget['peak_cache_entries'] <= 256
+
+
+@pytest.mark.parametrize('entries', [None, 64])
+def test_mates_in_a_deep_pileup_on_another_chromosome(tmp_path, entries):
+    bam, out = tmp_path / 'interchrom.bam', tmp_path / 'interchrom.bw'
+    reads = []
+    for i in range(6000):
+        reads += [record(f'p{i}', 10 * i, 1000, 97, 0, mtid=1),
+                  record(f'p{i}', 1000, 10 * i, 145, 0, tid=1, mtid=0)]
+    write_bam(bam, reads, (60000, 5000))
+    budget = {} if entries is None else {'entries': entries}
+    _coverage.bam_coverage_bigwig(str(bam), str(out), bin_size=10, aggregation='count',
+                                  filter_by_overlap=True, whitelist={'chr2': [(1000, 1001)]},
+                                  threads=4, max_zooms=0, mate_budget=budget)
+    np.testing.assert_array_equal(read_values(out, 'chr1'), np.ones(60000))
+    expected = np.zeros(5000)
+    expected[1000:1010] = 6000
+    np.testing.assert_array_equal(read_values(out, 'chr2'), expected)
+    assert 0 < budget['peak_batch_entries'] <= (entries or 16384)
+
+
+def _clipped_pair_reads():
+    """STAR-like pairs: TLEN spans soft clips, so its sign can point either way.
+
+    Each entry: name, forward (start, cigar, flag), reverse (start, cigar, flag),
+    forward TLEN, and the MAPQ of (forward, reverse).
+    """
+    M, S = 0, 4
+    return [
+        # chr21 example: the reverse mate carries the positive, clip-inflated TLEN.
+        ('star', (30, ((S, 1), (M, 44), (S, 1)), 99), (33, ((S, 6), (M, 41), (S, 1)), 147), -48, (60, 60)),
+        ('same_pos', (100, ((M, 10),), 99), (100, ((M, 10),), 147), 10, (60, 60)),
+        ('same_neg', (100, ((M, 10),), 99), (100, ((M, 12),), 147), -12, (60, 60)),
+        ('normal', (150, ((M, 10),), 163), (180, ((M, 10),), 83), 40, (60, 60)),
+        ('dovetail', (210, ((M, 20),), 99), (210, ((M, 15),), 147), 20, (60, 60)),
+        ('outward', (232, ((M, 10),), 99), (228, ((M, 10),), 147), -14, (60, 60)),
+        ('fwd_only', (240, ((M, 10),), 99), (260, ((S, 1), (M, 10), (S, 1)), 147), 32, (60, 0)),
+        ('rev_only', (275, ((S, 2), (M, 10),), 163), (280, ((M, 10), (S, 3)), 83), 18, (0, 60)),
+        ('long', (5, ((M, 10),), 99), (285, ((M, 10),), 147), 290, (60, 60)),
+    ]
+
+
+def _write_clipped_pairs(path):
+    reads = []
+    for name, (fpos, fcig, fflag), (rpos, rcig, rflag), tlen, (fq, rq) in _clipped_pair_reads():
+        for pos, cig, flag, mpos, t, q in ((fpos, fcig, fflag, rpos, tlen, fq),
+                                           (rpos, rcig, rflag, fpos, -tlen, rq)):
+            reads.append(record(name, pos, mpos, flag, t, mapq=q, cigar=cig))
+    write_bam(path, reads, (300,))
+
+
+def _aligned_end(pos, cigar):
+    return pos + sum(n for op, n in cigar if op in (0, 2, 3, 7, 8))
+
+
+def _expected_clipped(collapse, strandedness, rna_filter, extend):
+    """Independent oracle: a proper pair is [forward start, reverse end), once."""
+    out = [np.zeros(300), np.zeros(300)]
+    for name, (fpos, fcig, fflag), (rpos, rcig, rflag), tlen, (fq, rq) in _clipped_pair_reads():
+        mates = [(fpos, fcig, fflag, fq >= 10), (rpos, rcig, rflag, rq >= 10)]
+        if name == 'outward':  # not inward-facing: each mate is its own alignment
+            pieces = [(pos, _aligned_end(pos, cig), flag, bool(flag & 16))
+                      for pos, cig, flag, ok in mates if ok]
+        elif mates[1][3]:  # reverse mate kept: it holds both bounds
+            pieces = [(fpos, _aligned_end(rpos, rcig), rflag, False)]
+        elif mates[0][3]:  # forward mate alone extends by |TLEN|
+            pieces = [(fpos, fpos + abs(tlen), fflag, False)]
+        else:
+            pieces = []
+        for start, end, flag, reverse in pieces:
+            read_sign = -1 if flag & 16 else 1
+            ts = -read_sign if flag & 128 else read_sign
+            if strandedness == 'reverse':
+                ts = -ts
+            if rna_filter == 'forward' and ts != 1:
+                continue
+            stream = 1 if rna_filter == 'split' and ts != 1 else 0
+            sign = ts if strandedness != 'none' else (-1 if reverse else 1)
+            if extend:
+                out[stream][start:end] += 1
+            elif collapse == 'center':
+                out[stream][(start + end) // 2] += 1
+            else:
+                left = (sign > 0) == (collapse == '5prime')
+                out[stream][start if left else end - 1] += 1
+    return out
+
+
+@pytest.mark.parametrize('threads', [1, 4])
+@pytest.mark.parametrize('window_size', [None, 16])
+@pytest.mark.parametrize('mode', [
+    ('5prime', 'none', 'none'), ('3prime', 'none', 'none'), ('center', 'none', 'none'),
+    ('5prime', 'forward', 'forward'), ('3prime', 'reverse', 'none'),
+    ('5prime', 'forward', 'split'), ('center', 'reverse', 'split'),
+    ('extend', 'none', 'none'), ('extend', 'forward', 'split')])
+def test_proper_fragment_spans_forward_start_to_reverse_end(tmp_path, mode, window_size, threads):
+    collapse, strandedness, rna_filter = mode
+    bam = tmp_path / 'clipped.bam'
+    _write_clipped_pairs(bam)
+    out, rev = tmp_path / 'out.bw', tmp_path / 'rev.bw'
+    options = dict(extend_reads=5) if collapse == 'extend' else dict(collapse=collapse)
+    if window_size:
+        options['window_size'] = window_size
+    _coverage.bam_coverage_bigwig(
+        str(bam), str(out), out_path_reverse=str(rev), bin_size=1, min_mapping_quality=10,
+        strandedness=strandedness, filter_rna_strand=rna_filter, threads=threads,
+        max_zooms=0, **options)
+    expected = _expected_clipped(collapse, strandedness, rna_filter, collapse == 'extend')
+    for stream, path in enumerate([out, rev] if rna_filter == 'split' else [out]):
+        np.testing.assert_array_equal(np.nan_to_num(read_values(path)), expected[stream])
+
+
+_NONPRIMARY_REGIONS = {'chr1': [(k, k + 300) for k in range(0, 40000, 1000)]}
+
+
+def _nonprimary_bam(path, templates=400):
+    """Secondary/supplementary alignments before and after their primaries or
+    paired with another secondary; ineligible (MAPQ 0) and ambiguous (two
+    primaries for one end) identities."""
+    rng = np.random.default_rng(11)
+    reads = []
+    for i in range(templates):
+        name, group = f'n{i}', ('AB'[i % 2] if i % 5 == 0 else None)
+        a = int(rng.integers(0, 39000))
+        b = a + int(rng.integers(0, 400))
+        left, right = (99, 147) if i % 2 else (163, 83)
+        tlen = b + 10 - a
+        reads += [record(name, a, b, left, tlen, group=group, mapq=0 if i % 11 == 0 else 60),
+                  record(name, b, a, right, -tlen, group=group)]
+        for j in range(1 + i % 3):
+            reads.append(record(name, int(rng.integers(0, 39000)), b,
+                                left | (256 if j % 2 == 0 else 2048), 0, group=group))
+        reads.append(record(name, int(rng.integers(0, 39000)), int(rng.integers(0, 39000)),
+                            left | 256, 0, group=group))  # mate is another secondary
+        if i % 13 == 0:
+            reads.append(record(name, a + 5, b, left, tlen, group=group))
+    write_bam(path, reads, (40000,))
+
+
+@pytest.mark.parametrize('threads', [1, 4])
+@pytest.mark.parametrize('region_kind', ['whitelist', 'blacklist'])
+def test_nonprimary_index_budget_spills_identically(tmp_path, region_kind, threads):
+    bam = tmp_path / 'nonprimary.bam'
+    _nonprimary_bam(bam)
+    options = {'filter_mode': 'deeptools', 'filter_by_overlap': True, 'min_mapping_quality': 10,
+               'extend_reads': 30, 'threads': threads, region_kind: _NONPRIMARY_REGIONS}
+    default = {}
+    expected = _budget_run(bam, tmp_path / 'default', options, default)
+    assert expected[0] and default['nonprimary_passes'] == 2
+    assert not default['nonprimary_spilled']
+    for nonprimary_bytes, spilled in ((1 << 20, False), (4096, True), (512, True)):
+        budget = {'nonprimary_bytes': nonprimary_bytes}
+        assert _budget_run(bam, tmp_path / f'tiny{nonprimary_bytes}', options, budget) == expected
+        assert budget['nonprimary_passes'] == 2
+        assert budget['nonprimary_spilled'] == spilled
+        assert budget['peak_nonprimary_bytes'] <= nonprimary_bytes + 256  # a few records of slack
+    assert sorted(p.name for p in tmp_path.iterdir() if 'nonprimary' in p.name) == ['nonprimary.bam', 'nonprimary.bam.bai']
+
+
+def _multimapper_bam(path, templates):
+    """Primaries in [0, 10000); secondaries in the whitelisted [20000, 30000).
+    Even templates' secondaries share their primary end's identity; odd ones
+    pair with each other, as STAR writes them, so they resolve to nothing."""
+    rng = np.random.default_rng(5)
+    reads, kept = [], []
+    for i in range(templates):
+        name = f'm{i}'
+        a = int(rng.integers(0, 9500))
+        b = a + int(rng.integers(0, 400))
+        pair = [record(name, a, b, 99, b + 10 - a), record(name, b, a, 147, a - b - 10)]
+        secondaries = []
+        for _ in range(3):
+            where = int(rng.integers(20000, 29990))
+            mate = b if i % 2 == 0 else int(rng.integers(20000, 29990))
+            secondaries.append(record(name, where, mate, 99 | 256, 0))
+        reads += pair + secondaries
+        kept += secondaries + (pair if i % 2 == 0 else [])
+    write_bam(path, reads, (40000,))
+    expected = np.zeros(40000)
+    for read in kept:
+        expected[read.reference_start:read.reference_start + 10] += 1
+    return expected
+
+
+@pytest.mark.parametrize('templates', [4000, 20000])
+def test_multimapper_nonprimary_index_stays_within_budget_in_linear_time(tmp_path, templates):
+    import time
+    bam = tmp_path / 'multi.bam'
+    expected = _multimapper_bam(bam, templates)
+    timings = {}
+    for nonprimary_bytes in (None, 64 << 10, 4096):
+        budget = {} if nonprimary_bytes is None else {'nonprimary_bytes': nonprimary_bytes}
+        out = tmp_path / f'multi{nonprimary_bytes}.bw'
+        started = time.monotonic()
+        _coverage.bam_coverage_bigwig(
+            str(bam), str(out), bin_size=1, aggregation='count', filter_mode='deeptools',
+            filter_by_overlap=True, whitelist={'chr1': [(20000, 30000)]}, threads=4,
+            max_zooms=0, mate_budget=budget)
+        timings[nonprimary_bytes] = time.monotonic() - started
+        np.testing.assert_array_equal(read_values(out), expected)
+        if nonprimary_bytes:
+            assert budget['peak_nonprimary_bytes'] <= nonprimary_bytes + 256
+            assert budget['nonprimary_passes'] == 2 and budget['nonprimary_spilled']
+    # Exceeding the budget costs disk merges, never extra BAM passes.
+    assert timings[64 << 10] < 2 and timings[4096] < 2, timings
+
+
+def test_nonprimary_spill_files_are_removed_after_an_error(tmp_path):
+    bam, out = tmp_path / 'nonprimary.bam', tmp_path / 'out.bw'
+    _nonprimary_bam(bam)
+    blocker = tmp_path / 'out.bw.nonprimary.index'  # the spilled index cannot be written
+    blocker.mkdir()
+    (blocker / 'keep').touch()
+    with pytest.raises(RuntimeError, match='spill file'):
+        _coverage.bam_coverage_bigwig(
+            str(bam), str(out), bin_size=10, filter_mode='deeptools', filter_by_overlap=True,
+            whitelist=_NONPRIMARY_REGIONS, mate_budget={'nonprimary_bytes': 4096})
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        'nonprimary.bam', 'nonprimary.bam.bai', 'out.bw.nonprimary.index']
+
+
+def test_nonprimary_bloom_false_positives_do_not_change_results(tmp_path):
+    """At 1 KB the 256-byte Bloom filter is saturated by 20,000 identities, so
+    nearly every alignment reaches the join; only real matches inherit."""
+    bam = tmp_path / 'multi.bam'
+    expected = _multimapper_bam(bam, 20000)
+    for nonprimary_bytes in (None, 1024):
+        budget = {} if nonprimary_bytes is None else {'nonprimary_bytes': nonprimary_bytes}
+        out = tmp_path / f'bloom{nonprimary_bytes}.bw'
+        _coverage.bam_coverage_bigwig(
+            str(bam), str(out), bin_size=1, aggregation='count', filter_mode='deeptools',
+            filter_by_overlap=True, whitelist={'chr1': [(0, 5000), (20000, 30000)]}, threads=2,
+            max_zooms=0, mate_budget=budget)
+        values = read_values(out)
+        if nonprimary_bytes is None:
+            reference = values
+        else:
+            np.testing.assert_array_equal(values, reference)
+            assert budget['nonprimary_passes'] == 2 and budget['nonprimary_spilled']
+    assert values.sum() > expected.sum()  # primaries inside (0, 5000) count on their own

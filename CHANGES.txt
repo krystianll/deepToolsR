@@ -1,3 +1,24 @@
+deepToolsR 0.9.1
+
+bamCoverageR
+* A proper-pair fragment spans the forward mate's aligned start to the
+  reverse mate's aligned end, whatever the aligner's TLEN sign or a
+  soft-clip-inclusive TLEN (as STAR writes it); deepTools 3.5.6 extends
+  forward reads by |TLEN|. A forward mate kept without its mate still
+  extends by |TLEN|. This changes fragment coverage by 1-6 bp at such pairs.
+* Mate lookups for `--collapse`, `--extendReads` and `--filterByOverlap` use
+  a fixed per-thread memory budget; mates beyond it are looked up together in
+  batches, so very deep pileups stay fast and memory stays bounded.
+* With `--filterByOverlap` and secondary/supplementary alignments admitted
+  (for example `--filterMode deeptools`), the index that passes their overlap
+  to the primary pair has a fixed memory budget; heavy multimapping data that
+  exceeds it is sorted through temporary files beside the output, still in
+  two passes over the BAM.
+
+Plotting
+* X tick labels no longer overlap when an edge label such as `-50 bp` sits
+  next to `TSS`.
+
 deepToolsR 0.9.0
 
 First public release of deepToolsR, a C++-accelerated reimplementation of

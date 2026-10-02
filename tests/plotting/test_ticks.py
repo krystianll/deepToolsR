@@ -102,6 +102,22 @@ def test_overlap_detection_ignores_existing_endpoint_justification():
     plt.close(fig)
 
 
+def test_inward_endpoint_label_reaching_its_neighbour_is_mitigated():
+    # Centred, '-50 bp' and 'TSS' would fit 50 of 300 bins apart on a 5 cm
+    # axis; anchored left at the axis edge, '-50 bp' reaches past the TSS tick.
+    fig = plt.figure(figsize=(5 / 2.54 + 1, 2))
+    axis = fig.add_axes((.5 / (5 / 2.54 + 1), .3, (5 / 2.54) / (5 / 2.54 + 1), .6))
+    axis.set_xlim(0, 300)
+    axis.set_xticks([0, 50, 300])
+    axis.set_xticklabels(['-50 bp', 'TSS', '250 bp'], fontsize=8)
+    alignTickLabelsForRotation(axis, 0)
+    assert mitigateTickLabelOverlapsForAxes([axis])
+    renderer = fig.canvas.get_renderer()
+    boxes = [label.get_window_extent(renderer) for label in axis.get_xticklabels()]
+    assert boxes[0].x1 < boxes[1].x0 and boxes[1].x1 < boxes[2].x0
+    plt.close(fig)
+
+
 def test_overlapping_rotated_label_is_shifted_without_realignment():
     fig, axis = plt.subplots(figsize=(4, 2))
     axis.set_xlim(0, 11)

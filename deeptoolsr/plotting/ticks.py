@@ -45,16 +45,17 @@ def _mitigate_tick_label_overlaps(ax, renderer, padding_points,
         return changed
 
     for left, right in zip(labels[:-1], labels[1:]):
-        # Compare the labels as though both were centered on their ticks.
-        # This is independent of endpoint alignment previously applied by the
-        # plotting code and reliably catches a short upstream flank next to a
-        # named reference point (for example, -0.5 and ncTSS).
-        left_width = left.get_window_extent(renderer).width
-        right_width = right.get_window_extent(renderer).width
+        # Compare the labels as though both were centered on their ticks, and
+        # as drawn: an endpoint label anchored inward (alignTickLabelsForRotation)
+        # can reach its neighbour even when centered labels would fit (for
+        # example, -50 bp beside TSS on a 300-bin axis).
+        left_box = left.get_window_extent(renderer)
+        right_box = right.get_window_extent(renderer)
         left_tick = ax.transData.transform((left.get_position()[0], 0))[0]
         right_tick = ax.transData.transform((right.get_position()[0], 0))[0]
-        required_gap = (left_width + right_width) / 2.0 + padding_pixels
-        if right_tick - left_tick < required_gap:
+        required_gap = (left_box.width + right_box.width) / 2.0 + padding_pixels
+        if (right_tick - left_tick < required_gap or
+                left_box.x1 + padding_pixels > right_box.x0):
             left.set_horizontalalignment('right')
             right.set_horizontalalignment('left')
             changed = True
