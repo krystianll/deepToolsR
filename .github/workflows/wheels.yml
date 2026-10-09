@@ -1,0 +1,33 @@
+name: Native wheels
+
+# Runs only when started by hand (workflow_dispatch).
+on: [workflow_dispatch]
+
+jobs:
+  wheels:
+    name: ${{ matrix.os }} wheels
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+          - os: macos-15-intel
+            arch: x86_64
+          - os: macos-14
+            arch: arm64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test wheels
+        uses: pypa/cibuildwheel@v4
+        env:
+          CIBW_ARCHS: ${{ matrix.arch }}
+        with:
+          output-dir: wheelhouse
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-wheels-${{ matrix.os }}-${{ matrix.arch }}
+          path: wheelhouse/*.whl

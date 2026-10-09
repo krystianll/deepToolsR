@@ -1,0 +1,400 @@
+group,case,threads,tool,rep,wall_s,peak_footprint_mb,peak_rss_mb,status
+bamcov_chip,bamCoverage ChIP bs50,1,deepToolsR,1,8.174,67.0,97.5,0
+bamcov_chip,bamCoverage ChIP bs50,1,deepToolsR,2,8.075,65.3,95.1,0
+bamcov_chip,bamCoverage ChIP bs50,1,deepToolsR,3,7.923,68.9,98.9,0
+bamcov_chip,bamCoverage ChIP bs50,1,3.5.6,1,101.587,196.1,488.7,0
+bamcov_chip,bamCoverage ChIP bs50,1,3.5.6,2,99.921,192.8,493.9,0
+bamcov_chip,bamCoverage ChIP bs50,1,3.5.6,3,100.432,197.9,468.2,0
+bamcov_chip,bamCoverage ChIP bs50,1,4.0.0,1,21.001,206.1,495.6,0
+bamcov_chip,bamCoverage ChIP bs50,1,4.0.0,2,21.189,172.5,469.4,0
+bamcov_chip,bamCoverage ChIP bs50,1,4.0.0,3,20.85,229.7,495.5,0
+bamcov_chip,bamCoverage ChIP bs50,4,deepToolsR,1,2.681,71.3,112.6,0
+bamcov_chip,bamCoverage ChIP bs50,4,deepToolsR,2,2.68,70.6,113.5,0
+bamcov_chip,bamCoverage ChIP bs50,4,deepToolsR,3,2.709,72.5,112.9,0
+bamcov_chip,bamCoverage ChIP bs50,4,3.5.6,1,41.081,455.3,688.7,0
+bamcov_chip,bamCoverage ChIP bs50,4,3.5.6,2,40.8,460.9,690.9,0
+bamcov_chip,bamCoverage ChIP bs50,4,3.5.6,3,40.493,454.8,689.3,0
+bamcov_chip,bamCoverage ChIP bs50,4,4.0.0,1,11.146,208.9,612.9,0
+bamcov_chip,bamCoverage ChIP bs50,4,4.0.0,2,11.384,226.1,715.2,0
+bamcov_chip,bamCoverage ChIP bs50,4,4.0.0,3,11.363,222.0,647.0,0
+bamcov_chip,bamCoverage ChIP bs50,8,deepToolsR,1,2.755,87.1,132.1,0
+bamcov_chip,bamCoverage ChIP bs50,8,deepToolsR,2,2.745,87.2,131.4,0
+bamcov_chip,bamCoverage ChIP bs50,8,deepToolsR,3,2.829,87.9,131.2,0
+bamcov_chip,bamCoverage ChIP bs50,8,3.5.6,1,31.288,710.9,1238.0,0
+bamcov_chip,bamCoverage ChIP bs50,8,3.5.6,2,31.338,711.5,1240.1,0
+bamcov_chip,bamCoverage ChIP bs50,8,3.5.6,3,31.505,711.8,1239.6,0
+bamcov_chip,bamCoverage ChIP bs50,8,4.0.0,1,9.524,258.7,802.3,0
+bamcov_chip,bamCoverage ChIP bs50,8,4.0.0,2,9.359,258.0,820.1,0
+bamcov_chip,bamCoverage ChIP bs50,8,4.0.0,3,9.619,236.3,775.6,0
+bamcov_chip,bamCoverage ChIP bs1,1,deepToolsR,1,17.425,84.5,120.6,0
+bamcov_chip,bamCoverage ChIP bs1,1,deepToolsR,2,17.419,81.1,116.2,0
+bamcov_chip,bamCoverage ChIP bs1,1,deepToolsR,3,17.637,86.0,120.9,0
+bamcov_chip,bamCoverage ChIP bs1,1,3.5.6,1,792.483,354.7,870.6,0
+bamcov_chip,bamCoverage ChIP bs1,1,3.5.6,2,788.81,354.5,872.2,0
+bamcov_chip,bamCoverage ChIP bs1,1,3.5.6,3,797.973,354.3,877.0,0
+bamcov_chip,bamCoverage ChIP bs1,1,4.0.0,1,27.584,1078.9,1974.1,0
+bamcov_chip,bamCoverage ChIP bs1,1,4.0.0,2,27.161,1074.3,1945.8,0
+bamcov_chip,bamCoverage ChIP bs1,1,4.0.0,3,27.284,1077.5,1990.9,0
+bamcov_chip,bamCoverage ChIP bs1,4,deepToolsR,1,6.048,90.6,153.7,0
+bamcov_chip,bamCoverage ChIP bs1,4,deepToolsR,2,6.041,92.6,154.5,0
+bamcov_chip,bamCoverage ChIP bs1,4,deepToolsR,3,6.125,93.0,156.3,0
+bamcov_chip,bamCoverage ChIP bs1,4,3.5.6,1,248.137,1657.4,2085.4,0
+bamcov_chip,bamCoverage ChIP bs1,4,3.5.6,2,251.866,1634.3,2101.5,0
+bamcov_chip,bamCoverage ChIP bs1,4,3.5.6,3,246.181,1635.7,2050.1,0
+bamcov_chip,bamCoverage ChIP bs1,4,4.0.0,1,14.932,2780.3,3012.4,0
+bamcov_chip,bamCoverage ChIP bs1,4,4.0.0,2,15.158,3113.6,3508.4,0
+bamcov_chip,bamCoverage ChIP bs1,4,4.0.0,3,15.049,2532.3,4140.4,0
+bamcov_chip,bamCoverage ChIP bs1,8,deepToolsR,1,6.165,137.8,193.5,0
+bamcov_chip,bamCoverage ChIP bs1,8,deepToolsR,2,6.109,138.8,193.6,0
+bamcov_chip,bamCoverage ChIP bs1,8,deepToolsR,3,6.178,138.8,193.8,0
+bamcov_chip,bamCoverage ChIP bs1,8,3.5.6,1,161.03,3047.7,3346.4,0
+bamcov_chip,bamCoverage ChIP bs1,8,3.5.6,2,156.649,3057.2,3363.7,0
+bamcov_chip,bamCoverage ChIP bs1,8,3.5.6,3,158.877,3048.4,3413.2,0
+bamcov_chip,bamCoverage ChIP bs1,8,4.0.0,1,12.877,4631.0,6717.0,0
+bamcov_chip,bamCoverage ChIP bs1,8,4.0.0,2,12.949,3730.8,5821.5,0
+bamcov_chip,bamCoverage ChIP bs1,8,4.0.0,3,12.943,3580.1,5683.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,1,deepToolsR,1,10.769,60.6,189.3,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,1,deepToolsR,2,10.797,59.4,190.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,1,deepToolsR,3,10.73,61.5,191.3,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,1,3.5.6,1,251.309,195.2,510.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,1,3.5.6,2,252.718,197.2,491.8,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,1,3.5.6,3,253.754,187.7,485.0,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,1,4.0.0,1,29.409,204.8,578.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,1,4.0.0,2,29.354,203.3,632.1,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,1,4.0.0,3,29.305,179.8,553.8,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,4,deepToolsR,1,3.966,67.8,228.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,4,deepToolsR,2,3.948,63.0,222.1,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,4,deepToolsR,3,3.952,64.1,221.8,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,4,3.5.6,1,82.0,932.4,650.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,4,3.5.6,2,82.428,941.9,689.3,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,4,3.5.6,3,82.316,959.8,695.5,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,4,4.0.0,1,13.201,215.2,683.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,4,4.0.0,2,12.954,213.1,699.5,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,4,4.0.0,3,13.157,222.4,676.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,8,deepToolsR,1,3.821,82.8,265.3,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,8,deepToolsR,2,3.699,81.9,257.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,8,deepToolsR,3,3.724,81.7,255.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,8,3.5.6,1,52.079,1679.4,1210.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,8,3.5.6,2,52.45,1676.6,1231.8,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,8,3.5.6,3,52.093,1665.0,1215.9,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,8,4.0.0,1,10.724,253.4,765.8,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,8,4.0.0,2,10.403,275.4,806.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs50,8,4.0.0,3,10.651,263.3,759.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,1,deepToolsR,1,19.464,77.5,212.5,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,1,deepToolsR,2,19.284,82.2,217.0,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,1,deepToolsR,3,19.137,79.2,213.0,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,1,3.5.6,1,941.286,360.5,884.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,1,3.5.6,2,945.292,361.9,881.9,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,1,3.5.6,3,926.822,363.9,885.0,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,1,4.0.0,1,34.196,1110.5,2101.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,1,4.0.0,2,34.197,1109.0,2104.1,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,1,4.0.0,3,34.185,1108.5,2096.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,4,deepToolsR,1,8.172,86.7,276.1,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,4,deepToolsR,2,8.151,89.1,280.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,4,deepToolsR,3,8.326,88.6,282.1,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,4,3.5.6,1,283.205,2109.2,2140.5,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,4,3.5.6,2,285.236,2105.5,1994.0,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,4,3.5.6,3,291.933,2099.4,2123.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,4,4.0.0,1,16.915,2511.4,3898.3,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,4,4.0.0,2,16.583,2419.2,4037.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,4,4.0.0,3,16.56,2521.1,3727.5,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,8,deepToolsR,1,7.021,128.2,330.9,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,8,deepToolsR,2,7.01,126.8,327.8,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,8,deepToolsR,3,7.054,124.9,319.8,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,8,3.5.6,1,183.225,3998.1,3283.5,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,8,3.5.6,2,177.736,4021.3,3423.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,8,3.5.6,3,177.616,3982.6,3374.1,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,8,4.0.0,1,13.719,3862.8,6272.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,8,4.0.0,2,13.963,3722.8,5573.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM ref bs1,8,4.0.0,3,13.671,4122.1,6550.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,1,deepToolsR,1,15.119,108.8,343.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,1,deepToolsR,2,15.131,110.4,333.8,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,1,deepToolsR,3,15.084,108.1,332.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,1,3.5.6,1,345.237,229.6,583.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,1,3.5.6,2,342.336,227.6,566.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,1,3.5.6,3,344.777,226.9,543.8,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,1,4.0.0,1,29.966,185.4,542.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,1,4.0.0,2,30.051,185.8,515.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,1,4.0.0,3,29.869,186.9,529.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,4,deepToolsR,1,7.066,108.5,360.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,4,deepToolsR,2,7.127,110.8,360.9,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,4,deepToolsR,3,7.072,113.3,357.0,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,4,3.5.6,1,106.438,1500.4,1244.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,4,3.5.6,2,107.412,1546.3,1273.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,4,3.5.6,3,109.093,1529.1,1296.9,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,4,4.0.0,1,13.69,212.1,666.1,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,4,4.0.0,2,13.339,226.0,643.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,4,4.0.0,3,13.769,198.4,641.9,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,8,deepToolsR,1,6.149,112.7,370.9,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,8,deepToolsR,2,6.116,114.8,373.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,8,deepToolsR,3,6.162,117.1,364.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,8,3.5.6,1,68.457,2773.1,2422.5,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,8,3.5.6,2,68.63,2701.1,2392.3,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,8,3.5.6,3,67.697,2789.7,2416.9,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,8,4.0.0,1,11.016,248.1,805.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,8,4.0.0,2,10.666,295.8,793.0,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs50,8,4.0.0,3,10.783,268.3,795.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,1,deepToolsR,1,24.117,120.8,352.0,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,1,deepToolsR,2,24.097,124.8,357.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,1,deepToolsR,3,24.017,121.7,359.8,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,1,3.5.6,1,1020.54,403.5,885.1,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,1,3.5.6,2,1023.402,400.0,888.9,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,1,3.5.6,3,1045.745,402.3,874.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,1,4.0.0,1,35.731,1088.1,2062.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,1,4.0.0,2,35.535,1110.5,2096.0,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,1,4.0.0,3,35.676,1109.6,2086.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,4,deepToolsR,1,12.488,128.0,406.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,4,deepToolsR,2,12.606,126.2,404.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,4,deepToolsR,3,12.65,130.3,398.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,4,3.5.6,1,312.77,2533.3,2214.9,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,4,3.5.6,2,315.842,2496.4,2214.1,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,4,3.5.6,3,319.164,2539.1,2101.3,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,4,4.0.0,1,17.063,2552.2,3721.3,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,4,4.0.0,2,17.02,2896.4,3233.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,4,4.0.0,3,17.186,2725.3,3801.4,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,8,deepToolsR,1,9.48,159.9,438.3,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,8,deepToolsR,2,9.586,147.9,433.0,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,8,deepToolsR,3,9.483,146.8,428.6,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,8,3.5.6,1,197.312,4806.4,3691.5,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,8,3.5.6,2,194.167,4852.7,3737.2,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,8,3.5.6,3,195.533,4891.5,3485.5,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,8,4.0.0,1,14.131,4345.1,6693.8,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,8,4.0.0,2,13.967,4312.3,6764.7,0
+bamcov_chip_cram,bamCoverage ChIP CRAM noref bs1,8,4.0.0,3,14.591,3840.9,4812.5,0
+rna,RNA stranded bs10,1,deepToolsR,1,19.448,76.8,121.2,0
+rna,RNA stranded bs10,1,deepToolsR,2,18.979,74.9,116.0,0
+rna,RNA stranded bs10,1,deepToolsR,3,18.938,82.9,126.3,0
+rna,RNA stranded bs10,1,3.5.6,1,1434.529,192.3,504.4,0
+rna,RNA stranded bs10,1,3.5.6,2,1408.715,201.2,510.4,0
+rna,RNA stranded bs10,1,3.5.6,3,1434.442,191.7,495.9,0
+rna,RNA stranded bs10,1,4.0.0,1,89.802,465.0,977.7,0
+rna,RNA stranded bs10,1,4.0.0,2,89.604,457.1,1088.6,0
+rna,RNA stranded bs10,1,4.0.0,3,89.621,475.4,1097.8,0
+rna,RNA stranded bs10,4,deepToolsR,1,5.874,102.3,160.8,0
+rna,RNA stranded bs10,4,deepToolsR,2,5.677,100.1,148.2,0
+rna,RNA stranded bs10,4,deepToolsR,3,5.931,101.3,155.9,0
+rna,RNA stranded bs10,4,3.5.6,1,424.175,545.2,1310.8,0
+rna,RNA stranded bs10,4,3.5.6,2,438.119,543.6,1311.1,0
+rna,RNA stranded bs10,4,3.5.6,3,438.081,556.7,1327.3,0
+rna,RNA stranded bs10,4,4.0.0,1,36.16,495.6,1115.0,0
+rna,RNA stranded bs10,4,4.0.0,2,35.874,487.2,1107.0,0
+rna,RNA stranded bs10,4,4.0.0,3,36.141,484.2,1124.1,0
+rna,RNA stranded bs10,8,deepToolsR,1,5.422,146.9,193.6,0
+rna,RNA stranded bs10,8,deepToolsR,2,5.548,148.0,200.1,0
+rna,RNA stranded bs10,8,deepToolsR,3,5.485,147.6,198.7,0
+rna,RNA stranded bs10,8,3.5.6,1,264.724,922.1,2328.8,0
+rna,RNA stranded bs10,8,3.5.6,2,256.828,924.9,2335.9,0
+rna,RNA stranded bs10,8,3.5.6,3,257.691,914.3,2327.6,0
+rna,RNA stranded bs10,8,4.0.0,1,25.283,471.9,1491.1,0
+rna,RNA stranded bs10,8,4.0.0,2,25.504,496.0,1392.6,0
+rna,RNA stranded bs10,8,4.0.0,3,24.975,482.6,1346.8,0
+rna,RNA stranded bs1,1,deepToolsR,1,35.088,93.9,146.2,0
+rna,RNA stranded bs1,1,deepToolsR,2,34.943,96.3,153.5,0
+rna,RNA stranded bs1,1,deepToolsR,3,35.835,97.4,151.0,0
+rna,RNA stranded bs1,1,4.0.0,1,98.351,1093.3,2013.7,0
+rna,RNA stranded bs1,1,4.0.0,2,98.271,1086.0,2047.7,0
+rna,RNA stranded bs1,1,4.0.0,3,98.184,1115.1,2094.2,0
+rna,RNA stranded bs1,4,deepToolsR,1,11.546,140.5,202.8,0
+rna,RNA stranded bs1,4,deepToolsR,2,11.542,130.7,192.2,0
+rna,RNA stranded bs1,4,deepToolsR,3,11.696,130.8,209.4,0
+rna,RNA stranded bs1,4,4.0.0,1,39.473,1969.5,4164.7,0
+rna,RNA stranded bs1,4,4.0.0,2,39.323,1629.6,3702.4,0
+rna,RNA stranded bs1,4,4.0.0,3,39.458,1802.2,3573.9,0
+rna,RNA stranded bs1,8,deepToolsR,1,11.4,212.8,282.1,0
+rna,RNA stranded bs1,8,deepToolsR,2,11.446,213.7,275.0,0
+rna,RNA stranded bs1,8,deepToolsR,3,11.416,205.1,269.9,0
+rna,RNA stranded bs1,8,3.5.6,1,483.914,3116.8,3534.2,0
+rna,RNA stranded bs1,8,3.5.6,2,490.721,3077.2,3423.3,0
+rna,RNA stranded bs1,8,3.5.6,3,479.166,3084.3,3548.6,0
+rna,RNA stranded bs1,8,4.0.0,1,30.114,3003.0,4643.9,0
+rna,RNA stranded bs1,8,4.0.0,2,30.597,2593.5,5245.0,0
+rna,RNA stranded bs1,8,4.0.0,3,30.206,2909.8,4310.8,0
+matrix,computeMatrix small,1,deepToolsR,1,0.974,42.4,64.0,0
+matrix,computeMatrix small,1,deepToolsR,2,0.686,43.0,62.7,0
+matrix,computeMatrix small,1,deepToolsR,3,0.635,41.3,60.9,0
+matrix,computeMatrix small,1,3.5.6,1,19.128,94.9,121.2,0
+matrix,computeMatrix small,1,3.5.6,2,19.399,94.7,121.7,0
+matrix,computeMatrix small,1,3.5.6,3,18.939,94.3,119.3,0
+matrix,computeMatrix small,1,4.0.0,1,0.771,137.3,150.8,0
+matrix,computeMatrix small,1,4.0.0,2,0.827,137.8,151.4,0
+matrix,computeMatrix small,1,4.0.0,3,0.819,139.6,153.2,0
+matrix,computeMatrix small,4,deepToolsR,1,0.297,51.2,60.9,0
+matrix,computeMatrix small,4,deepToolsR,2,0.356,50.7,67.6,0
+matrix,computeMatrix small,4,deepToolsR,3,0.297,51.0,61.1,0
+matrix,computeMatrix small,4,3.5.6,1,6.014,312.8,411.4,0
+matrix,computeMatrix small,4,3.5.6,2,6.043,311.0,411.4,0
+matrix,computeMatrix small,4,3.5.6,3,5.988,308.1,406.3,0
+matrix,computeMatrix small,4,4.0.0,1,0.761,136.6,150.1,0
+matrix,computeMatrix small,4,4.0.0,2,0.76,139.4,153.0,0
+matrix,computeMatrix small,4,4.0.0,3,0.76,137.0,150.6,0
+matrix,computeMatrix small,8,deepToolsR,1,0.296,67.5,61.8,0
+matrix,computeMatrix small,8,deepToolsR,2,0.225,66.6,62.4,0
+matrix,computeMatrix small,8,deepToolsR,3,0.294,65.8,82.4,0
+matrix,computeMatrix small,8,3.5.6,1,3.753,501.4,670.5,0
+matrix,computeMatrix small,8,3.5.6,2,3.749,499.7,666.5,0
+matrix,computeMatrix small,8,3.5.6,3,3.769,498.4,664.1,0
+matrix,computeMatrix small,8,4.0.0,1,0.766,138.2,151.7,0
+matrix,computeMatrix small,8,4.0.0,2,0.76,137.5,151.1,0
+matrix,computeMatrix small,8,4.0.0,3,0.821,137.9,151.4,0
+matrix,computeMatrix medium,1,deepToolsR,1,1.977,70.6,89.9,0
+matrix,computeMatrix medium,1,deepToolsR,2,1.759,70.4,89.7,0
+matrix,computeMatrix medium,1,deepToolsR,3,1.759,70.4,89.7,0
+matrix,computeMatrix medium,1,3.5.6,1,59.899,207.7,236.7,0
+matrix,computeMatrix medium,1,3.5.6,2,59.668,208.7,239.0,0
+matrix,computeMatrix medium,1,3.5.6,3,59.715,208.9,238.8,0
+matrix,computeMatrix medium,1,4.0.0,1,2.413,388.7,419.7,0
+matrix,computeMatrix medium,1,4.0.0,2,2.334,423.2,440.6,0
+matrix,computeMatrix medium,1,4.0.0,3,2.352,378.7,410.3,0
+matrix,computeMatrix medium,4,deepToolsR,1,0.695,79.2,94.0,0
+matrix,computeMatrix medium,4,deepToolsR,2,0.698,74.2,98.0,0
+matrix,computeMatrix medium,4,deepToolsR,3,0.693,78.0,103.2,0
+matrix,computeMatrix medium,4,3.5.6,1,18.466,441.2,526.6,0
+matrix,computeMatrix medium,4,3.5.6,2,18.451,439.5,511.9,0
+matrix,computeMatrix medium,4,3.5.6,3,18.373,440.1,514.5,0
+matrix,computeMatrix medium,4,4.0.0,1,2.349,415.3,432.2,0
+matrix,computeMatrix medium,4,4.0.0,2,2.313,418.6,435.5,0
+matrix,computeMatrix medium,4,4.0.0,3,2.315,418.5,435.9,0
+matrix,computeMatrix medium,8,deepToolsR,1,0.498,89.6,118.9,0
+matrix,computeMatrix medium,8,deepToolsR,2,0.5,90.4,118.9,0
+matrix,computeMatrix medium,8,deepToolsR,3,0.498,93.0,113.9,0
+matrix,computeMatrix medium,8,3.5.6,1,10.947,628.9,790.0,0
+matrix,computeMatrix medium,8,3.5.6,2,11.09,628.7,798.5,0
+matrix,computeMatrix medium,8,3.5.6,3,11.4,632.4,792.1,0
+matrix,computeMatrix medium,8,4.0.0,1,2.337,383.0,409.2,0
+matrix,computeMatrix medium,8,4.0.0,2,2.34,383.6,412.0,0
+matrix,computeMatrix medium,8,4.0.0,3,2.334,425.1,442.5,0
+matrix,computeMatrix big,1,deepToolsR,1,36.885,487.9,819.0,0
+matrix,computeMatrix big,1,deepToolsR,2,35.637,485.7,828.4,0
+matrix,computeMatrix big,1,deepToolsR,3,35.445,487.1,841.5,0
+matrix,computeMatrix big,1,3.5.6,1,845.777,1620.0,2507.8,0
+matrix,computeMatrix big,1,3.5.6,2,848.251,1621.6,2489.6,0
+matrix,computeMatrix big,1,3.5.6,3,843.155,1620.7,2484.7,0
+matrix,computeMatrix big,1,4.0.0,1,48.407,1135.2,1492.0,0
+matrix,computeMatrix big,1,4.0.0,2,48.047,1155.6,1492.9,0
+matrix,computeMatrix big,1,4.0.0,3,47.963,1266.3,1590.0,0
+matrix,computeMatrix big,4,deepToolsR,1,10.422,478.4,842.2,0
+matrix,computeMatrix big,4,deepToolsR,2,10.419,494.3,838.5,0
+matrix,computeMatrix big,4,deepToolsR,3,10.392,496.4,851.6,0
+matrix,computeMatrix big,4,3.5.6,1,266.782,2684.8,2300.0,0
+matrix,computeMatrix big,4,3.5.6,2,268.063,2774.8,2325.7,0
+matrix,computeMatrix big,4,3.5.6,3,267.795,2729.6,2377.3,0
+matrix,computeMatrix big,4,4.0.0,1,20.414,1219.5,1617.6,0
+matrix,computeMatrix big,4,4.0.0,2,20.121,1270.3,1632.0,0
+matrix,computeMatrix big,4,4.0.0,3,20.488,1179.7,1600.9,0
+matrix,computeMatrix big,8,deepToolsR,1,5.516,514.8,861.0,0
+matrix,computeMatrix big,8,deepToolsR,2,5.512,510.4,867.9,0
+matrix,computeMatrix big,8,deepToolsR,3,5.496,510.5,867.2,0
+matrix,computeMatrix big,8,3.5.6,1,169.953,3290.7,3529.1,0
+matrix,computeMatrix big,8,3.5.6,2,166.518,3257.6,3592.3,0
+matrix,computeMatrix big,8,3.5.6,3,164.767,3295.9,3545.9,0
+matrix,computeMatrix big,8,4.0.0,1,20.357,1247.5,1659.9,0
+matrix,computeMatrix big,8,4.0.0,2,20.058,1249.3,1659.1,0
+matrix,computeMatrix big,8,4.0.0,3,20.439,1169.2,1575.5,0
+matrix_stranded,computeMatrix stranded medium,1,deepToolsR,1,2.351,71.8,95.3,0
+matrix_stranded,computeMatrix stranded medium,1,deepToolsR,2,1.952,71.3,94.8,0
+matrix_stranded,computeMatrix stranded medium,1,deepToolsR,3,1.886,71.3,98.7,0
+matrix_stranded,computeMatrix stranded medium,1,3.5.6,1,66.474,173.1,219.6,0
+matrix_stranded,computeMatrix stranded medium,1,3.5.6,2,66.377,159.6,200.6,0
+matrix_stranded,computeMatrix stranded medium,1,3.5.6,3,66.284,156.7,208.8,0
+matrix_stranded,computeMatrix stranded medium,1,4.0.0,1,6.643,219.8,233.2,0
+matrix_stranded,computeMatrix stranded medium,1,4.0.0,2,6.426,221.5,234.9,0
+matrix_stranded,computeMatrix stranded medium,1,4.0.0,3,6.397,221.0,236.0,0
+matrix_stranded,computeMatrix stranded medium,4,deepToolsR,1,0.761,80.6,117.5,0
+matrix_stranded,computeMatrix stranded medium,4,deepToolsR,2,0.779,77.0,101.9,0
+matrix_stranded,computeMatrix stranded medium,4,deepToolsR,3,0.773,78.4,105.5,0
+matrix_stranded,computeMatrix stranded medium,4,3.5.6,1,23.415,345.8,449.8,0
+matrix_stranded,computeMatrix stranded medium,4,3.5.6,2,23.696,344.8,445.6,0
+matrix_stranded,computeMatrix stranded medium,4,3.5.6,3,23.771,344.4,444.2,0
+matrix_stranded,computeMatrix stranded medium,4,4.0.0,1,6.422,220.2,235.2,0
+matrix_stranded,computeMatrix stranded medium,4,4.0.0,2,6.302,220.3,233.8,0
+matrix_stranded,computeMatrix stranded medium,4,4.0.0,3,6.247,220.6,234.0,0
+matrix_stranded,computeMatrix stranded medium,8,deepToolsR,1,0.536,97.5,133.9,0
+matrix_stranded,computeMatrix stranded medium,8,deepToolsR,2,0.528,99.6,122.2,0
+matrix_stranded,computeMatrix stranded medium,8,deepToolsR,3,0.536,96.5,119.4,0
+matrix_stranded,computeMatrix stranded medium,8,3.5.6,1,15.893,549.4,707.5,0
+matrix_stranded,computeMatrix stranded medium,8,3.5.6,2,16.071,547.8,706.2,0
+matrix_stranded,computeMatrix stranded medium,8,3.5.6,3,16.22,545.6,706.2,0
+matrix_stranded,computeMatrix stranded medium,8,4.0.0,1,6.423,219.0,234.1,0
+matrix_stranded,computeMatrix stranded medium,8,4.0.0,2,6.383,219.6,234.6,0
+matrix_stranded,computeMatrix stranded medium,8,4.0.0,3,6.435,214.7,231.7,0
+matrix_stranded,computeMatrix stranded big,8,deepToolsR,1,6.974,492.5,1757.3,0
+matrix_stranded,computeMatrix stranded big,8,deepToolsR,2,6.136,496.4,892.5,0
+matrix_stranded,computeMatrix stranded big,8,deepToolsR,3,6.116,516.5,910.2,0
+matrix_stranded,computeMatrix stranded big,8,3.5.6,1,236.348,2149.2,2988.0,0
+matrix_stranded,computeMatrix stranded big,8,3.5.6,2,236.374,2171.9,3134.3,0
+matrix_stranded,computeMatrix stranded big,8,3.5.6,3,234.32,2201.4,3063.9,0
+matrix_stranded,computeMatrix stranded big,8,4.0.0,1,81.735,1342.5,1698.2,0
+matrix_stranded,computeMatrix stranded big,8,4.0.0,2,81.553,1317.7,1674.8,0
+matrix_stranded,computeMatrix stranded big,8,4.0.0,3,81.593,1292.8,1683.5,0
+plot,plotHeatmap small,1,deepToolsR,1,0.847,131.4,185.2,0
+plot,plotHeatmap small,1,deepToolsR,2,0.522,131.2,187.3,0
+plot,plotHeatmap small,1,deepToolsR,3,0.537,131.0,186.1,0
+plot,plotHeatmap small,8,deepToolsR,1,0.465,121.6,173.6,0
+plot,plotHeatmap small,8,deepToolsR,2,0.465,133.4,189.2,0
+plot,plotHeatmap small,8,deepToolsR,3,0.47,122.5,174.0,0
+plot,plotHeatmap small,1,3.5.6,1,0.717,233.1,291.2,0
+plot,plotHeatmap small,1,3.5.6,2,0.72,231.6,279.0,0
+plot,plotHeatmap small,1,3.5.6,3,0.72,229.7,280.1,0
+plot,plotHeatmap small,1,4.0.0,1,0.656,235.8,290.5,0
+plot,plotHeatmap small,1,4.0.0,2,0.596,230.9,280.3,0
+plot,plotHeatmap small,1,4.0.0,3,0.594,232.5,281.1,0
+plot,plotProfile small,1,deepToolsR,1,0.403,82.0,106.7,0
+plot,plotProfile small,1,deepToolsR,2,0.401,79.3,105.4,0
+plot,plotProfile small,1,deepToolsR,3,0.402,82.1,108.2,0
+plot,plotProfile small,8,deepToolsR,1,0.408,80.8,111.0,0
+plot,plotProfile small,8,deepToolsR,2,0.406,83.5,109.0,0
+plot,plotProfile small,8,deepToolsR,3,0.403,82.6,110.7,0
+plot,plotProfile small,1,3.5.6,1,0.534,105.3,139.4,0
+plot,plotProfile small,1,3.5.6,2,0.524,105.8,140.3,0
+plot,plotProfile small,1,3.5.6,3,0.47,104.7,140.8,0
+plot,plotProfile small,1,4.0.0,1,0.468,104.0,140.2,0
+plot,plotProfile small,1,4.0.0,2,0.466,104.1,140.3,0
+plot,plotProfile small,1,4.0.0,3,0.463,104.3,140.5,0
+plot,plotHeatmap medium,1,deepToolsR,1,0.772,153.8,208.5,0
+plot,plotHeatmap medium,1,deepToolsR,2,0.775,163.5,217.4,0
+plot,plotHeatmap medium,1,deepToolsR,3,0.778,157.9,214.7,0
+plot,plotHeatmap medium,8,deepToolsR,1,0.529,161.9,218.1,0
+plot,plotHeatmap medium,8,deepToolsR,2,0.527,160.0,208.4,0
+plot,plotHeatmap medium,8,deepToolsR,3,0.531,158.2,208.9,0
+plot,plotHeatmap medium,1,3.5.6,1,1.341,559.9,797.8,0
+plot,plotHeatmap medium,1,3.5.6,2,1.34,561.1,797.0,0
+plot,plotHeatmap medium,1,3.5.6,3,1.346,570.8,795.5,0
+plot,plotHeatmap medium,1,4.0.0,1,1.075,560.5,749.8,0
+plot,plotHeatmap medium,1,4.0.0,2,1.089,569.5,759.5,0
+plot,plotHeatmap medium,1,4.0.0,3,1.102,564.3,756.3,0
+plot,plotProfile medium,1,deepToolsR,1,0.533,105.4,132.3,0
+plot,plotProfile medium,1,deepToolsR,2,0.532,101.7,130.8,0
+plot,plotProfile medium,1,deepToolsR,3,0.526,102.1,131.1,0
+plot,plotProfile medium,8,deepToolsR,1,0.407,104.8,132.4,0
+plot,plotProfile medium,8,deepToolsR,2,0.427,102.9,135.3,0
+plot,plotProfile medium,8,deepToolsR,3,0.42,103.2,134.2,0
+plot,plotProfile medium,1,3.5.6,1,0.821,235.4,309.8,0
+plot,plotProfile medium,1,3.5.6,2,0.835,229.5,304.2,0
+plot,plotProfile medium,1,3.5.6,3,0.827,228.3,303.8,0
+plot,plotProfile medium,1,4.0.0,1,0.823,234.0,303.7,0
+plot,plotProfile medium,1,4.0.0,2,0.831,225.0,301.7,0
+plot,plotProfile medium,1,4.0.0,3,0.833,231.2,307.1,0
+plot,plotHeatmap big,1,deepToolsR,1,5.551,484.0,640.4,0
+plot,plotHeatmap big,1,deepToolsR,2,5.52,486.8,638.0,0
+plot,plotHeatmap big,1,deepToolsR,3,5.583,485.5,654.9,0
+plot,plotHeatmap big,8,deepToolsR,1,2.034,731.4,874.9,0
+plot,plotHeatmap big,8,deepToolsR,2,2.023,727.5,867.2,0
+plot,plotHeatmap big,8,deepToolsR,3,2.051,724.9,870.5,0
+plot,plotHeatmap big,1,3.5.6,1,12.351,2290.4,4196.5,0
+plot,plotHeatmap big,1,3.5.6,2,12.39,2313.9,4183.4,0
+plot,plotHeatmap big,1,3.5.6,3,12.381,2315.8,4167.5,0
+plot,plotHeatmap big,1,4.0.0,1,9.56,2305.8,4182.6,0
+plot,plotHeatmap big,1,4.0.0,2,9.601,2318.0,4243.6,0
+plot,plotHeatmap big,1,4.0.0,3,9.796,2291.1,4221.8,0
+plot,plotProfile big,1,deepToolsR,1,2.75,403.0,439.8,0
+plot,plotProfile big,1,deepToolsR,2,2.645,410.5,441.9,0
+plot,plotProfile big,1,deepToolsR,3,2.669,409.8,440.9,0
+plot,plotProfile big,8,deepToolsR,1,1.388,413.0,444.1,0
+plot,plotProfile big,8,deepToolsR,2,1.371,412.7,450.9,0
+plot,plotProfile big,8,deepToolsR,3,1.365,412.7,450.8,0
+plot,plotProfile big,1,3.5.6,1,6.075,1408.3,1735.3,0
+plot,plotProfile big,1,3.5.6,2,6.048,1407.2,1688.1,0
+plot,plotProfile big,1,3.5.6,3,6.048,1407.0,1702.7,0
+plot,plotProfile big,1,4.0.0,1,6.048,1406.5,1694.3,0
+plot,plotProfile big,1,4.0.0,2,6.035,1409.0,1689.2,0
+plot,plotProfile big,1,4.0.0,3,6.015,1406.5,1629.6,0

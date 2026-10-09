@@ -1,0 +1,11 @@
+digestible (cpp/include/digestible/digestible.h)
+
+digestible is a C++ implementation of the t-digest algorithm, derived from
+the t-digest work of Ted Dunning (https://github.com/tdunning/t-digest).
+Its header states: "Licensed to Ted Dunning under one or more contributor
+license agreements ... under the Apache License, Version 2.0".
+Upstream repository: https://github.com/SpirentOrion/digestible
+
+Neither digestible nor tdunning/t-digest ships a NOTICE file (checked 2026-09-29); this
+notice records the attribution carried in the source header. The licence
+text is in Apache-2.0.txt.

@@ -1,0 +1,500 @@
+deepToolsR 0.10.2-beta
+
+* Faster CRAM input in bamCoverageR: each CRAM container is decoded once and
+  shared by all threads (CPU time about 2-4x lower, e.g. 16.3 s -> 6.3 s at
+  `-p 12`), with the same output.
+* bamCoverageR prints a warning when `--blackListFileName` and/or
+  `--whiteListFileName` (as a mask or with `--filterByOverlap`) remove all
+  coverage from reads that would otherwise have given some, for example when
+  the list uses other chromosome names or coordinates than the BAM. The output
+  is still written (all zero) and the exit code is unchanged.
+* When CPM, RPKM or BPM normalization has nothing to divide by, the error now
+  names what removed the reads in that run (the black/whitelist,
+  `--ignoreForNormalization` or the read filters) instead of always blaming
+  `--ignoreForNormalization`.
+
+deepToolsR 0.10.1-beta
+
+* New text hinting setting, `off` by default: plot text is measured and drawn
+  without glyph hinting, so label spacing is exact and identical in PDF, SVG
+  and PNG (deepTools 3.5.6 draws raster text hinted). `on` gives crisper small
+  raster text with spacing snapped to whole pixels. Set it with
+  `deeptoolsr options --textHinting on|off` (stored as `text_hinting` in
+  options.txt) or for one run with `--textHinting on|off` in plotMatrixR,
+  plotProfileR and plotHeatmapR.
+* `--xAxisVisibility` now defaults to `show_all` in plotMatrixR, plotProfileR
+  and plotHeatmapR, so every profile panel and every heatmap stack shows its X
+  tick values and distance label, as in deepTools 3.5.6 (see below for a
+  profile drawn above a heatmap). `--yAxisVisibility` still defaults to
+  `outer`.
+* With `--xAxisVisibility show_all`, a colorbar or legend below a row of
+  heatmaps is placed below that row's tick values and distance label instead
+  of over them.
+* With `--xAxisVisibility outer`, each grid column is split into runs of
+  panels with the same X axis; the bottom panel of a run shows the tick values
+  and distance label, and the panels above show tick marks only. Titles,
+  legends and colorbars between rows do not break a run.
+* A panel or heatmap stack that leaves its X tick values to the panel below
+  keeps the same major and minor tick marks, without values or label.
+* When a heatmap is drawn below a profile in the same cell, the profile shows
+  X tick marks only; the tick values and distance label appear under the
+  heatmap. deepTools 3.5.6 also puts tick values on that profile.
+* Neighbouring structural labels (region labels beside heatmaps, titles,
+  X and Y labels, colorbar titles) now keep the minimum clearance whenever
+  either of them extends past its own cell into the gap between them.
+  Previously two labels that each reached only partway into the gap could be
+  drawn almost touching or overlapping.
+* A heatmap region label that names both the sample and the group may now
+  carry words of a long sample name onto the group line, joined by ` — `
+  (for example `B45C A123B vs.` / `WT — genes_Q1` / `[n = 3,809]`), when
+  that narrows the gap between heatmap stacks. It never widens the gap, and
+  the sample name keeps its own line whenever that needs no wider gap.
+
+deepToolsR 0.10.0-beta
+
+First public release of deepToolsR, a C++-accelerated reimplementation of
+selected deepTools 3.5.6 tools. All items below are phrased against deepTools
+3.5.6 behaviour.
+
+This is a beta: it adds a lot of new code and may still contain bugs; please
+report problems at https://github.com/krystianll/deepToolsR/issues.
+
+Tools and packaging
+* Commands carry an R suffix and can be installed beside deepTools:
+  bamCoverageR, computeMatrixR, computeMatrixOperationsR, plotHeatmapR and
+  plotProfileR. The Python package is `deeptoolsr`.
+* New `plotMatrixR` plots profiles, heatmaps or both from one matrix
+  (`--profile`, `--heatmap`) on a grid of cells; plotProfileR and plotHeatmapR
+  are kept for compatibility and share its engine.
+* New `bigWigOperationsR` with `info` (header statistics, `--chromSizes`),
+  `scale` (multiply by `--scaleFactor`, keeping the interval resolution;
+  negative factors flip signal) and `merge` (`--operation sum|mean` over any
+  number of tracks, optional `--binSize`, multicore; a missing chromosome
+  counts as zero, conflicting lengths are an error).
+* New `deeptoolsr` helper: `options` (persistent settings), `describe` (plot
+  metadata as JSON without rendering) and `serve` (a persistent JSON-lines
+  plotting worker for GUIs and other front ends).
+* Every command accepts `--config PATH|auto`; commands with parallel work
+  accept `-p N|max|auto` (auto = stored setting or half the CPUs). Persistent
+  typography and geometry settings are described in PLOTTING_STYLE.md.
+* All other deepTools commands are not included. Plotly output is removed.
+* Minimum Python is 3.11. Native C++ extensions (built with scikit-build-core
+  and pybind11) are required; bundled htslib and libBigWig replace pysam and
+  pyBigWig at run time, and SciPy is not a runtime dependency.
+* BED/GTF region files are read by a native loader instead of the Python
+  deeptoolsintervals package, which is not installed with deepToolsR; it is
+  only a test dependency (the [actions] extra) for the loader parity tests.
+* Every command prints `<tool> <version>` with `--version`.
+
+Performance and memory
+* bamCoverage, computeMatrix, bigWig reading/writing, matrix statistics,
+  clustering, bootstrap and heatmap rasterisation run in native multicore
+  code with bounded memory.
+* Matrices are held as 32-bit floats with NaN as the missing-value marker,
+  roughly halving matrix memory.
+* computeMatrixOperationsR streams most operations (filterValues,
+  filterStrand, column subset, relabel, rbind, cbind --blind) in chunks and
+  reorders rows at write time, cutting peak memory several-fold.
+* plotProfileR and plotHeatmapR use several times less memory; heatmaps are
+  rasterised natively at the on-screen size.
+* The BED/GTF loader is about 4x faster than deeptoolsintervals and uses far
+  less memory on large GTFs (gzip input is streamed; bzip2 is also accepted).
+* Long-running work can be stopped with Control-C.
+
+Safety and validation
+* Outputs are written to staging files first; a failed or interrupted command
+  leaves existing outputs intact, and input/output path aliases are rejected.
+* Damaged bigWig, BAM and matrix inputs (bad indexes, truncated gzip,
+  inconsistent rows or sample metadata) are rejected with a clear error
+  instead of crashing or being read as zero signal.
+* Numeric options and incompatible option combinations are checked before
+  any work starts; explicitly supplied options that have no effect warn.
+* Multi-output commands stage every track, matrix, table, BED file and plot
+  before replacing any destination; the BAM index actually used is checked,
+  and duplicate output paths are rejected before expensive work starts.
+* bigWig and BAM read failures abort the command instead of becoming missing
+  or zero signal; a corrupt bigWig index, truncated zoom header or incomplete
+  gzip trailer is an error, not a crash. Valid sparse gaps, empty tracks,
+  CRLF and concatenated gzip members remain supported.
+* Non-finite values stored in input bigWigs are treated as missing coverage
+  with one warning per file. Numeric options are checked for type, range,
+  overflow, float32 range and silent underflow before work starts.
+* Matrix operations (subset/reorder, filters, relabel, rbind, blind cbind)
+  reject mismatched row/column counts, malformed blocks and bad numeric
+  tokens before any output is replaced. Combining transforms also require
+  matching reference-point anchors, even with `--blind`.
+* Chromosomes longer than 2^31 bases and long chromosome names in bedGraph
+  output are handled correctly; native bigWig output works on Windows.
+
+bamCoverageR
+* `--normalizeUsing` accepts `coverage-mean` (default; mean per-base depth),
+  `coverage-sum`, `read-count`, `CPM`, `RPKM` and `BPM`. Normalised metrics
+  are always read-count based. RPGC and `None` are removed.
+* `--normalizationDenominator library|filtered` (default `library`: shared
+  library size, comparable across filters and strand outputs) and
+  `--exactScaling` (exact primary-read count).
+  `--ignoreDuplicates` uses the BAM duplicate flag. Normalisation options
+  that do not apply to the chosen method warn.
+* `--strandedness` sets library orientation, including inference from
+  known-strand BED features (`file=BED`, plain, gzip or bzip2; skipped
+  introns and deletions give no strand evidence, ambiguous opposite-strand
+  overlaps are omitted, and the bounded sample of at most 20,000 templates is
+  reported as such). `--filterRNAstrand split` writes forward and reverse
+  tracks in one pass, named with `--suffix`; `--scaleFactorMinus` scales the
+  minus track on top of `--scaleFactor`.
+* `--collapse 5prime|3prime|center` with `--collapsedLength` for end- or
+  centre-focused tracks (replacing `--Offset`, `--MNase`, `--centerReads`);
+  mutually exclusive with `--extendReads`.
+  Each proper fragment counts once for depth metrics; a retained pair adds
+  two reads to read-count metrics; singletons and discordant alignments add
+  one. False proper-pair flags fall back to singleton handling.
+* A proper-pair fragment spans the forward mate's aligned start to the
+  reverse mate's aligned end, whatever the aligner's TLEN sign or a
+  soft-clip-inclusive TLEN (as STAR writes it); deepTools 3.5.6 extends
+  forward reads by |TLEN|. A forward mate kept without its mate still
+  extends by |TLEN|. This changes fragment coverage by 1-6 bp at such pairs.
+  Read-count metrics (`--normalizeUsing read-count|CPM|RPKM|BPM`) with
+  `--extendReads` or `--collapse` place both mates of a proper pair on this
+  aligned fragment, as depth metrics do.
+* `--extendReads` follows one rule: a proper pair is the solid fragment from
+  the forward mate's start to the reverse mate's end, and every other read is
+  the solid fragment from its 5' end of the given (or estimated) length, but
+  never shorter than the read's own span. No aligned base is dropped, so
+  reads with a gap (a spliced read, or one with a deletion) or soft clips
+  covered by the extension keep all their aligned blocks; deepTools 3.5.6
+  cuts such reads to the extension, losing aligned exons beyond it.
+* `--skipIntrons` (with `--extendReads`): each alignment's own introns (CIGAR
+  `N`; deletions are filled) stay empty, for single reads and for both mates
+  of a pair. The gap between the mates and the extension past a single
+  read's end are not observed and stay filled.
+* `--whiteListFileName`; whitelists and blacklists mask coverage by default,
+  while `--filterByOverlap` keeps or removes whole reads/pairs touching them
+  (pair- and splice-aware), with `--featureTouchStrand ignore|sense|antisense`
+  and `--filterByOverlapHalo`. Blacklist and whitelist files are read by the
+  same loader as computeMatrixR's region files: BED, or GTF (its
+  transcripts), plain, gzip or bzip2. A `--whiteListFileName` file without
+  intervals is an error.
+* `--featureTouchStrand` defaults to `sense` in stranded runs
+  (`--strandedness forward|reverse`) and to `ignore` otherwise, and it also
+  applies to the bin mask of `--blackListFileName`/`--whiteListFileName`
+  without `--filterByOverlap`: a `+` entry masks (or keeps) only the coverage
+  of `+`-strand fragments. Entries without a +/- strand apply to both
+  strands, so BED3 lists give the same output as with `ignore`.
+* Mates are located with 10 kb padding and exact indexed lookups, so distant,
+  cross-chromosome and spliced mates are decided correctly. Mate lookups for
+  `--collapse`, `--extendReads` and `--filterByOverlap` use a fixed
+  per-thread memory budget; mates beyond it are looked up together in
+  batches, so very deep pileups stay fast and memory stays bounded.
+* With `--filterByOverlap` and secondary/supplementary alignments admitted
+  (for example `--filterMode deeptools`), the index that passes their overlap
+  to the primary pair has a fixed memory budget; heavy multimapping data that
+  exceeds it is sorted through temporary files beside the output, still in
+  two passes over the BAM.
+* Automatic read/fragment-length inference samples the whole BAM
+  deterministically instead of a coordinate prefix.
+* `--filterMode primary|deeptools` (see Changed defaults).
+* bigWig writer controls `--zoomLevels` and `--compressionLevel`; bedGraph
+  output is gzipped when the file name ends in `.gz`.
+* BED inputs and `--ignoreForNormalization` match `chr`/no-`chr` and
+  `MT`/`chrM` names and warn once about names that cannot be matched.
+* CRAM input gives the same coverage as BAM with any `-p`; CPM/RPKM work on
+  CRAM (CRAM indexes store no read counts, so the CRAM is counted instead),
+  and CRAM 3.1 (the current samtools default) works with `-p` above 1.
+* CRAM coverage decodes no read bases or qualities, so a CRAM normally needs
+  no reference (deepTools 3.5.6 fails when htslib cannot find it) and reads
+  faster.
+* Optional `--referenceFasta FILE` (indexed, `FILE.fai` must exist) supplies
+  the reference for the one case htslib still needs it: a CRAM slice that
+  mixes several chromosomes, when the reference cannot be found from the
+  header (`UR`/`M5` tags, `REF_PATH`, `REF_CACHE`). It is ignored, with a
+  warning, for BAM/SAM. deepTools 3.5.6 has no such option.
+* bgzipped SAM (`.sam.gz` with a `.csi` index) is accepted.
+* `-o` cannot overwrite the alignment file or its index, also when the input
+  is given as `file##idx##index` or the CRAM index has an upper-case name
+  (`x.CRAM.crai`).
+
+bigWig output (bamCoverageR, bigWigOperationsR)
+* Zoom levels are built from the intervals as they are written, in parallel
+  (one task per level, honouring `-p`), instead of re-reading the finished
+  file: bigWig writing is faster and needs less memory. The intervals are
+  buffered in a temporary file beside the output, removed on success, error
+  and interruption. The data section is unchanged byte for byte.
+* Zoom-level means are correct: deepTools 3.5.6 (libBigWig) leaves the sum of
+  the last zoom record of each block and of each level at 0, so readers that
+  use zoom levels (IGV, UCSC, pyBigWig `exact=False`) saw low means there.
+* Intervals too wide for any zoom level (a mean width over 268 Mbp, e.g. a
+  nearly empty large chromosome) are written without zoom levels instead of
+  failing, and write errors inside data blocks are reported.
+* The file summary's maximum is correct (libBigWig skipped it whenever a new
+  minimum was seen, so tracks without zero intervals or with only negative
+  values showed a wrong maximum); summary and zoom sums are computed in double
+  precision; zoom headers store the number of records, as the format
+  specifies, instead of the number of blocks.
+
+computeMatrixR
+* BED/GTF region files are read by the native loader: the same regions,
+  groups, names, exons and order as deeptoolsintervals.
+* computeMatrixR with no arguments, or with options but no
+  `scale-regions`/`reference-point` command, prints the help or a usage
+  error instead of stopping with an internal error.
+* Paired minus-strand bigWigs with `--scoreFileNameMinus`; coding-strand
+  signal is taken from the matching physical track for each feature strand.
+* `--antisense skip|as_groups|as_samples`, `--unstranded
+  as_plus|as_minus|sum_strands`, and multipliers `--scalePlus`,
+  `--scaleMinus` and `--scaleAntisense`.
+* `--quantileSortedRegions`/`--quantiles` split sorted regions into
+  quantile groups.
+* `--blackListMode soft|hard` (default `soft`): `soft` keeps every region and
+  treats its blacklisted bases as missing in every bin (flanks, unscaled
+  parts, body, exons with `--metagene`); a bin without remaining bases is NaN,
+  also with `--missingDataAsZero`, and a partly blacklisted bin uses its
+  remaining bases. `hard` skips every region whose plotted span, flanks
+  included, has a blacklisted base (it is also left out of
+  `--outFileSortedRegions`; one line reports how many, unless `--quiet`).
+  The blacklist may be a BED or a GTF (its transcripts). deepTools 3.5.6
+  only dropped regions that start inside a blacklist interval and otherwise
+  used blacklisted signal.
+  Overlapping and nested blacklist intervals are merged, and entries on
+  chromosome aliases (`chr1`/`1`, `chrM`/`MT`) apply together, as for regions.
+* `--featureTouchStrand sense|antisense|ignore` (default `sense`): a
+  blacklist entry with a strand (BED column 6) applies only to regions on the
+  same strand (`antisense`: the opposite strand; `ignore`: position only, as
+  in deepTools 3.5.6). Entries without a +/- strand apply to every region and
+  regions without a +/- strand are hit by every entry, so BED3 blacklists
+  behave as with `ignore`.
+* Regions whose body is shorter than one bin (after the unscaled 5'/3'
+  parts) are dropped: no matrix row and not in `--outFileSortedRegions`; one
+  line reports how many, unless `--quiet` (each region with `--verbose`).
+  deepTools 3.5.6 printed "Skipping..." but kept them as rows of NaN (or 0
+  with `--missingDataAsZero`).
+* A BED `#` group line that follows another `#` line with no regions between
+  them is skipped with a warning; deepTools 3.5.6 stopped with an error.
+* Matrix input detects gzip from content; output is gzipped only for `.gz`
+  names.
+
+computeMatrixOperationsR
+* `sort` reads region files with the same native loader, so its group names
+  and region names always match those of computeMatrixR.
+* New `reorder` (alias of `subset`); `subset`/`reorder` take names or 1-based
+  indices and `--mergeSameNamedGroups`.
+* New `transform` pipeline: `--add`, `--subtract`, `--scale`, `--scaleUsing`,
+  `--log`, `--sum`, `--mean`, `--difference`, `--ratio` (and log2 fold
+  change) with numeric or data-derived `--pseudocount`, `--missingDataAsZero`
+  and `--zeroHandling`.
+  Operations can be chained in one call and are validated at each pipeline
+  step; `--scaleUsing all|upstream|body|downstream` scales each region by its
+  row sum, maximum, minimum or mean. Zero handling (`keep|any|both`) runs
+  after missing-data replacement and before pseudocounts. By default the
+  first matrix defines the output rows and later matrices are aligned by
+  full BED identity within groups.
+* `rbind --sameGroupLabels merge|separate`; `rbind`/`cbind --blind` combine
+  by position without content checks. Validated `cbind` matches rows by full
+  BED identity within groups and rejects duplicates.
+* `cbind` (also with `--blind`) refuses matrices whose headers lack a
+  per-sample field the others have, instead of writing an unreadable matrix
+  or dropping the field.
+* `sort` by a BED file records the applied order in the header, so `info`
+  does not report a previous statistical sort (deepTools 3.5.6 kept it);
+  region text that is not valid UTF-8 is rejected instead of being copied
+  into the output.
+* `filterValues` adds `--filterUsingStatistic`, `--filterUsingSamples`,
+  `--onFilterFail removeRegion|maskSample` and `--filterNans`.
+  `perBin` (default) keeps the 3.5.6 per-bin test; `maskSample` sets only
+  the failing sample's bins to NaN; `--filterNans keep|any_bin|any_sample|
+  all_bins` drops regions that are entirely or partly missing.
+* `relabel --setGroupLabel`/`--setSampleLabel` relabel single entries.
+* `info --json` reports matrix metadata as JSON.
+
+Plotting (plotMatrixR, plotHeatmapR, plotProfileR)
+* Layout: samples can form sample sets (`--arrangeSamples`,
+  `--sampleSetLabels`); region groups are overlaid or placed with
+  `--sampleSetGroupArrangement overlay|adjacent|end|by_row|by_column`; grids
+  via `--gridColumns`/`--gridRows` (replacing `--numPlotsPerRow`). Samples of
+  different geometry can share one figure.
+* `--perGroup` is a layout shortcut: all samples form one sample set whose
+  panels are the region groups (`--arrangeSamples 1,2,...,n
+  --sampleSetGroupArrangement adjacent`). The group panels share one colour
+  scale, limits and labels; deepTools 3.5.6 cycled `--colorMap`, `--zMin` and
+  `--zMax` per group. Add `--groupsAsSampleSets` for that.
+* New `--groupsAsSampleSets`: every split region-group panel becomes its own
+  sample set, so per-sample-set options (`--yMax`, `--zMax`, `--colorMap`,
+  `--sampleSetLabels`, ...) take one value per panel in drawing order.
+* New `--arrangeGroups`: draw only the listed region groups, in the listed
+  order (indices, names or `a-b` ranges). It addresses the final groups:
+  clusters, quantiles or merged groups. Omitted groups are left out of
+  limits, region counts and the `--outFileSortedRegions` and
+  `--outFileNameMatrix` outputs.
+* Collision-aware layout: titles, labels, ticks and legends are measured and
+  placed without overlap (X tick labels do not overlap when an edge label
+  such as `-50 bp` sits next to `TSS`); wrapped labels, new legend positions
+  (`above`, `below`, `right`), `--axisVisibility`,
+  `--xAxisVisibility`/`--yAxisVisibility show_all|outer|outer_merged` and
+  `--yAxisLimits common|per_panel|per_sample_set|per_y_label`.
+* `--commonLegend` takes `auto`, `yes` or `no`; a bare `--commonLegend` means
+  `yes`. The default `auto` draws one legend when every panel's legend is
+  identical, as deepTools does, and a legend per panel otherwise.
+* Reference-point labels follow each panel's own reference point when
+  `--refPointLabel` is not given (for example TSS and TES samples reordered
+  with `--arrangeSamples`, or split into per-group sample sets).
+* Statistics: `--averageType geom_mean|trim_mean` (with `--pseudocount`,
+  `--trim_perc`), `--plotType ci|bootstrap` (`--ci_level`,
+  `--bootstrapReplicates`, multicore); se/std/ci bands are computed per bin
+  from finite observations (in log space for geom_mean) and drawn
+  semi-transparent. se/std/ci bands are rejected for median, sum, min, max
+  and trim_mean (bootstrap works for every average type).
+  Automatic geom_mean pseudocounts (negative `--pseudocount` = automatic)
+  are fixed per series across bootstrap resamples; bands are hidden below
+  two observations. plotHeatmapR's summary plot offers the same bands
+  (`--plotTypeSummaryPlot ci|bootstrap` with `--ci_level` and
+  `--bootstrapReplicates`).
+* Heatmaps: `--zMid`, `--colorbarLocation best|right|right_common|bottom|
+  below_common`, `--colorbarLabels`, `--regionLabelLocation left|right`,
+  `--sortIndicator`, multi-sample cells and per-row colorbars.
+  `--colorbarLocation best` draws one colourbar per sample set when its split
+  group panels share a colour scale.
+* Axes: `--distanceUnit auto|bp|kb|mb`, `--distanceUnitLocation ticks|axis`,
+  `--minorTickMarks`, trailing-zero and duplicate landmark label removal.
+* Data: `--filterNans`, `--quantileSortedRegions`/`--quantiles`,
+  `--sortUsing score`, `--showRegionCounts`, `--sameGroupLabels
+  independent|together|merge`, `--sameSampleLabels`.
+  `--sortUsing score` places invalid or missing scores last; `--zMin`,
+  `--zMax` and `--zMid` are recycled across heatmaps and each pair is
+  validated (`zMax > zMin`). Quantile regrouping also works in plotProfileR
+  and plotHeatmapR. Clustering, silhouette and dimension options are
+  cross-checked up front.
+* plotProfileR gains `--sortRegions`, `--sortUsing`, `--sortUsingSamples`,
+  `--xAxisLabel`, `--linesAtTickMarks`, `--colorsPerSample` and
+  `--outFileNameMatrix`; plotHeatmapR gains `--outFileNameData`, `-p`, and
+  summary-plot options with a `SummaryPlot` suffix (for example
+  `--yMinSummaryPlot`, `--plotTypeSummaryPlot`, `--colorsSummaryPlot`).
+* Aliases `--sampleLabels`/`--regionLabels`; per-sample and per-group values
+  can be assigned explicitly with `N=value`.
+* Sizes are exact: `--profileWidth`/`--profileHeight` (`--plotWidth`/
+  `--plotHeight` as aliases), `--heatmapWidth`/`--heatmapHeight` and
+  `--aspectRatio` set the data area only, excluding labels and colorbars.
+* `--outFileNameData` describes the displayed panels and series in one wide
+  table; it also works with a heatmap in plotMatrixR.
+* plotHeatmapR and plotProfileR report invalid input in one line instead of
+  a Python traceback.
+* `--outFileSortedRegions` escapes tabs and line breaks in group labels, so
+  every region stays one BED line.
+* `deeptoolsr describe` runs the plot's colour checks: colour options the plot
+  rejects fail the description too, and its warnings are listed.
+* `deeptoolsr describe` records have `warnings`: the warnings the same plot
+  command would print, so they can be shown before rendering. Their `groups`
+  list only the drawn groups and carry `original`, the number
+  `--arrangeGroups` uses.
+
+Output files (all tools)
+* New outputs get the usual permissions (as a plain new file under your
+  umask); a replaced output keeps its own permissions.
+* Output names that differ only in case or Unicode normalisation (for
+  example `--suffix .plus .PLUS`) are rejected as the same file, as they are
+  one file on macOS and Windows.
+* A command with several outputs (split strands, matrix plus
+  `--outFileNameMatrix`/`--outFileSortedRegions`, several plot outputs)
+  replaces all of them or, if one replacement fails, none.
+* An output literally named `-` is a file name; only
+  `bigWigOperationsR info --chromSizes -` writes to standard output.
+* Very long output names (up to the 255-byte limit) work: temporary files
+  beside the output use a short fixed name.
+* An interrupted command (Ctrl-C) leaves either all previous or all new
+  outputs, never a mix.
+* Write errors (a full disk, a file-size limit) name the file and the system
+  reason.
+
+Input files
+* A truncated BAM/CRAM (no EOF marker) is an error, as in deepTools 3.5.6,
+  and so is a BAM/CRAM index query that fails.
+* A damaged or empty BAM/CRAM index (one that finds no reads where the file
+  has them) is an error asking to re-index.
+* A damaged bigWig index (a chromosome id outside the chromosome list, a
+  block outside the file) or a chromosome name that is not valid UTF-8 is an
+  error; a bigWig with no chromosomes is an error.
+* Messages quote a bad BED/GTF line up to 200 characters and name the file
+  once.
+* A bigWig with an empty or reversed interval is reported as corrupt instead
+  of having that interval skipped.
+* A gzip region or blacklist file cut short is an error with every zlib
+  version.
+* plotHeatmapR, plotProfileR and `deeptoolsr describe` report an unreadable
+  or damaged matrix (cut short, corrupt gzip, malformed header, region counts
+  or lengths the file cannot hold) in one line naming the file. Plot outputs
+  are checked before the matrix is loaded.
+
+Options
+* `deeptoolsr options` saves options.txt safely: through a symlink, without
+  touching other files beside it, and never torn by parallel saves. A damaged
+  options.txt is reported instead of being overwritten with defaults.
+* Every tool reports a damaged options file in one line instead of silently
+  using defaults; `deeptoolsr options` without changes leaves the file
+  untouched.
+* `--fontMultiplier` must be greater than 0 and at most 10; an out-of-range
+  stored value is ignored with a warning.
+
+deeptoolsr serve
+* A request line that is not valid UTF-8, or text with unpaired surrogates,
+  gets one error reply and the worker keeps serving; abbreviated `--help` or
+  `--version` (for example `--vers`) are option errors and print nothing on
+  the protocol stream.
+
+Windows
+* `deeptoolsr serve`, `deeptoolsr describe` and
+  `computeMatrixOperationsR info --json` read and write UTF-8 whatever the
+  console code page.
+* Files with non-ASCII names (representable in the system code page) are
+  read and written correctly; other names give a clear error.
+* bigWig files over 2 GB can be read and written.
+
+Changed defaults and deliberate divergences
+* Plot tools default to `--sortRegions ascend` (deepTools plotHeatmap:
+  `descend`), so default plotHeatmapR region order differs from 3.5.6.
+* Profile Y limits default to `--yAxisLimits per_y_label`.
+* Plot tools no longer re-filter rows by the matrix header's `min
+  threshold`/`max threshold`; computeMatrixR applies those filters before
+  `--scale`. Use `--filterNans` for plot-time filtering.
+* bamCoverageR `--filterMode primary` (default) excludes secondary and
+  supplementary alignments; `--filterMode deeptools` restores the 3.5.6
+  policy. CPM/RPKM use the shared library size by default.
+* Figure sizes are solved from one cell width (5 cm default; `--cellWidth` in
+  plotMatrixR): profile panels 5 x 5 cm and heatmaps 5 x 10 cm, so figure
+  dimensions differ from deepTools.
+* `-p` defaults to `auto` instead of 1.
+
+Removed options
+* bamCoverageR: `--effectiveGenomeSize` and RPGC, `--Offset`, `--MNase`,
+  `--centerReads`, `--smoothLength`, `--region`, `--skipNonCoveredRegions`/
+  `--skipNAs`, `--samExcludeFlag`, `--verbose`.
+* computeMatrixR: `--smartLabels`, `--startLabel`, `--endLabel` (sample
+  names are shortened automatically; landmark labels are plot options) and
+  `--averageTypeBins std`.
+* plotProfileR: `--numPlotsPerRow`, `--plotType overlapped_lines`.
+* plotHeatmapR: `--whatToShow` accepts only `plot, heatmap and colorbar` and
+  `heatmap and colorbar`; `--yMin`, `--yMax` and `--legendLocation` became
+  `--yMinSummaryPlot`, `--yMaxSummaryPlot` and `--legendLocationSummaryPlot`.
+* Plotly output formats.
+
+Output differences
+* Scale-regions bin edges are computed in integer arithmetic. deepTools 3.5.6
+  computes them in floating point and truncates, so where an edge falls
+  exactly on a whole base the float can land just below it and the edge
+  moves 1 bp early (a small share of regions; e.g. about 2% of 1-100 kb
+  bodies at 400 bins). At such edges one base moves to the neighbouring bin,
+  so both bins' values differ from 3.5.6.
+* computeMatrixR reference-point `--nanAfterEnd` with a one-base region
+  and `--referencePoint TES` or `TSS`: the first downstream bin averages
+  the bases it covers (for `chr1 100 101` at TES with `-a 5 -bs 5`, bases
+  101-105). deepTools 3.5.6 offsets that bin by the discarded zone and
+  averages one base early.
+* Matrix values are stored as 32-bit floats (deepTools 3.5.6 writes 64-bit
+  values), so values differ from 3.5.6 by at most float32 rounding.
+* Standard-error bands use the per-bin finite count, not the total row count.
+* K-means uses a fixed seeded native generator and Ward uses fastcluster, so
+  cluster memberships may differ from SciPy. Confidence-interval quantiles
+  come from Cephes code (within 1e-12 relative of SciPy).
+* Automatic heatmap colour limits use t-digest quantiles, independent of the
+  thread count.
+* Compressed matrices, PDF and SVG are byte-reproducible (no timestamps).
+* Plain-text matrix operations keep the input's numeric tokens; matrix
+  headers record the resolved thread count and the sort actually applied.
+* Text outputs are always UTF-8.

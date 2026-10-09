@@ -1,0 +1,81 @@
+{
+ "lines_default": [
+  "tests/test_data/computeMatrixOperations.mat.gz"
+ ],
+ "se_pergroup": [
+  "tests/test_data/computeMatrixOperations.mat.gz",
+  "--plotType",
+  "se",
+  "--perGroup"
+ ],
+ "std_kb": [
+  "tests/test_data/computeMatrixOperations.mat.gz",
+  "--plotType",
+  "std",
+  "--distanceUnit",
+  "kb"
+ ],
+ "ci": [
+  "tests/test_data/computeMatrixOperations.mat.gz",
+  "--plotType",
+  "ci"
+ ],
+ "lines_kmeans": [
+  "tests/test_data/computeMatrixOperations.mat.gz",
+  "--kmeans",
+  "2"
+ ],
+ "bootstrap_median": [
+  "tests/test_data/computeMatrixOperations.mat.gz",
+  "--plotType",
+  "bootstrap",
+  "--averageType",
+  "median",
+  "--bootstrapReplicates",
+  "50"
+ ],
+ "fill_sample_sets": [
+  "tests/test_data/computeMatrixOperations.mat.gz",
+  "--plotType",
+  "fill",
+  "--arrangeSamples",
+  "1-4",
+  "5-8",
+  "--sampleSetLabels",
+  "fwd",
+  "rev",
+  "--gridColumns",
+  "2"
+ ],
+ "refpoint_groups_counts": [
+  "tests/test_data/compute_matrix_expected/blacklist_skip_zeros.mat.gz",
+  "--showRegionCounts",
+  "--averageType",
+  "sum"
+ ],
+ "refpoint_escaped_labels": [
+  "tests/test_data/compute_matrix_expected/blacklist_skip_zeros.mat.gz",
+  "--regionsLabel",
+  "tab\there",
+  "line\nbreak",
+  "--samplesLabel",
+  "back\\slash",
+  "--distanceUnit",
+  "kb"
+ ],
+ "refpoint_pergroup_quantiles": [
+  "tests/test_data/compute_matrix_expected/blacklist_skip_zeros.mat.gz",
+  "--perGroup",
+  "--quantileSortedRegions",
+  "2"
+ ],
+ "gtf_scaled": [
+  "tests/test_data/compute_matrix_expected/gtf.mat.gz",
+  "--averageType",
+  "std",
+  "--startLabel",
+  "start",
+  "--endLabel",
+  "end"
+ ]
+}
