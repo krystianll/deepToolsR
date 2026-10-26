@@ -94,7 +94,7 @@ def test_heatmap_profile_table_needs_the_summary_plot(tmp_path):
     table = tmp_path / 'none.tab'
     errors = []
     for module, extra in (
-            (plotHeatmap, ['--whatToShow', 'heatmap and colorbar']),
+            (plotHeatmap, ['--showSummaryPlot', 'off']),
             (plotMatrix, ['--heatmap'])):
         with pytest.raises(SystemExit) as stopped:
             _render(module, tmp_path, 'x',
@@ -102,7 +102,7 @@ def test_heatmap_profile_table_needs_the_summary_plot(tmp_path):
         errors.append(str(stopped.value.code))
     # Each tool names its own way to show the profile.
     assert errors[0].endswith(
-        "needs a profile panel (--whatToShow 'plot, heatmap and colorbar')")
+        'needs a profile panel (--showSummaryPlot on)')
     assert errors[1].endswith('needs a profile panel (--profile)')
     assert not table.exists()
 

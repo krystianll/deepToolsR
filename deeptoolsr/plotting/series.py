@@ -5,8 +5,9 @@ measurement.  This module only resolves sample-set metadata, compatible
 matrix geometry, axis ownership, and grouped Y limits before rendering.
 """
 
+import math
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Callable
 
 from deeptoolsr.numeric_validation import (
@@ -88,6 +89,7 @@ class CellOptions:
     same_group_labels: str = 'independent'
     same_sample_labels: str = 'independent'
     explicit_sample_sets: bool = False
+    per_group_titles: bool = False
     grid_columns: int | None = None
     grid_rows: int | None = None
     show_profile: bool = True
@@ -117,6 +119,13 @@ def effective_per_group(spec):
     return spec.per_group and spec.arrange_samples is None
 
 
+def per_group_titles(spec):
+    """--perGroup titles panels by region group alone unless several sample
+    sets must be told apart."""
+    return spec.per_group and (spec.arrange_samples is None or
+                               len(spec.arrange_samples) == 1)
+
+
 def effective_placement(spec):
     """--perGroup splits overlaid region groups into adjacent panels."""
     if spec.per_group and spec.placement == 'overlay':
@@ -134,7 +143,7 @@ def cell_options(spec, *, colors_option=None):
         spec.groups_as_sample_sets and placement != 'overlay',
         spec.same_group_labels,
         spec.same_sample_labels, spec.arrange_samples is not None,
-        spec.grid_columns, spec.grid_rows, spec.show_profile,
+        per_group_titles(spec), spec.grid_columns, spec.grid_rows, spec.show_profile,
         spec.show_heatmap, spec.plot_type,
         '--colorList' if spec.color_list else '--colorMap', colors_option)
 
@@ -180,6 +189,10 @@ def _profile_entries(selected_groups, selected_samples, index, sid, labels,
                              else group_keys[group])
                 elif len(selected_groups) == 1:
                     label = labels.samples[sample]
+                elif len(panel_samples) == 1:
+                    label = (labels.groups[group]
+                             if opts.same_group_labels == 'independent'
+                             else group_keys[group])
                 else:
                     label = '{}: {}'.format(group_keys[group],
                                             labels.samples[sample])
@@ -217,6 +230,21 @@ def region_group_sets(labels, opts):
     return tuple((i,) for i in range(len(labels.groups)))
 
 
+class _UnknownCount:
+    """A region count describe cannot know; it sums and formats as ???."""
+
+    def __add__(self, other):
+        return self
+
+    __radd__ = __add__
+
+    def __format__(self, spec):
+        return '???'
+
+
+UNKNOWN_COUNT = _UnknownCount()
+
+
 def group_title(groups, labels, sizes):
     key = labels.group_keys[groups[0]]
     if key and any('[n = ' in labels.groups[g] for g in groups):
@@ -237,7 +265,7 @@ def panel_order(set_count, group_sets, placement):
 
 def _split_title(sample_label, group_label, opts):
     """Title of a split group panel outside by_row/by_column."""
-    if opts.per_group and not opts.explicit_sample_sets:
+    if opts.per_group_titles:
         return group_label
     return '{} — {}'.format(sample_label, group_label)
 
@@ -304,8 +332,11 @@ def _profile_projection(sizes, samples, labels, opts):
                         if promoted else plan.subplot_label
                         for plan in samples)
     group_sets = region_group_sets(labels, opts)
-    default_group_series = (not opts.explicit_sample_sets and
-                            not opts.per_group and opts.placement == 'overlay')
+    # Series are named by region group alone unless a panel mixes samples;
+    # explicit one-sample sets (--arrangeSamples 1 2 3) match the default.
+    default_group_series = (not opts.per_group and
+                            opts.placement == 'overlay' and
+                            all(len(plan.samples) == 1 for plan in samples))
 
     descriptors, columns, row_labels = _profile_grid(
         samples, group_sets, opts, base_labels)
@@ -328,7 +359,7 @@ def _profile_projection(sizes, samples, labels, opts):
             title = group_label
         elif multiple:
             title = (sample_label if opts.placement == 'by_column' and
-                     (not opts.per_group or opts.explicit_sample_sets) else
+                     not opts.per_group_titles else
                      _split_title(sample_label, group_label, opts))
         parts = [sample_label]
         if len(selected_groups) == 1 and not default_group_series:
@@ -470,14 +501,18 @@ def has_explicit_assignment(values):
 
 
 def _assignment_error(error, option, domain, context):
-    from deeptoolsr.prepare import OptionError
+    """Raise, or let describe collect, one out-of-range ``N=`` assignment."""
+    from deeptoolsr.prepare import OptionError, collected
 
     plural = {'series': 'coloured series'}.get(domain, domain + 's')
     message = (f'{option}: {error.spec} names {domain} {error.index}, '
                f'but there are only {error.count} {plural}')
     if context:
         message += f' ({context})'
-    raise OptionError(message) from error
+    problem = OptionError(message, code='assignment_out_of_range',
+                          option=option, target=domain, slot=error.index)
+    if not collected(problem):
+        raise problem from error
 
 
 def resolve_recyclable(values, count, default=None, *, option='--value',
@@ -521,6 +556,7 @@ def resolve_recyclable(values, count, default=None, *, option='--value',
                 indices = parse_index_spec(assignment[0], count)
             except AssignmentIndexError as error:
                 _assignment_error(error, option, domain, context)
+                continue  # collected: these slots keep their fallback
             for index in indices:
                 assigned[index] = assignment[1]
         else:
@@ -556,6 +592,21 @@ class SampleGeometry:
                 self.unscaled_5_prime, self.unscaled_3_prime,
                 self.bin_size, self.bin_count)
 
+    def summary(self):
+        """This geometry in words, e.g. for a clash message."""
+        if self.mode == 'reference-point':
+            parts = [f'reference-point at {self.reference_point}',
+                     f'{self.upstream} bp upstream',
+                     f'{self.downstream} bp downstream']
+        else:
+            parts = ['scale-regions', f'{self.upstream} bp upstream',
+                     f'{self.body} bp body',
+                     f'{self.downstream} bp downstream']
+            if self.unscaled_5_prime or self.unscaled_3_prime:
+                parts += [f"{self.unscaled_5_prime} bp unscaled 5'",
+                          f"{self.unscaled_3_prime} bp unscaled 3'"]
+        return ', '.join(parts + [f'bin size {self.bin_size}'])
+
 
 @dataclass(frozen=True)
 class SampleSetPlan:
@@ -569,6 +620,18 @@ class SampleSetPlan:
     start_label: object = None
     end_label: object = None
     groups: tuple | None = None  # its one group panel (--groupsAsSampleSets)
+    heatmap_y_axis_label: str = ''
+    # Each text's value without its option (SAMPLE_SET_TEXTS keys).
+    automatic: dict = field(default_factory=dict, compare=False)
+    # True when its samples' X geometries differ (describe only; plotting
+    # raises instead).  ``geometry`` is then its first sample's.
+    geometry_clash: bool = False
+
+
+# The per-sample-set texts, keyed as describe reports them.
+SAMPLE_SET_TEXTS = ('subplot_title', 'x_axis_label', 'y_axis_label',
+                    'heatmap_y_axis_label', 'reference_label', 'start_label',
+                    'end_label')
 
 
 SampleSetPlans = tuple[SampleSetPlan, ...]
@@ -722,34 +785,42 @@ def _recycle_applicable(values, applicable, defaults, count, *, option):
 def build_sample_set_plans(sample_labels, sample_boundaries, parameters, sample_sets,
                            subplot_labels=None, x_axis_labels=None,
                            y_axis_labels=None, reference_labels=None,
-                           start_labels=None, end_labels=None, *,
+                           start_labels=None, end_labels=None,
+                           heatmap_y_axis_labels=None, *,
                            groups=None, default_labels=None,
                            option_spellings=None, context=None):
     """Resolve recycled labels and validate geometry within each sample set.
 
     ``groups`` gives promoted sample sets their region groups, and
-    ``default_labels`` their default --sampleSetLabels.
+    ``default_labels`` their default --sampleSetLabels.  Each plan also
+    keeps the automatic value of every text (``SampleSetPlan.automatic``).
     """
+    from deeptoolsr.prepare import OptionError, collected
+
     geometries = tuple(
         geometry_for_sample(sample_boundaries, parameters, sample)
         for sample in range(len(sample_labels)))
     set_geometries = []
+    clashes = set()
     for set_index, samples in enumerate(sample_sets):
         first = geometries[samples[0]]
         incompatible = [sample for sample in samples[1:]
                         if geometries[sample].compatibility_key() !=
                         first.compatibility_key()]
         if incompatible:
-            details = []
-            for sample in (samples[0], *incompatible):
-                geometry = geometries[sample]
-                details.append('{}: {}'.format(
-                    sample_labels[sample],
-                    geometry.compatibility_key()))
-            raise ValueError(
-                'Samples in sample set {} cannot share a panel because '
-                'their X-axis geometries differ:\n{}'.format(
-                    set_index + 1, '\n'.join(details)))
+            details = '; '.join(
+                '{} is {}'.format(sample_labels[sample],
+                                  geometries[sample].summary())
+                for sample in (samples[0], *incompatible))
+            problem = OptionError(
+                f'Samples in sample set {set_index + 1} cannot share a panel '
+                f'because their X-axis geometries differ: {details}.',
+                prefix='Error: ', exit_code=1, code='geometry_clash',
+                target='sample set', slot=set_index + 1,
+                samples=[sample + 1 for sample in samples])
+            if not collected(problem):
+                raise problem
+            clashes.add(set_index)
         set_geometries.append(first)
 
     count = len(sample_sets)
@@ -767,17 +838,18 @@ def build_sample_set_plans(sample_labels, sample_boundaries, parameters, sample_
     resolved_y = recycle(
         y_axis_labels, count, option=option('yAxisLabel'),
         context=context, text=True)
-    supplied_x = recycle(
-        x_axis_labels, count, option=option('xAxisLabel'),
-        context=context, text=True)
+    resolved_heatmap_y = recycle(
+        heatmap_y_axis_labels, count, option=option('heatmapYAxisLabel'),
+        text=True)
     reference_sets = [index for index, geometry in enumerate(set_geometries)
                       if geometry.mode == 'reference-point']
     scaled_sets = [index for index, geometry in enumerate(set_geometries)
                    if geometry.mode == 'scale-regions']
+    automatic_references = {
+        index: set_geometries[index].reference_point or 'feature'
+        for index in range(count)}
     references = _recycle_applicable(
-        reference_labels, reference_sets,
-        {index: set_geometries[index].reference_point or 'feature'
-         for index in range(count)}, count,
+        reference_labels, reference_sets, automatic_references, count,
         option=option('refPointLabel'))
     starts = _recycle_applicable(
         start_labels, scaled_sets, {index: 'TSS' for index in range(count)},
@@ -785,15 +857,22 @@ def build_sample_set_plans(sample_labels, sample_boundaries, parameters, sample_
     ends = _recycle_applicable(
         end_labels, scaled_sets, {index: 'TES' for index in range(count)},
         count, option=option('endLabel'))
+    # The automatic X label names the reference label in effect; an empty
+    # one leaves plain "distance".  A given label, even an empty one, wins.
+    automatic_xs = tuple(
+        ('distance from {}'.format(references[index]) if references[index]
+         else 'distance') if index in reference_sets else 'gene distance'
+        for index in range(count))
+    resolved_x = recycle(
+        x_axis_labels, count, automatic_xs, option=option('xAxisLabel'),
+        context=context, text=True)
 
     plans = []
     for index, samples in enumerate(sample_sets):
         geometry = set_geometries[index]
-        x_label = supplied_x[index]
-        if not x_label:
-            x_label = ('distance from {}'.format(references[index])
-                       if geometry.mode == 'reference-point'
-                       else 'gene distance')
+        reference = index in reference_sets
+        automatic_x = automatic_xs[index]
+        x_label = resolved_x[index]
         plans.append(SampleSetPlan(
             index=index, samples=tuple(samples),
             subplot_label=resolved_subplots[index],
@@ -803,55 +882,112 @@ def build_sample_set_plans(sample_labels, sample_boundaries, parameters, sample_
                              if index in reference_sets else None),
             start_label=(starts[index] if index in scaled_sets else None),
             end_label=(ends[index] if index in scaled_sets else None),
-            groups=groups[index] if groups else None))
+            groups=groups[index] if groups else None,
+            heatmap_y_axis_label=resolved_heatmap_y[index],
+            automatic={
+                'subplot_title': default_subplots[index],
+                'x_axis_label': automatic_x, 'y_axis_label': '',
+                'heatmap_y_axis_label': '',
+                'reference_label': (automatic_references[index]
+                                    if reference else None),
+                'start_label': None if reference else 'TSS',
+                'end_label': None if reference else 'TES'},
+            geometry_clash=index in clashes))
     return tuple(plans)
 
 
-def apply_grouped_y_limits(axes, panel_set_ids, panel_y_labels,
-                           y_min, y_max, mode='per_subplot'):
-    """Apply Y limits by the requested semantic grouping."""
-    axes = tuple(axes)
-    if not axes:
-        return ()
+def _padded_on_own_scale(axis, low, high):
+    """``[low, high]`` with the axis' Y margin added on its own scale, as
+    Matplotlib's autoscaling adds it."""
+    transform = axis.yaxis.get_transform()
+    lower, upper = transform.transform([low, high])
+    pad = (upper - lower) * axis.margins()[1]
+    return [float(value) for value in
+            transform.inverted().transform([lower - pad, upper + pad])]
+
+
+def y_limit_keys(panel_set_ids, panel_y_labels, mode='per_subplot'):
+    """One key per profile panel; panels with equal keys share Y limits."""
+    if mode == 'common':
+        return [('common',)] * len(panel_set_ids)
+    if mode == 'per_panel':
+        return [('panel', index) for index in range(len(panel_set_ids))]
+    if mode == 'per_y_label':
+        return [('label', label) for label in panel_y_labels]
+    return [('subplot', sample_set) for sample_set in panel_set_ids]
+
+
+def grouped_y_limits(axes, keys, scales, panel_set_ids, y_min, y_max):
+    """Automatic and drawn Y limits of autoscaled profile axes.
+
+    A group whose panels share one scale (``scales``, one per axis) unites
+    their autoscaled limits. A group mixing scales unites the raw data
+    range instead, and each panel then adds its margin on its own scale:
+    a margin padded on one scale is far too wide on another. Typed limits
+    (``y_min``/``y_max``, recycled over sample sets) replace either bound.
+
+    Returns ``(shared, automatic, drawn)``: ``shared`` maps each key to the
+    limits its panels unite, or ``None`` for a group mixing scales;
+    ``automatic`` and ``drawn`` hold one ``(low, high)`` per axis, without
+    and with the typed limits.
+    """
     y_min = [None] if y_min is None else list(y_min)
     y_max = [None] if y_max is None else list(y_max)
-    if mode == 'common':
-        keys = [('common',)] * len(axes)
-    elif mode == 'per_panel':
-        keys = [('panel', index) for index in range(len(axes))]
-    elif mode == 'per_y_label':
-        keys = [('label', label) for label in panel_y_labels]
-    else:
-        keys = [('subplot', sample_set) for sample_set in panel_set_ids]
+    mixed = {key for key in keys
+             if len({scale for other, scale in zip(keys, scales)
+                     if other == key}) > 1}
     ranges = {}
     for axis, key in zip(axes, keys):
-        low, high = axis.get_ylim()
+        low, high = (axis.dataLim.intervaly if key in mixed
+                     else axis.get_ylim())
         if key not in ranges:
             ranges[key] = [low, high]
         else:
             ranges[key][0] = min(ranges[key][0], low)
             ranges[key][1] = max(ranges[key][1], high)
-    results = []
-    for index, (axis, key, sample_set) in enumerate(
-            zip(axes, keys, panel_set_ids)):
+    automatic, drawn = [], []
+    for axis, key, sample_set in zip(axes, keys, panel_set_ids):
         limits = list(ranges[key])
-        local_min = y_min[sample_set % len(y_min)]
-        local_max = y_max[sample_set % len(y_max)]
-        if local_min is not None:
-            limits[0] = float(local_min)
-        if local_max is not None:
-            limits[1] = float(local_max)
-        # Explicit pairs were validated in resolve_assigned_limits; this only
-        # widens a data-derived bound that meets an explicit one (or a flat
-        # profile), as deepTools does.
-        if limits[0] >= limits[1]:
-            limits[1] = limits[0] + 1
+        if key in mixed and all(map(math.isfinite, limits)):
+            limits = _padded_on_own_scale(axis, *limits)
+        elif key in mixed:
+            limits = list(axis.get_ylim())
+        automatic.append(_bounded(limits, None, None))
+        drawn.append(_bounded(limits, y_min[sample_set % len(y_min)],
+                              y_max[sample_set % len(y_max)]))
+    shared = {key: None if key in mixed else tuple(limits)
+              for key, limits in ranges.items()}
+    return shared, tuple(automatic), tuple(drawn)
+
+
+def _bounded(limits, low, high):
+    """``limits`` with typed bounds; widened when the bounds meet.
+
+    Explicit pairs were validated in resolve_assigned_limits; this only
+    widens a data-derived bound that meets an explicit one (or a flat
+    profile), as deepTools does.
+    """
+    low = limits[0] if low is None else float(low)
+    high = limits[1] if high is None else float(high)
+    return (low, low + 1) if low >= high else (low, high)
+
+
+def apply_grouped_y_limits(axes, panel_set_ids, panel_y_labels,
+                           y_min, y_max, mode='per_subplot', scales=None):
+    """Apply Y limits by the requested semantic grouping (grouped_y_limits)."""
+    axes = tuple(axes)
+    if not axes:
+        return ()
+    scales = (None,) * len(axes) if scales is None else tuple(scales)
+    _, _, drawn = grouped_y_limits(
+        axes, y_limit_keys(panel_set_ids, panel_y_labels, mode), scales,
+        panel_set_ids, y_min, y_max)
+    for axis, limits in zip(axes, drawn):
         axis.set_ylim(limits)
         # draw a horizontal line through 0 when limits have opposite signs
         if (limits[0] <= 0 and limits[1] >= 0):
             axis.axhline(y=0, color="black", linewidth=0.8)
-        results.append(tuple(limits))
-    return tuple(results)
+    return drawn
 
 
 def contiguous_runs(items, key):

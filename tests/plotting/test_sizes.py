@@ -146,7 +146,8 @@ def test_matrix_help_groups_own_their_options():
         'Common options': (
             '--profile', '--heatmap', '--cellWidth', '--sortRegions',
             '--sortUsing', '--sortUsingSamples', '--quantileSortedRegions',
-            '--clusterUsingSamples', '--arrangeSamples', '--arrangeGroups',
+            '--clusterUsingSamples', '--clusterUsingGroups',
+            '--arrangeSamples', '--arrangeGroups',
             '--commonLegend',
             '--sampleSetLabels', '--sampleSetGroupArrangement',
             '--gridColumns', '--gridRows', '--regionsLabel',
@@ -163,6 +164,7 @@ def test_matrix_help_groups_own_their_options():
             '--ci_level', '--bootstrapReplicates', '-p',
             '--profileHeight', '--profileAspectRatio', '--yAxisLabel',
             '--yAxisVisibility', '--yAxisLimits', '--yMin', '--yMax',
+            '--yScale', '--yPseudologSigma',
             '--colorsPerSample', '--legendLocation'),
         'Heatmap options': (
             '--heatmapHeight', '--heatmapAspectRatio',

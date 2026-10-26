@@ -19,7 +19,7 @@ def _axes(result, prefix):
 
 def test_side_colorbars_pack_final_height_tick_labels():
     figure, _ = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         colorbarLocation='right', heatmapWidth=3, heatmapHeight=6,
         zMin=['1=-2', '2=-2.5', '3=-1.5', '4=-1'], zMax=[1],
         colorbarLabels=['abcd', 'efgh', 'ijkl', 'mnop'])

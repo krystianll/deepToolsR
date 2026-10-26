@@ -12,8 +12,8 @@ authors:
   - given-names: Krystian
     family-names: Łazowski
     email: k.lazowski@exeter.ac.uk
-version: 0.10.2-beta
-date-released: 2026-10-05
+version: 0.10.4-beta
+date-released: 2026-10-26
 license: MIT
 repository-code: https://github.com/krystianll/deepToolsR
 keywords:

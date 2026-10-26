@@ -163,7 +163,7 @@ WARNINGS = [
     ('heatmap', ['--pseudocountSummaryPlot', '1'], 'unused unless'),
     ('heatmap', ['--trimPercSummaryPlot', '0.1'], 'unused unless'),
     ('heatmap', ['--colorNumber', '16'], 'unused without'),
-    ('heatmap', ['--whatToShow', 'heatmap and colorbar',
+    ('heatmap', ['--showSummaryPlot', 'off',
                  '--plotTypeSummaryPlot', 'fill'], 'does not include'),
     ('profile', ['--bootstrapReplicates', '12'], 'unused unless'),
     ('profile', ['--ci_level', '0.9'], 'unused unless'),

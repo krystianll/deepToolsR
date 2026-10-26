@@ -51,6 +51,7 @@ class _Request:
     operation: str
     value: object
     progress: bool = False
+    load: bool = False
     cancelled: threading.Event = field(default_factory=threading.Event)
 
 
@@ -114,11 +115,14 @@ class _Worker:
     def _validate_request(data):
         request_id = data.get('id')
         operations = set(data) & OPERATIONS
-        if len(operations) != 1 or set(data) - OPERATIONS - {'id', 'progress'}:
+        if (len(operations) != 1 or
+                set(data) - OPERATIONS - {'id', 'progress', 'load'}):
             raise ValueError('expected exactly one operation key')
         operation = operations.pop()
         if 'progress' in data and operation != 'command':
             raise ValueError('progress is allowed only with command')
+        if 'load' in data and operation != 'describe':
+            raise ValueError('load is allowed only with describe')
         if operation == 'cancel':
             if 'id' in data or not _valid_id(data['cancel']):
                 raise ValueError('cancel requires a target id')
@@ -141,10 +145,12 @@ class _Worker:
         if operation == 'command' and not isinstance(
                 data.get('progress', False), bool):
             raise ValueError('progress must be a boolean')
+        if not isinstance(data.get('load', False), bool):
+            raise ValueError('load must be a boolean')
         if not _valid_id(request_id):
             raise ValueError('id must be a non-empty string or integer')
         return _Request(request_id, operation, data[operation],
-                        data.get('progress', False))
+                        data.get('progress', False), data.get('load', False))
 
     def _enqueue(self, request):
         response_id = request.request_id
@@ -231,7 +237,9 @@ class _Worker:
                         if request.request_id is not None else None)
             if operation == 'describe':
                 return {'id': request.request_id, 'ok': True,
-                        'describe': session.describe(request.value)}
+                        'describe': session.describe(
+                            request.value, force_load=request.load,
+                            cancelled=request.cancelled.is_set)}
             if operation == 'info':
                 from deeptoolsr.computeMatrixOperations import info_record
                 return {'id': request.request_id, 'ok': True,
@@ -295,7 +303,7 @@ def serve_main(*, config=None, threads=None, cache_bytes=None,
     input_stream = sys.stdin.buffer if stdin is None else stdin
     error_stream = sys.stderr if stderr is None else stderr
     writer = _Writer(sys.stdout if stdout is None else stdout)
-    writer.write({'hello': {'protocol': 1, 'version': version('deepToolsR'),
+    writer.write({'hello': {'protocol': 2, 'version': version('deepToolsR'),
                             'tools': list(TOOLS),
                             'preferred_plot_tool': 'plotMatrixR'}})
     from deeptoolsr.session import PlotSession

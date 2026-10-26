@@ -55,7 +55,8 @@ add('show_counts', options=('--showRegionCounts',))
 add('empty_override', options=(
     '--regionsLabel', 'Alpha', 'Beta', 'Gone', '--filterNans', 'any_sample'))
 add('quantile_custom', options=(
-    '--regionsLabel', 'Custom', '--sortRegions', 'ascend', '--quantiles', '2'),
+    '--regionsLabel', 'Custom_Q1', 'Custom_Q2', '--sortRegions', 'ascend',
+    '--quantiles', '2'),
     input_name='single.gz')
 add('profile_merge_duplicate', 'profile', (
     '--regionsLabel', 'Same', 'Same', 'Gone',

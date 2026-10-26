@@ -23,6 +23,17 @@ Output options:
                         the sorting order selected. This is useful, for example, to generate other
                         heatmaps while keeping the sorting of the first heatmap. Example:
                         Heatmap1sortedRegions.bed (default: None)
+  --outFileSortedRegionsPerGroup PREFIX
+                        [global] Save the regions of every drawn region group to a BED file of its
+                        own, named PREFIX_<group label>.bed, with the lines --outFileSortedRegions
+                        writes for that group; unlike --outFileSortedRegions, these files have no
+                        header line. A ".bed" ending of PREFIX is dropped, so "regions" and
+                        "regions.bed" both write regions_<group label>.bed. Characters a file name
+                        cannot hold become "_". Two groups whose labels give the same file name
+                        are an error; rename them with --regionsLabel. Example: --kmeans 3
+                        --regionsLabel up flat down --outFileSortedRegionsPerGroup res/clusters
+                        writes res/clusters_up.bed, res/clusters_flat.bed and
+                        res/clusters_down.bed. (default: None)
   --outFileNameMatrix FILE
                         [global] If this option is given, then the matrix of values underlying the
                         plot will be saved using this name. A .gz suffix selects gzip compression;
@@ -64,6 +75,13 @@ Optional arguments:
                         clustering by --kmeans or --hclust if not given, all samples are taken
                         into account for clustering. Example: --ClusterUsingSamples 1 3 (default:
                         None)
+  --clusterUsingGroups GROUP [GROUP ...], --quantileUsingGroups GROUP [GROUP ...]
+                        [multiple] Region groups of the matrix whose regions --kmeans/--hclust
+                        cluster or --quantileSortedRegions splits into quantiles: 1-based numbers,
+                        a-b ranges or the group names stored in the matrix, in any order. The
+                        regions of the other groups are left out of the plot and of every output.
+                        By default all groups are used. Example: --clusterUsingGroups 1 3
+                        (default: None)
   --sortRegions {descend,ascend,no,keep}
                         [global] Whether the heatmap should present the regions sorted. The
                         default is to sort in descending order based on the mean value per region.
@@ -83,8 +101,10 @@ Optional arguments:
                         example, if you specify 4, then the regions will be divided into
                         quartiles. This is useful to visualize the distribution of the signal
                         across the regions. The default is 1 which means no grouping. Setting > 1
-                        will override any existing region groups. Note that this cannot be used
-                        with --kmeans or --hclust.
+                        will override any existing region groups: the quantiles are named after
+                        the first group they pool, for example genes_Q1 to genes_Q4, and
+                        --regionsLabel names them instead. Note that this cannot be used with
+                        --kmeans or --hclust.
   --filterNans {keep,any_bin,any_sample,all_bins}
                         [global] Drop regions with missing data before clustering, sorting, or
                         plotting. 'keep' (default) never filters on NaNs; 'any_bin' drops a region
@@ -170,8 +190,9 @@ Optional arguments:
                         [multiple|explicit|recycled] Titles for the sample panels created by
                         --arrangeSamples. By default, joined sample labels are used. One value per
                         sample set (with --groupsAsSampleSets, one per panel in drawing order).
-                        Use N=label to name a 1-based sample set. Text accepts \=, \\ and \n.
-                        (default: None)
+                        Use N=label to name a 1-based sample set; an empty label gives no title.
+                        Unused with --perGroup and one sample set, whose panels are titled by
+                        region group. Text accepts \=, \\ and \n. (default: None)
   --sampleSetGroupArrangement {overlay,adjacent,end,by_row,by_column}
                         [global] How region groups are placed within each sample set. overlay
                         (default): all groups as series in one panel. adjacent: one panel per
@@ -232,6 +253,19 @@ Optional arguments:
                         in drawing order), separated by spaces. If there are fewer values than
                         sample sets, the values are recycled. Use N=value for a 1-based sample
                         set. (default: None)
+  --yScale SCALE [SCALE ...]
+                        [multiple|explicit|recycled] Y-axis scale: "linear" or "pseudolog", a
+                        ggplot-style pseudo-log axis (asinh), near-linear for values smaller than
+                        --yPseudologSigma and logarithmic beyond; it keeps 0 and negative values.
+                        Limits and tick labels stay in data units. One value per sample set (see
+                        --arrangeSamples; with --groupsAsSampleSets, one per panel in drawing
+                        order), separated by spaces. If there are fewer values than sample sets,
+                        the values are recycled. Use N=value for a 1-based sample set. (default:
+                        ['linear'])
+  --yPseudologSigma SIGMA
+                        [global] Where a pseudolog Y axis (--yScale pseudolog) turns from linear
+                        to logarithmic, in data units; one value for the whole figure. (default:
+                        1.0)
   --distanceUnit {auto,bp,kb,mb}
                         [global] Unit for numeric distance labels. "auto" uses bp below 1 kb, kb
                         below 1 Mb, and mb otherwise. (default: auto)
@@ -265,10 +299,15 @@ Optional arguments:
                         each profile panel, matching the equivalent plotHeatmap option. (default:
                         False)
   --regionsLabel REGIONSLABEL [REGIONSLABEL ...], --regionLabels REGIONSLABEL [REGIONSLABEL ...], -z REGIONSLABEL [REGIONSLABEL ...]
-                        [multiple] Labels for the regions plotted in the heatmap. If more than one
-                        region is being plotted, a list of labels separated by spaces is required.
-                        If a label itself contains a space, then quotes are needed. For example,
-                        --regionsLabel label_1, "label 2". (default: None)
+                        [multiple|explicit] Labels for the region groups: the groups of the
+                        matrix, or the clusters of --kmeans/--hclust or the quantiles of
+                        --quantileSortedRegions when those make the groups. If there is more than
+                        one group, a list of labels separated by spaces is required, one per
+                        group. If a label itself contains a space, then quotes are needed. For
+                        example, --regionsLabel label_1, "label 2". Use N=label to rename a
+                        1-based region group (in the order the groups are defined, before
+                        --arrangeGroups); the others keep their names. For example, --regionsLabel
+                        2=peaks. (default: None)
   --showRegionCounts    [global] Append the number of plotted regions to every region label, for
                         example "genes [n = 1,234]". This applies to heatmap labels, profile
                         labels, and summary-plot legends. (default: False)
@@ -322,13 +361,15 @@ Optional arguments:
   --perGroup            [global] By default each sample is its own sample set and panel, and
                         region groups are its series. --perGroup does the opposite: all samples
                         form one sample set whose panels are the region groups, with the samples
-                        as series. It is a shortcut for --arrangeSamples 1,2,...,n
-                        --sampleSetGroupArrangement adjacent; your own --arrangeSamples or
-                        --sampleSetGroupArrangement replaces either part (e.g.
-                        end/by_row/by_column change the panel order). The group panels remain one
-                        sample set, so they share one colour scale (deepTools 3.5.6 cycled
-                        --colorMap/--zMin/--zMax per group): add --groupsAsSampleSets to give each
-                        its own limits, colour maps, labels and series colours. (default: False)
+                        as series. It arranges the panels like --arrangeSamples 1,2,...,n
+                        --sampleSetGroupArrangement adjacent, but titles each panel by its region
+                        group (as deepTools 3.5.6 does; with several --arrangeSamples sets, by
+                        "set — group"); your own --arrangeSamples or --sampleSetGroupArrangement
+                        replaces either part (e.g. end/by_row/by_column change the panel order).
+                        The group panels remain one sample set, so they share one colour scale
+                        (deepTools 3.5.6 cycled --colorMap/--zMin/--zMax per group): add
+                        --groupsAsSampleSets to give each its own limits, colour maps, labels and
+                        series colours. (default: False)
   --groupsAsSampleSets  [global] Make every region-group panel a separate sample set, numbered in
                         drawing order. Per-sample-set options (--yMin, --yMax, --zMin, --zMax,
                         --colorMap, --yAxisLabel, --sampleSetLabels, ...) then take one value per

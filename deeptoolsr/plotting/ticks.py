@@ -1,5 +1,7 @@
 import numpy as np
 import re
+from matplotlib.ticker import (
+    AsinhLocator, AutoLocator, FuncFormatter, NullLocator)
 from matplotlib.transforms import ScaledTranslation
 from deeptoolsr.plotting.geometry import (
     COLORBAR_MIN_TICK_DISTANCE_CM, COLORBAR_PREFERRED_TICK_COUNT)
@@ -256,6 +258,50 @@ def choose_colorbar_ticks(vmin, vmax, length_cm, prefer_count=None,
     positions.append(high)
     positions = sorted(set(positions))
     return positions, _format_tick_values(positions)
+
+
+class _PseudologLocator(AsinhLocator):
+    """AsinhLocator's decade ticks, thinned from 0 outwards so that neighbours
+    keep at least 1/numticks of the axis apart (inside the near-linear zone
+    decades crowd onto 0). When fewer than three remain, the view is nearly
+    linear and the linear axis' ticks are used instead."""
+
+    def tick_values(self, vmin, vmax):
+        low, high = sorted((vmin, vmax))
+        ticks = super().tick_values(vmin, vmax)
+        screen = self.linear_width * np.arcsinh(
+            np.array([low, high, *ticks]) / self.linear_width)
+        spacing = (screen[1] - screen[0]) / self.numticks
+        kept = []
+        for value, position in sorted(zip(ticks, screen[2:]),
+                                      key=lambda item: abs(item[1])):
+            if low <= value <= high and all(
+                    abs(position - other) >= spacing for _, other in kept):
+                kept.append((value, position))
+        # AsinhLocator's own fallback is evenly spaced, unrounded values.
+        if (len(kept) >= 3 and not np.array_equal(
+                ticks, np.linspace(vmin, vmax, self.numticks))):
+            return np.array(sorted(value for value, _ in kept))
+        linear = AutoLocator()
+        linear.set_axis(self.axis)
+        return linear.tick_values(low, high)
+
+
+def _plain_tick_label(value, _position=None):
+    """A tick value in plain decimals, with the minus sign Matplotlib uses."""
+    text = np.format_float_positional(float('{:.12g}'.format(value)) + 0.0,
+                                      trim='-')
+    return text.replace('-', '\N{MINUS SIGN}')
+
+
+def set_pseudolog_y_scale(axis, sigma):
+    """Draw ``axis``' Y as ggplot's pseudo_log_trans(sigma), asinh(y / 2σ),
+    with ticks labelled in data units and the data margins on that scale."""
+    axis.set_yscale('asinh', linear_width=2 * sigma)
+    axis.autoscale_view(scalex=False)
+    axis.yaxis.set_major_locator(_PseudologLocator(2 * sigma))
+    axis.yaxis.set_major_formatter(FuncFormatter(_plain_tick_label))
+    axis.yaxis.set_minor_locator(NullLocator())
 
 
 def getDistanceUnit(parameters, idx=None, requested='auto'):

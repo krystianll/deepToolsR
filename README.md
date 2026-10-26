@@ -81,12 +81,12 @@ Every command accepts `--help`.
 **New tools and options**
 
 - `plotMatrixR` is the unified command to plot profiles, heatmaps or both using a new unified collision-aware plotting engine. The new grid system enables custom sample/region group arrangement. `plotProfileR` and `plotHeatmapR` are also available for compatibility.
-- Also in plotting: `--arrangeGroups` (select and order region groups), `--groupsAsSampleSets`, `--axisVisibility`, `--commonLegend` (`auto|yes|no`), `--distanceUnit` and `--distanceUnitLocation`, `--showRegionCounts`, `--aspectRatio`, geometric and trimmed means for profile trace, confidence intervals and bootstrap, `--sortIndicator`, `--zMid`, `--quantiles` and more.
+- Also in plotting: `--arrangeGroups` (select and order region groups), `--groupsAsSampleSets`, `--axisVisibility`, `--commonLegend` (`auto|yes|no`), `--distanceUnit` and `--distanceUnitLocation`, `--showRegionCounts`, `--aspectRatio`, geometric and trimmed means for profile trace, confidence intervals and bootstrap, `--sortIndicator`, `--zMid`, `--quantiles`, a pseudo-log profile Y axis (`--yScale pseudolog`) and more.
 - `bigWigOperationsR`: scaling and merging bigWig files.
 - `bamCoverageR`: `--normalizeUsing coverage-mean|coverage-sum|read-count`,
   `--strandedness` (including inference), `--collapse`, whitelists and
   `--filterByOverlap`, `--filterMode`, `--zoomLevels`, `--compressionLevel`,
-  `--skipIntrons` and `--referenceFasta`. CRAM input usually needs no
+  `--skipIntrons`, `--countUnit` and `--referenceFasta`. CRAM input usually needs no
   reference at all, where deepTools 3.5.6 fails if htslib cannot find one.
 - `computeMatrixR`: paired minus-strand bigWigs (`--scoreFileNameMinus`),
   `--antisense`, `--unstranded`, strand multipliers, `--quantileSortedRegions`.
@@ -105,7 +105,7 @@ Every command accepts `--help`.
   `min threshold`/`max threshold`; computeMatrixR applies those filters.
 - Explicit per-sample and per-group assignments use `N=value`.
 - `--perGroup` only arranges panels (one sample set, one panel per region
-  group); the group panels share one colour scale, whereas deepTools 3.5.6
+  group, each titled by its group); the group panels share one colour scale, whereas deepTools 3.5.6
   cycled `--colorMap`, `--zMin` and `--zMax` per group. Use
   `--perGroup --groupsAsSampleSets` for per-group scales.
 - `--commonLegend auto` (the default) draws one legend when every panel's
@@ -128,6 +128,41 @@ Every command accepts `--help`.
   single read that is spliced, contains deletions or is soft-clipped keeps
   all its aligned bases. deepTools 3.5.6 cut such reads at the extension
   length and could lose aligned exons.
+- `bamCoverageR --countUnit auto|read|fragment` sets what counts once. The
+  default, `auto`, is `read` without `--extendReads` and `--collapse`, and
+  `fragment` with either. `read` (as in deepTools 3.5.6) counts each retained
+  alignment, so the overlap of two mates counts 2 and, with `--extendReads`,
+  a proper pair covers its fragment twice; `--collapse` places each alignment
+  at its own 5'/3' end or centre, strandedness-aware. `fragment`
+  counts a proper pair (inward or dovetailed) once in every metric: plain
+  coverage is the union of its mates' aligned blocks, `--extendReads` fills
+  the fragment once, `--collapse` places the fragment's end, and CPM/RPKM
+  divide by the number of fragments. Single-end data is the same in both.
+  A dovetailed pair is a proper pair whose reverse mate starts left of its
+  forward mate and overlaps it (a read-through of an insert shorter than the
+  reads). `fragment` counts it once, spanning its leftmost to its rightmost
+  aligned base; `read` counts each mate, and `--extendReads` extends each on
+  its own. A pair spanning the origin of a circular chromosome (mates that do
+  not overlap) stays two reads in both units. deepTools 3.5.6 handles every
+  pair as two reads.
+  The default can be stored with `deeptoolsr options --countUnit`.
+- With `--extendReads`, deepTools 3.5.6 gives 2 across a proper pair, and
+  bamCoverageR's default (`auto`, so `fragment`) gives 1. Use
+  `--countUnit read` for the deepTools count.
+- deepTools `--Offset` ignores strandedness: with `--filterRNAstrand` it
+  places read 1 and read 2 at their own 5' ends, mixing RNA 5' and 3' ends.
+  bamCoverageR `--collapse` is strandedness-aware. To reproduce the deepTools
+  track, use `--countUnit read --strandedness none` and select deepTools'
+  read set with `--samFlagInclude` (for the forward-transcript track of a
+  dUTP library, `--samFlagInclude READ1,REVERSE READ2,^REVERSE`, i.e. flags
+  83 and 163). This gives the same value as deepTools at every base.
+- `--samFlagInclude` takes one or more values and keeps a read that matches
+  any of them; a value is a comma-separated list of flag names or numbers
+  that must all be set, with `^` for bits that must be unset (for example
+  `PAIRED,PROPER_PAIR`, `READ1 REVERSE`, `^DUP`). `--samFlagExclude` also
+  accepts flag names and `0x` hex (for example `DUP,SECONDARY`). A single
+  number means the same as in deepTools 3.5.6, which takes one integer for
+  each option.
 - computeMatrixR drops regions whose body is shorter than one bin; deepTools
   3.5.6 kept them as rows of NaN (or 0 with `--missingDataAsZero`).
 - A BED `#` group line with no regions under it is skipped with a warning;
@@ -151,7 +186,8 @@ Every command accepts `--help`.
   (`--skipNAs`), `--samExcludeFlag`, `--centerReads`, `--verbose` and
   `--normalizeUsing None`.
 - plotProfileR: `--numPlotsPerRow` (use `--gridColumns`/`--gridRows`);
-  plotHeatmapR: fewer `--whatToShow` choices (see CHANGES.txt).
+  plotHeatmapR: `--whatToShow` (use `--showSummaryPlot on|off`; see
+  CHANGES.txt).
 
 **Output differences**
 
@@ -166,6 +202,16 @@ Every command accepts `--help`.
 - computeMatrixR `--nanAfterEnd` with a one-base region: the first
   downstream bin averages the bases it covers; deepTools 3.5.6 averages one
   base early.
+- bamCoverageR `--normalizeUsing BPM` follows the formula in the deepTools
+  documentation, "BPM (per bin) = number of reads per bin / sum of all reads
+  per bin (in millions)"
+  ([bamCoverage docs](https://deeptools.readthedocs.io/en/develop/content/tools/bamCoverage.html),
+  accessed 2026-10-05), so the bins of a track sum to one million. The formula
+  deepTools 3.5.6 implements cancels out the bin size, so its BPM equals CPM
+  (confirmed by the deepTools authors in
+  [deepTools issue #1048](https://github.com/deeptools/deepTools/issues/1048)).
+  To reproduce deepTools BPM tracks, use `--normalizeUsing CPM
+  --normalizationDenominator filtered --filterMode deeptools`.
 - Compressed matrices, PDF and SVG output are byte-reproducible (no timestamps).
 - Plain-text matrix operations keep the input's numeric tokens; matrix headers
   record the resolved thread count and the sort actually applied.

@@ -5,6 +5,7 @@ import numpy as np
 from deeptoolsr import _cluster, _statistics
 from deeptoolsr.matrix import (
     GroupOrigin, PreparationWarning, RowLayout, _readonly_indices,
+    cluster_names,
 )
 
 
@@ -44,7 +45,7 @@ def cluster(matrix, layout, k, *, method='kmeans', cols=None, seed=0,
     bounds = [0]
     for i in order:
         bounds.append(bounds[-1] + len(cluster_ids[i]))
-    names = tuple(f'cluster_{i}' for i in range(1, len(order) + 1))
+    names = cluster_names(len(order))
     result = RowLayout(rows, tuple(bounds), names,
                        tuple(GroupOrigin(i) for i in range(len(names))),
                        layout.sort and layout.sort.reordered(), columns)

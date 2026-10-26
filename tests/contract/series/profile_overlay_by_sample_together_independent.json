@@ -12,8 +12,8 @@
       },
       {
         "entries": [
-          "Equal: Third",
-          "Other: Third"
+          "Equal",
+          "Other"
         ],
         "scope": "cell/1/2/profile"
       }
@@ -48,15 +48,15 @@
       [
         {
           "color": "#784060ff",
-          "label": "Equal: Third"
+          "label": "Equal"
         },
         {
           "color": "#784060ff",
-          "label": "Equal: Third"
+          "label": "Equal"
         },
         {
           "color": "#904060ff",
-          "label": "Other: Third"
+          "label": "Other"
         }
       ]
     ],
@@ -154,19 +154,19 @@
           {
             "color_index": 4,
             "group": 0,
-            "label": "Equal: Third",
+            "label": "Equal",
             "sample": 2
           },
           {
             "color_index": 4,
             "group": 2,
-            "label": "Equal: Third",
+            "label": "Equal",
             "sample": 2
           },
           {
             "color_index": 5,
             "group": 1,
-            "label": "Other: Third",
+            "label": "Other",
             "sample": 2
           }
         ],

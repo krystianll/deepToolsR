@@ -191,7 +191,6 @@ class OwnedMatrix:
 @dataclass(frozen=True)
 class GroupOrigin:
     source: int
-    quantile: int | None = None
 
 
 @dataclass(frozen=True)
@@ -405,8 +404,6 @@ def merge_groups_by_key(layout, keys):
 
 
 def apply_merge_relabel(layout, overrides):
-    if len(overrides) != len(layout.base_names):
-        raise ValueError('length new labels != length original labels')
     renamed = replace(layout, base_names=tuple(overrides))
     keys = [overrides[origin.source] for origin in renamed.origins]
     return merge_groups_by_key(renamed, keys)
@@ -414,10 +411,7 @@ def apply_merge_relabel(layout, overrides):
 
 def sort(matrix, layout, *, using='mean', method='no', cols=None,
          quantiles=1, threads):
-    if quantiles < 1:
-        raise ValueError('The number of quantiles should be bigger than or equal to 1.')
-    if quantiles > 1 and method not in ('ascend', 'descend'):
-        raise ValueError('Quantile grouping requires ascending or descending sorting.')
+    check_quantiles(quantiles, method)
     if method == 'no':
         return layout
     current = layout.row_indices()
@@ -447,13 +441,8 @@ def sort(matrix, layout, *, using='mean', method='no', cols=None,
     else:
         raise ValueError(f'{using} is an unsupported sorting method')
 
-    if quantiles > layout.nrows:
-        raise ValueError('The number of quantiles is bigger than the number of regions. Please reduce the number of quantiles.')
-    if quantiles > 1:
-        bounds = (0, layout.nrows)
-        origins = layout.origins[:1]
-    else:
-        bounds, origins = layout.group_bounds, layout.origins
+    quantiled = quantile_groups(layout, quantiles)
+    bounds = (0, layout.nrows) if quantiles > 1 else layout.group_bounds
     parts = []
     for start, stop in zip(bounds, bounds[1:]):
         if method == 'keep':
@@ -472,13 +461,61 @@ def sort(matrix, layout, *, using='mean', method='no', cols=None,
                 order = order[::-1]
         parts.append(current[start:stop][order])
     rows = np.concatenate(parts) if parts else np.empty(0, dtype=np.int64)
-    if quantiles > 1:
-        bounds = tuple(int(q * layout.nrows / quantiles)
-                       for q in range(quantiles + 1))
-        origins = tuple(GroupOrigin(origins[0].source, q)
-                        for q in range(1, quantiles + 1))
-    return replace(layout, rows=rows, group_bounds=bounds, origins=origins,
-                   sort=SortState(method, using), silhouette=None)
+    return replace(quantiled, rows=rows, sort=SortState(method, using),
+                   silhouette=None)
+
+
+def cluster_names(count):
+    """The names of ``count`` clusters, numbered by rank as clustering does."""
+    return tuple(f'cluster_{i}' for i in range(1, count + 1))
+
+
+def quantile_names(base, quantiles):
+    """The names of ``quantiles`` quantiles cut from the group ``base``."""
+    return tuple(f'{base}_Q{q}' for q in range(1, quantiles + 1))
+
+
+def check_quantiles(quantiles, method):
+    """Reject a quantile request the sort cannot serve, before any work."""
+    if quantiles < 1:
+        raise ValueError('The number of quantiles should be bigger than or equal to 1.')
+    if quantiles > 1 and method not in ('ascend', 'descend'):
+        raise ValueError('Quantile grouping requires ascending or descending sorting.')
+
+
+def quantile_groups(layout, quantiles):
+    """Pool every row of ``layout`` into ``quantiles`` groups by position.
+
+    The quantiles are new groups, numbered and named like clusters but
+    after the first group (``quantile_names``); only membership changes,
+    so the sort fills the rows and describe predicts from the header.
+    """
+    if quantiles > layout.nrows:
+        raise ValueError('The number of quantiles is bigger than the number of regions. Please reduce the number of quantiles.')
+    if quantiles == 1:
+        return layout
+    return replace(
+        layout, rows=None,
+        group_bounds=tuple(int(q * layout.nrows / quantiles)
+                           for q in range(quantiles + 1)),
+        base_names=quantile_names(
+            layout.base_names[layout.origins[0].source], quantiles),
+        origins=tuple(GroupOrigin(q) for q in range(quantiles)),
+        silhouette=None)
+
+
+def take_groups(layout, positions):
+    """Keep the groups at ``positions`` (at least one), in that order."""
+    bounds = layout.group_bounds
+    rows = layout.row_indices()
+    sizes = [bounds[i + 1] - bounds[i] for i in positions]
+    return replace(
+        layout,
+        rows=np.concatenate([rows[bounds[i]:bounds[i + 1]] for i in positions]),
+        group_bounds=tuple(np.concatenate([[0], np.cumsum(sizes)]).tolist()),
+        origins=tuple(layout.origins[i] for i in positions),
+        silhouette=None if layout.silhouette is None else np.concatenate(
+            [layout.silhouette[bounds[i]:bounds[i + 1]] for i in positions]))
 
 
 def cluster(matrix, layout, k, *, method='kmeans', cols=None, seed=0,
@@ -557,17 +594,22 @@ def tabular_text(value):
             .replace('\t', '\\t'))
 
 
-def save_bed(matrix, layout, labels, handle):
-    """Write BED12 plus the historical group and silhouette columns."""
-    handle.write('#chrom\tstart\tend\tname\tscore\tstrand\tthickStart\tthickEnd'
-                 '\titemRGB\tblockCount\tblockSizes\tblockStart\tdeepTools_group')
-    if layout.silhouette is not None:
-        handle.write('\tsilhouette')
-    handle.write('\n')
+def save_bed(matrix, layout, labels, handle, *, group=None):
+    """Write BED12 plus the historical group and silhouette columns.
+
+    ``group`` writes only that group's lines, without the header line.
+    """
+    if group is None:
+        handle.write('#chrom\tstart\tend\tname\tscore\tstrand\tthickStart'
+                     '\tthickEnd\titemRGB\tblockCount\tblockSizes\tblockStart'
+                     '\tdeepTools_group')
+        if layout.silhouette is not None:
+            handle.write('\tsilhouette')
+        handle.write('\n')
     rows = layout.row_indices()
-    for group, (start, stop) in enumerate(zip(
-            layout.group_bounds, layout.group_bounds[1:])):
-        for position in range(start, stop):
+    bounds = layout.group_bounds
+    for group in range(len(layout.origins)) if group is None else (group,):
+        for position in range(bounds[group], bounds[group + 1]):
             region = matrix.regions[int(rows[position])]
             blocks = region[1]
             handle.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{1}\t{2}\t0'.format(

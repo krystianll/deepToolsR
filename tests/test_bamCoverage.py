@@ -396,7 +396,8 @@ def test_extend_counts_fragment_once(tmp_path):
     out = str(tmp_path / "e.bw")
     ext = 300
     _coverage.bam_coverage_bigwig(PAIRED, out, bin_size=1, aggregation="sum",
-                                  filter_mode="deeptools", extend_reads=ext)
+                                  filter_mode="deeptools", extend_reads=ext,
+                                  count_unit="fragment")
     L = _chrom_len(PAIRED, "chr2")
     assert np.allclose(_values(out, "chr2", L),
                        _gt_fragment_depth(PAIRED, "chr2", ext).astype(float), atol=1e-4)
@@ -421,7 +422,7 @@ def test_collapse_matches_ground_truth(tmp_path, mode, length):
     out = str(tmp_path / f"col_{mode}_{length}.bw")
     _coverage.bam_coverage_bigwig(PAIRED, out, bin_size=1, aggregation="sum",
                                   filter_mode="deeptools", collapse=mode,
-                                  collapsed_length=length)
+                                  collapsed_length=length, count_unit="fragment")
     L = _chrom_len(PAIRED, "chr2")
     d = np.zeros(L, dtype=np.int64)
     seen = set()

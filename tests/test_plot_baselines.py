@@ -224,10 +224,10 @@ def _render_heatmap(case, out_path):
     options = dict(case)
     hm = _load_matrix(options.pop('matrix'))
     colors = options.pop('colorMapDict', DEFAULT_COLORS)
-    what_to_show = options.pop('whatToShow', 'plot, heatmap and colorbar')
+    show_summary_plot = options.pop('showSummaryPlot', 'on')
     figure, solution = render_heatmap(
         plot_data(hm), out_path, colorMapDict=colors,
-        whatToShow=what_to_show, image_format='png', dpi=DPI,
+        showSummaryPlot=show_summary_plot, image_format='png', dpi=DPI,
         threads=1, **options)
     return solution, figure
 

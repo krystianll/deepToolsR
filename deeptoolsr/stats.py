@@ -69,21 +69,27 @@ def copy_values(matrix, zero_missing=False, *, threads):
 
 
 def _native_geom_mean(matrix, pseudocount, axis, threads):
+    """Geometric means and the pseudocount the native code used."""
     data = buffers(matrix)
-    result, _ = _statistics.geom_mean_axis(data, axis, float(pseudocount),
-                                           threads, **_projection(matrix))
-    return result
+    return _statistics.geom_mean_axis(data, axis, float(pseudocount),
+                                      threads, **_projection(matrix))
+
+
+def _average(matrix, average_type, pseudocount, trim_perc, axis, threads):
+    """The masked average and the geometric pseudocount used, or ``None``."""
+    used = None
+    if average_type == 'geom_mean':
+        value, used = _native_geom_mean(matrix, pseudocount, axis, threads)
+    else:
+        value = reduce(matrix, average_type, axis, trim_perc, threads=threads,
+                       empty_sum_missing=average_type == 'sum')
+    return np.ma.masked_invalid(value, copy=False), used
 
 
 def calc_avg(matrix, average_type, pseudocount=-1, trim_perc=0.05, axis=0,
              *, threads):
-    if average_type == 'geom_mean':
-        value = _native_geom_mean(matrix, pseudocount, axis, threads)
-    else:
-        value = reduce(matrix, average_type, axis, trim_perc, threads=threads,
-                       empty_sum_missing=average_type == 'sum')
-    result = np.ma.masked_invalid(value, copy=False)
-    return result
+    return _average(matrix, average_type, pseudocount, trim_perc, axis,
+                    threads)[0]
 
 
 def _native_bootstrap_ci(matrix, average_type, pseudocount, trim_perc,
@@ -99,12 +105,23 @@ def _native_bootstrap_ci(matrix, average_type, pseudocount, trim_perc,
         float(pseudocount), float(trim_perc), int(n_resamples), float(ci_level),
         int(seed), processors, bool(show_progress),
         **extra, **_projection(matrix))
-    return tuple(np.ma.masked_invalid(value, copy=False) for value in results)
+    # With the centre, the native call also returns the pseudocount it used.
+    *values, used = results if include_center else (*results, None)
+    return (tuple(np.ma.masked_invalid(value, copy=False) for value in values),
+            used if average_type == 'geom_mean' else None)
 
 
 def bootstrap_ci(matrix, average_type, pseudocount=-1, trim_perc=0.05,
                  ci_level=0.95, n_resamples=300, seed=0,
                  show_progress=None, *, threads, include_center=False):
+    return _bootstrap(matrix, average_type, pseudocount, trim_perc, ci_level,
+                      n_resamples, seed, show_progress, threads,
+                      include_center)[0]
+
+
+def _bootstrap(matrix, average_type, pseudocount, trim_perc, ci_level,
+               n_resamples, seed, show_progress, threads, include_center):
+    """``bootstrap_ci``'s arrays and the geometric pseudocount used, or ``None``."""
     data = buffers(matrix)
     if (matrix.shape if isinstance(matrix, Block) else data.shape)[0] == 0:
         raise ValueError('bootstrap confidence intervals require a non-empty 2D matrix')
@@ -136,7 +153,14 @@ def _analytic_summary(matrix, is_geom, pseudocount, threads):
 
 def center_and_analytic_band(matrix, average_type, plot_type, pseudocount=-1,
                              ci_level=0.95, *, threads):
-    """Centre and ``(lower, upper)`` for an analytic band from one native summary.
+    return _analytic_band(matrix, average_type, plot_type, pseudocount,
+                          ci_level, threads)[:3]
+
+
+def _analytic_band(matrix, average_type, plot_type, pseudocount, ci_level,
+                   threads):
+    """Centre and ``(lower, upper)`` for an analytic band from one native summary,
+    and the geometric pseudocount used (``None`` unless ``geom_mean``).
 
     Supports ``plot_type`` in :data:`ANALYTIC_BAND_TYPES` for ``mean`` and
     ``geom_mean`` only. The three bands share a single per-column summary and
@@ -195,7 +219,8 @@ def center_and_analytic_band(matrix, average_type, plot_type, pseudocount=-1,
             lower, upper = mean - margin, mean + margin
     return (np.ma.masked_invalid(center),
             np.ma.masked_invalid(lower),
-            np.ma.masked_invalid(upper))
+            np.ma.masked_invalid(upper),
+            pc if is_geom else None)
 
 
 def center_and_parametric_ci(matrix, average_type, pseudocount=-1,
@@ -264,6 +289,8 @@ class ProfileStatistics:
     center: np.ndarray
     lower: Optional[np.ndarray] = None
     upper: Optional[np.ndarray] = None
+    # The pseudocount a geometric mean used (resolved when automatic).
+    pseudocount: Optional[float] = None
 
 
 class NumericProvider(Protocol):
@@ -288,26 +315,26 @@ def calculate_profile_statistics(block, options, *, threads):
     # coherent with its centre. 'bootstrap' instead resamples rows of the matrix
     # (expensive; count/processors are caller-tunable) and works for any centre.
     if options.plot_type in ANALYTIC_BAND_TYPES:
-        center, lower, upper = center_and_analytic_band(
+        center, lower, upper, pseudocount = _analytic_band(
             block, options.average_type, options.plot_type,
-            options.pseudocount, options.ci_level, threads=threads)
+            options.pseudocount, options.ci_level, threads)
     elif options.plot_type == 'bootstrap':
-        center, lower, upper = bootstrap_ci(
+        (center, lower, upper), pseudocount = _bootstrap(
             block, options.average_type, options.pseudocount,
             options.trim_perc, options.ci_level,
-            n_resamples=options.bootstrap_replicates,
-            threads=threads, include_center=True)
+            options.bootstrap_replicates, 0, None, threads, True)
     else:
-        center = np.ma.asarray(calc_avg(
+        center, pseudocount = _average(
             block, options.average_type, options.pseudocount,
-            options.trim_perc, axis=0, threads=threads))
+            options.trim_perc, 0, threads)
 
     center = np.ma.asarray(center)
     x = np.arange(center.size)
     return ProfileStatistics(
         x=x, center=center,
         lower=None if lower is None else np.ma.asarray(lower),
-        upper=None if upper is None else np.ma.asarray(upper))
+        upper=None if upper is None else np.ma.asarray(upper),
+        pseudocount=None if pseudocount is None else float(pseudocount))
 
 
 def calculate_profile_batch(blocks, options, *, threads):

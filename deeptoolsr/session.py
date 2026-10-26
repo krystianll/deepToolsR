@@ -16,7 +16,8 @@ from .matrix import SourceKey
 OPTION_STAGES = {
     'matrixFile': 'source',
     'kmeans': 'order', 'hclust': 'order',
-    'clusterUsingSamples': 'order', 'sortRegions': 'order',
+    'clusterUsingSamples': 'order', 'clusterUsingGroups': 'order',
+    'sortRegions': 'order',
     'sortUsing': 'order', 'sortUsingSamples': 'order',
     'quantileSortedRegions': 'order', 'filterNans': 'order',
     'silhouette': 'order', 'sameGroupLabels': 'order',
@@ -47,17 +48,18 @@ OPTION_STAGES = {
     'legendLocation': 'scene', 'sameSampleLabels': 'scene',
     'sampleSetGroupArrangement': 'scene',
     'yAxisLimits': 'scene', 'yMax': 'scene', 'yMin': 'scene',
+    'yScale': 'scene', 'yPseudologSigma': 'scene',
     'show_profile': 'scene', 'show_heatmap': 'scene',
     'cellWidth': 'scene', 'profileHeight': 'scene',
     'profileAspectRatio': 'scene',
     'heatmapAspectRatio': 'scene', 'heatmapHeight': 'scene',
     'regionLabelLocation': 'scene',
     'sortIndicator': 'scene', 'textHinting': 'scene',
-    # plotHeatmapR still exposes this historical destination while its
-    # spelling is projected to show_profile at parse time.
-    'whatToShow': 'scene',
+    # plotHeatmapR's spelling, projected to show_profile at parse time.
+    'showSummaryPlot': 'scene',
     'outFileName': 'output', 'outFileNameMatrix': 'output',
     'outFileSortedRegions': 'output', 'outFileNameData': 'output',
+    'outFileSortedRegionsPerGroup': 'output',
     'plotFileFormat': 'output',
     'numberOfProcessors': 'execution', 'verbose': 'execution',
     'config': 'execution', 'nanAfterEnd': 'ignored',
@@ -225,6 +227,35 @@ def explicit_run_options(argv):
                 if len(spelling) > 2 and option.startswith(spelling):
                     supplied.add(dest)
     return frozenset(supplied)
+
+
+class StagedNumeric:
+    """Batch projected statistics and scan misses through session caches.
+
+    The first percentile scan opens the ``limits`` stage, so a scan is a
+    cancellation checkpoint for run and describe alike.
+    """
+
+    def __init__(self, session, cancelled, progress):
+        self.session = session
+        self.cancelled = cancelled
+        self.progress = progress
+        self.limits_staged = False
+
+    def statistics_batch(self, data, pairs, spec, threads):
+        return self.session.statistics_batch(data, pairs, spec, threads)
+
+    def scan(self, data, probabilities, exact, threads):
+        if not self.limits_staged:
+            self.session.stage('limits', self.cancelled, self.progress)
+            self.limits_staged = True
+        return self.session.scan(data, probabilities, exact, threads)
+
+    def render(self, requests, threads):
+        if not requests:
+            return
+        self.session.stage('bitmaps', self.cancelled, self.progress)
+        self.session.render_bitmaps(requests, threads)
 
 
 class PlotSession:
@@ -415,13 +446,7 @@ class PlotSession:
             raise RuntimeError('PlotSession is closed')
         if mode not in ('worker', 'cli'):
             raise ValueError(f'unknown plot session mode: {mode}')
-        self.recomputed = []
-        self.reused = []
-        self.timings = {}
-        self.warnings = []
-        self._stage = None
-        self._stage_started = None
-        self.extents.clear_transient()
+        self._begin_request()
 
         def forward(stream, message):
             if stream == 'stderr':
@@ -459,6 +484,15 @@ class PlotSession:
             self._finish_stage()
             self.extents.clear_transient()
 
+    def _begin_request(self):
+        self.recomputed = []
+        self.reused = []
+        self.timings = {}
+        self.warnings = []
+        self._stage = None
+        self._stage_started = None
+        self.extents.clear_transient()
+
     def apply_run_defaults(self, args, argv):
         """Use the session's config and threads unless ``argv`` sets them."""
         explicit = explicit_run_options(argv)
@@ -467,11 +501,19 @@ class PlotSession:
         if self.threads is not None and 'numberOfProcessors' not in explicit:
             args.numberOfProcessors = self.threads
 
-    def describe(self, command):
+    def describe(self, command, *, force_load=False,
+                 cancelled=lambda: False, progress=None):
+        """Describe ``command``; ``cancelled`` is polled and ``progress``
+        called with the stage name at run's stages."""
         from .describe import describe_session
         if self._closed:
             raise RuntimeError('PlotSession is closed')
-        return describe_session(self, command)
+        self._begin_request()
+        try:
+            return describe_session(self, command, force_load=force_load,
+                                    cancelled=cancelled, progress=progress)
+        finally:
+            self._finish_stage()
 
     def reload(self):
         self.cache.clear()

@@ -240,7 +240,7 @@ def test_live_sort_indicator_uses_solved_role():
     matrix = Matrix.load(str(Path(__file__).parent.parent / 'test_heatmapper' /
                              'master.mat.gz'), threads=1)
     figure, solved = render_heatmap(plot_data(matrix, sort_method='descend'),
-                                    whatToShow='heatmap and colorbar')
+                                    showSummaryPlot='off')
     axis = next(axis for axis in figure.axes
                 if axis.get_gid() == 'indicator/1')
     assert 'indicator/1' in solved.rects

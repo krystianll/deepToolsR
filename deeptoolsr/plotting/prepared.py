@@ -8,11 +8,11 @@ import numpy as np
 from deeptoolsr.stats import (
     NumericProvider, calculate_group_statistics_batch, scan_prepared_matrix,
     statistics_spec)
-from . import colormap
-from .heatmap import heatmap_scales, heatmap_y_labels, region_lengths
+from . import DEFAULT_HEATMAP_COLORMAP, DEFAULT_SERIES_COLORMAP, colormap
+from .colorbars import plan_colorbars
+from .heatmap import heatmap_scales, region_lengths
 from .matrix_plan import tool_option_spellings
-from .series import (has_explicit_assignment, resolve_assigned_limits,
-                     resolve_recyclable)
+from .series import has_explicit_assignment, resolve_recyclable
 
 
 @dataclass(frozen=True)
@@ -30,6 +30,7 @@ class PreparedMatrix:
     header_parameters: dict
     y_min: tuple
     y_max: tuple
+    y_scale: tuple
     statistics_by_key: dict = field(default_factory=dict)
     series_colors: tuple = ()
     warnings: tuple = ()
@@ -38,17 +39,13 @@ class PreparedMatrix:
     z_min: tuple = ()
     z_max: tuple = ()
     z_mid: tuple | None = None
-    resolved_heatmap_y_labels: tuple = ()
+    colorbars: object = None
     regions_length_in_bins: tuple = ()
 
 
-def _y_limits(data, spec, sample_plans, run, numeric):
-    spellings = tool_option_spellings(spec.tool, spec.invoked_spellings)
-    y_min, y_max = resolve_assigned_limits(
-        spec.y_min, spec.y_max, len(sample_plans),
-        minimum_option=spellings['yMin'], maximum_option=spellings['yMax'],
-        context=('--arrangeSamples ' + ' '.join(spec.arrange_samples)
-                 if spec.arrange_samples else None))
+def _y_limits(data, spec, scales, run, numeric):
+    """The plan's typed Y limits, with a heatmap's profile scan filling auto."""
+    y_min, y_max = scales['yMin'], scales['yMax']
     if (spec.show_profile and spec.plot_type == 'heatmap' and
             (y_min == [None] or y_max == [None])):
         low, high = (numeric.scan(data, (1.0, 98.0), False, run.threads)
@@ -61,37 +58,72 @@ def _y_limits(data, spec, sample_plans, run, numeric):
     return tuple(y_min), tuple(y_max)
 
 
-def _check_colors(values, option):
-    for value in values:
-        if value and not pltcolors.is_color_like(value):
-            from deeptoolsr.prepare import OptionError
-            raise OptionError(
-                f'{option}: {value} is not a colour; use a colour name or an '
-                'HTML hex string such as #eeff22')
+def _bad_colour(value, option, target, slot):
+    """True when describe collected ``value`` as not a colour; else raise."""
+    if not value or pltcolors.is_color_like(value):
+        return False
+    from deeptoolsr.prepare import OptionError, collected
+    problem = OptionError(
+        f'{option}: {value} is not a colour; use a colour name or an HTML '
+        'hex string such as #eeff22', code='unknown_colour', option=option,
+        target=target, slot=slot)
+    if not collected(problem):
+        raise problem
+    return True
 
 
-def _check_colormaps(names, option):
-    maps = []
-    for name in names:
-        try:
-            maps.append(colormap(name))
-        except ValueError:
-            from deeptoolsr.prepare import OptionError
-            raise OptionError(
-                f'{option}: {name} is not a colour map; use a Matplotlib or '
-                'deepToolsR colour map name such as viridis') from None
-    return tuple(maps)
+def _bad_colormap(name, option, target, slot):
+    """True when describe collected ``name`` as no colour map; else raise."""
+    try:
+        colormap(name)
+    except ValueError:
+        from deeptoolsr.prepare import OptionError, collected
+        problem = OptionError(
+            f'{option}: {name} is not a colour map; use a Matplotlib or '
+            'deepToolsR colour map name such as viridis',
+            code='unknown_colour_map', option=option, target=target,
+            slot=slot)
+        if not collected(problem):
+            raise problem from None
+        return True
+    return False
+
+
+def _check_colors(values, option, target):
+    """The given colours; one describe collected becomes '' (automatic)."""
+    return ['' if _bad_colour(value, option, target, slot) else value
+            for slot, value in enumerate(values, 1)]
+
+
+def _check_colormaps(names, option, target, default):
+    """The named colour maps; one describe collected becomes ``default``."""
+    return tuple(colormap(default if _bad_colormap(name, option, target, slot)
+                          else name)
+                 for slot, name in enumerate(names, 1))
 
 
 def check_heatmap_colours(assigned, spec):
-    """Reject unknown --colorMap names and --colorList colours up front."""
+    """Check --colorMap names and --colorList colours up front.
+
+    Returns the assignments; a sample set whose colour describe collected
+    as a problem keeps the automatic colour map.
+    """
     spellings = tool_option_spellings(spec.tool, spec.invoked_spellings)
-    _check_colormaps([name for name in assigned['colorMap'] or () if name],
-                     spellings['colorMap'])
-    for value in assigned['colorList'] or ():
-        if value:
-            _check_colors(value.replace(' ', '').split(','),
-                          spellings['colorList'])
+    result = dict(assigned)
+    if assigned['colorMap']:
+        result['colorMap'] = [
+            DEFAULT_HEATMAP_COLORMAP if name and _bad_colormap(
+                name, spellings['colorMap'], 'sample set', slot) else name
+            for slot, name in enumerate(assigned['colorMap'], 1)]
+    if assigned['colorList']:
+        lists = [
+            '' if value and any(
+                _bad_colour(colour, spellings['colorList'], 'sample set', slot)
+                for colour in value.replace(' ', '').split(',')) else value
+            for slot, value in enumerate(assigned['colorList'], 1)]
+        explicit = has_explicit_assignment(spec.color_list)
+        result['colorList'] = lists if explicit or all(lists) else None
+    return result
 
 
 def _check_colour_count(values, slots, option, *, noun, target, warnings):
@@ -135,6 +167,17 @@ def _resolve_mixed(values, count, option, *, domain, noun, target, warnings):
     return resolved
 
 
+def default_series_colors(plan):
+    """The line colours (RGBA) the series slots get without --colorsPerSample.
+
+    One per panel when every panel draws one series, else one per slot.
+    """
+    panels = tuple(cell.profile for cell in plan.cells)
+    single = max(len(panel.series) for panel in panels) == 1
+    count = len(panels) if single else len(plan.color_domains[0].slots)
+    return tuple(colormap('jet')(np.arange(count) / float(count)))
+
+
 def series_colors(spec, plan, warnings):
     """Resolve the palette the profile colour slots index, once.
 
@@ -155,32 +198,32 @@ def series_colors(spec, plan, warnings):
             colors = _check_colour_count(
                 colors, slots, option, noun='colour maps', target='panel',
                 warnings=warnings)
-            return _check_colormaps(colors, option)
+            return _check_colormaps(colors, option, 'panel', DEFAULT_SERIES_COLORMAP)
         if explicit:
             colors = _resolve_mixed(
                 colors, slots, option, domain='panel', noun='colour maps',
                 target='panels', warnings=warnings)
-            colors = [value or 'RdYlBu_r' for value in colors]
+            colors = [value or DEFAULT_SERIES_COLORMAP for value in colors]
         else:
-            colors = ['RdYlBu_r'] * slots
-        return _check_colormaps(colors, option)
+            colors = [DEFAULT_SERIES_COLORMAP] * slots
+        return _check_colormaps(colors, option, 'panel', DEFAULT_SERIES_COLORMAP)
     if explicit:
         colors = _resolve_mixed(
             colors, slots, option, domain='series', noun='colours',
             target='series', warnings=warnings)
-        _check_colors(colors, option)
+        colors = _check_colors(colors, option, 'series')
         default = colormap('jet')(np.arange(slots) / float(slots))
         return tuple(value or tuple(default[index])
                      for index, value in enumerate(colors))
     if not colors:
-        panels = tuple(cell.profile for cell in plan.cells)
-        single = max(len(panel.series) for panel in panels) == 1
-        count = len(panels) if single else slots
-        return tuple(colormap('jet')(np.arange(count) / float(count)))
-    _check_colors(colors, option)
-    return tuple(_check_colour_count(
-        colors, slots, option, noun='colours',
-        target='distinctly coloured series', warnings=warnings))
+        return default_series_colors(plan)
+    colors = _check_colour_count(
+        _check_colors(colors, option, 'series'), slots, option,
+        noun='colours', target='distinctly coloured series',
+        warnings=warnings)
+    default = colormap('jet')(np.arange(slots) / float(slots))
+    return tuple(value or tuple(default[index])
+                 for index, value in enumerate(colors))
 
 
 def prepare_matrix(data, plan, sample_plans, scales, spec, run,
@@ -199,20 +242,22 @@ def prepare_matrix(data, plan, sample_plans, scales, spec, run,
         statistics = {item.key: value
                       for item, value in zip(plan.series, values)}
         profile_colors = series_colors(spec, plan, warnings)
-    y_min, y_max = _y_limits(data, spec, sample_plans, run, numeric)
+    y_min, y_max = _y_limits(data, spec, scales, run, numeric)
     common = dict(
         sample_set_plans=tuple(sample_plans),
         header_parameters=data.matrix.header.parameters, y_min=y_min, y_max=y_max,
+        y_scale=tuple(scales['yScale']),
         statistics_by_key=statistics, series_colors=profile_colors,
         warnings=tuple(warnings))
     if not spec.show_heatmap:
         return PreparedMatrix(**common)
-    check_heatmap_colours(scales, spec)
+    scales = check_heatmap_colours(scales, spec)
+    colorbars = plan_colorbars(spec, plan, sample_plans, scales)
     color_options, percentiles, z_min, z_max, z_mid = heatmap_scales(
         data, spec, scales, numeric=numeric)
     return PreparedMatrix(
         **common, color_options=color_options, percentiles=percentiles,
         z_min=tuple(z_min), z_max=tuple(z_max),
         z_mid=None if z_mid is None else tuple(z_mid),
-        resolved_heatmap_y_labels=heatmap_y_labels(spec, sample_plans),
+        colorbars=colorbars,
         regions_length_in_bins=region_lengths(data))

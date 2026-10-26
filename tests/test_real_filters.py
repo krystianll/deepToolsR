@@ -88,18 +88,24 @@ def depth(units):
     return {pos: float(count) for pos, count in counts.items()}
 
 
-def fragment(mates):
-    """[start, end) of a proper, inward-facing pair: forward start to reverse end.
+def fragment(mates, dovetail=True):
+    """[start, end) of a proper pair, counted as one fragment.
 
-    None for a pair whose mates do not face inward (dovetailed): its reads are
-    single reads.
+    Inward-facing: forward start to reverse end. Dovetailed (the reverse mate
+    starts left of the forward mate and overlaps it): leftmost to rightmost
+    aligned base, or None with dovetail=False (--countUnit read places its
+    reads as single reads). None for mates that face outward without
+    overlapping.
     """
     forward = [read for read in mates if not read.is_reverse]
     reverse = [read for read in mates if read.is_reverse]
     assert len(forward) == len(reverse) == 1 and forward[0].is_proper_pair
-    if forward[0].reference_start > reverse[0].reference_start:
-        return None
-    return forward[0].reference_start, reverse[0].reference_end
+    forward, reverse = forward[0], reverse[0]
+    if forward.reference_start <= reverse.reference_start:
+        return forward.reference_start, reverse.reference_end
+    if dovetail and reverse.reference_end > forward.reference_start:
+        return reverse.reference_start, max(forward.reference_end, reverse.reference_end)
+    return None
 
 
 def transcript_strand(read):
@@ -310,7 +316,8 @@ def test_collapse_places_one_base_per_fragment(tmp_path, capsys, name, kind, thr
         else:
             units.extend(collapsed(read.reference_start, read.reference_end,
                                    read.is_reverse, how) for read in mates)
-    text, _ = coverage(tmp_path, capsys, name, kind, threads, "--collapse", how, bs=1)
+    text, _ = coverage(tmp_path, capsys, name, kind, threads, "--collapse", how,
+                       "--countUnit", "fragment", bs=1)
     assert per_base(text) == depth(units)
 
 
@@ -328,5 +335,40 @@ def test_extend_reads_fills_fragments(tmp_path, capsys, name, kind, threads):
             start, end = ((read.reference_end - span, read.reference_end) if read.is_reverse
                           else (read.reference_start, read.reference_start + span))
             units.append(set(range(max(start, 0), end)))
-    text, _ = coverage(tmp_path, capsys, name, kind, threads, "--extendReads", str(length), bs=1)
+    text, _ = coverage(tmp_path, capsys, name, kind, threads, "--extendReads", str(length),
+                       "--countUnit", "fragment", bs=1)
+    assert per_base(text) == depth(units)
+
+
+@pytest.mark.parametrize("how", ["5prime", "3prime", "center"])
+@pytest.mark.parametrize("kind,threads", RUNS)
+@pytest.mark.parametrize("name", SPANS)
+def test_read_mode_collapse_places_each_dovetailed_mate(tmp_path, capsys, name, kind, threads, how):
+    """--countUnit read: every alignment, a dovetailed pair's mates included,
+    collapses within its own aligned span."""
+    units = [collapsed(read.reference_start, read.reference_end, read.is_reverse, how)
+             for mates in reads_by_pair(name) for read in mates]
+    text, _ = coverage(tmp_path, capsys, name, kind, threads, "--collapse", how,
+                       "--countUnit", "read", bs=1)
+    assert per_base(text) == depth(units)
+
+
+@pytest.mark.parametrize("kind,threads", RUNS)
+@pytest.mark.parametrize("name", SPANS)
+def test_read_mode_extends_each_dovetailed_mate(tmp_path, capsys, name, kind, threads):
+    """--countUnit read: an inward pair fills its fragment twice; a dovetailed
+    pair's mates extend on their own."""
+    length = 200
+    units = []
+    for mates in reads_by_pair(name):
+        if len(mates) == 2 and fragment(mates, dovetail=False):
+            units += [set(range(*fragment(mates, dovetail=False)))] * 2
+            continue
+        for read in mates:
+            span = max(length, read.reference_end - read.reference_start)
+            start, end = ((read.reference_end - span, read.reference_end) if read.is_reverse
+                          else (read.reference_start, read.reference_start + span))
+            units.append(set(range(max(start, 0), end)))
+    text, _ = coverage(tmp_path, capsys, name, kind, threads, "--extendReads", str(length),
+                       "--countUnit", "read", bs=1)
     assert per_base(text) == depth(units)

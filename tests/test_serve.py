@@ -105,7 +105,7 @@ def test_hello_and_warm_render(worker, tmp_path):
     from importlib.metadata import version
 
     assert worker.hello == {'hello': {
-        'protocol': 1, 'version': version('deepToolsR'),
+        'protocol': 2, 'version': version('deepToolsR'),
         'tools': ['plotMatrixR', 'plotHeatmapR', 'plotProfileR',
                   'computeMatrixOperationsR'],
         'preferred_plot_tool': 'plotMatrixR'}}
@@ -172,7 +172,7 @@ def test_input_describe_info_and_reload(worker, tmp_path):
     worker.send({'id': 'describe', 'describe': [
         'plotMatrixR', '-m', str(MATRIX), '--profile']})
     record = worker.response('describe')
-    assert record['ok'] and record['describe']['protocol'] == 1
+    assert record['ok'] and record['describe']['protocol'] == 2
     worker.send({'id': 'info', 'info': ['-m', str(MATRIX)]})
     info = worker.response('info')
     assert info['ok'] and info['info']['protocol'] == 1

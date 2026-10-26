@@ -108,7 +108,7 @@ def test_numeric_projection_reads_are_owned_or_derived():
              if stage == 'order'}
     order_derived = {
         'show_heatmap', 'outFileSortedRegions', 'outFileNameMatrix',
-        'regionsLabel', 'run_options'}
+        'outFileSortedRegionsPerGroup', 'regionsLabel', 'run_options'}
     assert _attribute_reads(prepare._common_spec, 'args') <= (
         order | order_derived)
 

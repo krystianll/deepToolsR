@@ -128,7 +128,7 @@ def _render(matrix_name, **kwargs):
         'missingDataColor': 'black', 'alpha': 1.0})
     original_rc = matplotlib.rcParams.copy()
     try:
-        what_to_show = kwargs.pop('whatToShow', 'heatmap and colorbar')
+        show_summary_plot = kwargs.pop('showSummaryPlot', 'off')
         dpi = kwargs.pop('dpi', 100)
         kwargs.setdefault('style', run_options.resolve_run_options(
             argparse.Namespace(config='auto', numberOfProcessors=1),
@@ -137,7 +137,7 @@ def _render(matrix_name, **kwargs):
         return render_heatmap(
             plot_data(matrix, group_labels=group_labels,
                       sort_method=sort_method), colorMapDict=colors,
-            whatToShow=what_to_show, image_format='png', dpi=dpi,
+            showSummaryPlot=show_summary_plot, image_format='png', dpi=dpi,
             **kwargs)
     finally:
         matplotlib.rcParams.update(original_rc)
@@ -174,7 +174,7 @@ def test_heatmap_decorations_are_measured_at_requested_panel_width(
 
     monkeypatch.setattr(matrix_figure, 'measure_axis', record_width)
     _render('master_multi.mat.gz',
-            whatToShow='heatmap and colorbar', heatmapWidth=3,
+            showSummaryPlot='off', heatmapWidth=3,
             heatmapHeight=6, xAxisLabel='distance from TSS [kb]')
     assert measured_widths
     assert measured_widths == pytest.approx(
@@ -254,7 +254,7 @@ def test_multiline_region_label_preserves_vertical_rotation_and_font(
             plot_data(matrix, group_labels=group_labels), colorMapDict={
                 'colorMap': ['Reds'], 'colorList': None, 'colorNumber': 256,
                 'missingDataColor': 'black', 'alpha': 1.0},
-            whatToShow='heatmap and colorbar', image_format='png', dpi=100,
+            showSummaryPlot='off', image_format='png', dpi=100,
             threads=1)
         style = run_options.resolve_run_options(
             argparse.Namespace(config='auto', numberOfProcessors=1),
@@ -284,7 +284,7 @@ def test_automatic_region_labels_wrap_and_render_in_selected_side_slots(
         'a second region label with enough words to wrap vertically']
     figure, solution = _render(
         'master_multi.mat.gz', group_labels=labels,
-        whatToShow='heatmap and colorbar', heatmapHeight=3,
+        showSummaryPlot='off', heatmapHeight=3,
         regionLabelLocation=location)
 
     selected = _heatmap_slot_texts(figure, 'label/stack/')
@@ -315,7 +315,7 @@ def test_automatic_region_candidates_keep_hard_breaks_and_empty_labels(
     labels = ['first region\nexplicit section', '']
     figure, solution = _render(
         'master_multi.mat.gz', group_labels=labels,
-        whatToShow='heatmap and colorbar', regionLabelLocation='left')
+        showSummaryPlot='off', regionLabelLocation='left')
 
     selected = _heatmap_slot_texts(figure, 'label/stack/')
     assert len(selected) == 1
@@ -333,7 +333,7 @@ def test_region_label_rows_align_toward_heatmap_with_different_widths(
     figure, solution = _render(
         'master_multi.mat.gz',
         group_labels=['short', 'long region label\nsecond line'],
-        whatToShow='heatmap and colorbar', regionLabelLocation=location)
+        showSummaryPlot='off', regionLabelLocation=location)
 
     first, second = _rects(solution, 'label/stack/')
     assert first.width < second.width
@@ -352,7 +352,7 @@ def test_long_heatmap_y_label_wraps_and_is_contained_by_final_figure(
             'words ' * 4).strip()
     figure, solution = _render(
         'master_multi.mat.gz',
-        whatToShow='plot, heatmap and colorbar', heatmapYAxisLabel=text,
+        showSummaryPlot='on', heatmapYAxisLabel=text,
         heatmapWidth=3, heatmapHeight=6)
 
     label_axis = next(axis for axis in figure.axes
@@ -370,7 +370,7 @@ def test_disabling_heatmap_y_layout_keeps_literal_text_and_contains_it(
         'label_layout': {'auto_axis_label_layout': False}})
     assert messages == []
     figure, solution = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         heatmapYAxisLabel=text, style=style)
 
     label_axis = next(axis for axis in figure.axes
@@ -384,7 +384,7 @@ def test_disabling_heatmap_y_layout_keeps_literal_text_and_contains_it(
 def test_automatic_heatmap_y_labels_keep_explicit_breaks_and_skip_empty(
         monkeypatch):
     figure, solution = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         heatmapYAxisLabel=['first line\nexplicit second line', ''])
 
     selected = _heatmap_slot_texts(figure, 'label/heatmap_y/')
@@ -406,7 +406,7 @@ def test_disabling_automatic_region_labels_preserves_literal_text(
     assert messages == []
     figure, solution = _render(
         'master_multi.mat.gz', group_labels=labels,
-        whatToShow='heatmap and colorbar', regionLabelLocation='right',
+        showSummaryPlot='off', regionLabelLocation='right',
         style=style)
 
     assert _heatmap_slot_texts(figure, 'label/stack/') == tuple(labels)
@@ -421,7 +421,7 @@ def test_heatmap_left_decorations_use_exact_configured_gaps(
     options = {'sortIndicator': 'auto', 'sort_method': 'descend'} \
         if show_indicator else {}
     figure, solution = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         heatmapYAxisLabel=['signal'], regionLabelLocation='left', **options)
     figure.canvas.draw()
     renderer = figure.canvas.get_renderer()
@@ -455,7 +455,7 @@ def test_summary_columns_have_equal_safe_gaps_and_no_tick_overlap(
         tmp_path, monkeypatch):
     figure, solution = _render(
         'master_multi.mat.gz',
-        whatToShow='plot, heatmap and colorbar', label_rotation=45)
+        showSummaryPlot='on', label_rotation=45)
     summaries = sorted(
         (axis for axis in figure.axes
          if (axis.get_gid() or '').endswith('/profile')),
@@ -474,7 +474,7 @@ def test_summary_columns_have_equal_safe_gaps_and_no_tick_overlap(
 
 def test_per_group_heatmap_keeps_genomic_x_axis_labels(monkeypatch):
     figure, _ = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         perGroup=True, xAxisLabel=['genomic distance'])
     structural_labels = [text.get_text()
                          for axis in figure.axes
@@ -488,7 +488,7 @@ def test_per_group_heatmap_keeps_genomic_x_axis_labels(monkeypatch):
 def test_auto_axis_layout_draws_selected_wrap_once_without_local_duplicate(
         monkeypatch):
     figure, solution = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         heatmapWidth=2,
         xAxisLabel='very long genomic distance from the transcription start site label')
     assert _heatmap_slot_texts(figure, 'label/x/')
@@ -521,7 +521,7 @@ def test_auto_ordinary_xlabels_keep_axis_clearance_and_legacy_origin(
 
     monkeypatch.setattr(matrix_figure, 'measure_axis', record_measure)
     automatic_figure, automatic = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         xAxisLabel='distance from TSS')
     assert _heatmap_slot_texts(automatic_figure, 'label/x/')
     assert all('\n' not in text for text in _heatmap_slot_texts(automatic_figure, 'label/x/'))
@@ -536,7 +536,7 @@ def test_auto_ordinary_xlabels_keep_axis_clearance_and_legacy_origin(
         'label_layout': {'auto_axis_label_layout': False}})
     assert messages == []
     legacy_figure, legacy = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         xAxisLabel='distance from TSS', style=style)
     assert automatic.figure_size.height == pytest.approx(
         legacy.figure_size.height, abs=.5)
@@ -561,7 +561,7 @@ def test_outer_merged_xlabels_keep_common_clearance(monkeypatch):
 
     monkeypatch.setattr(matrix_figure, 'measure_axis', record_measure)
     figure, solution = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         xAxisVisibility='outer_merged', xAxisLabel='distance from TSS')
     assert len(_rects(solution, 'label/x/')) == 1
     assert measurements
@@ -589,7 +589,7 @@ def test_outer_merged_xlabels_policy_off_preserves_source_metadata(
 
     monkeypatch.setattr(Axes, 'set_xlabel', style_source_axis_label)
     figure, solution = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         xAxisVisibility='outer_merged', xAxisLabel='distance from TSS',
         style=style)
 
@@ -632,7 +632,7 @@ def test_show_all_nonbottom_xlabels_do_not_reserve_outer_label_band(
     monkeypatch.setattr(matrix_figure, 'measure_axis', record_measure)
     figure, solution = _render(
         'master_multi.mat.gz',
-        whatToShow='plot, heatmap and colorbar', xAxisVisibility='show_all',
+        showSummaryPlot='on', xAxisVisibility='show_all',
         xAxisLabel='distance from TSS')
 
     heatmap_axes = [axis for axis in figure.axes
@@ -657,7 +657,7 @@ def test_show_all_nonbottom_xlabels_do_not_reserve_outer_label_band(
     # the bottom heatmap edge remains the single shared structural band.
     _, outer_solution = _render(
         'master_multi.mat.gz',
-        whatToShow='plot, heatmap and colorbar', xAxisVisibility='outer',
+        showSummaryPlot='on', xAxisVisibility='outer',
         xAxisLabel='distance from TSS')
     assert min(rect.y0 for rect in _block_rects(solution)) == pytest.approx(
         min(rect.y0 for rect in _block_rects(outer_solution)), abs=1e-6)
@@ -669,7 +669,7 @@ def test_disabling_axis_layout_keeps_ordinary_labels_on_their_original_axes(
         'label_layout': {'auto_axis_label_layout': False}})
     assert messages == []
     figure, solution = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         xAxisLabel='distance from TSS', style=style)
     local = [axis.get_xlabel() for axis in figure.axes
              if axis.xaxis.get_visible() and axis.get_xlabel()]
@@ -694,7 +694,7 @@ def test_wide_summary_legend_and_long_structural_text_stay_on_canvas(
                   sample_labels=sample_labels), colorMapDict={
             'colorMap': ['Reds'], 'colorList': None, 'colorNumber': 256,
             'missingDataColor': 'black', 'alpha': 1.0},
-        whatToShow='plot, heatmap and colorbar', image_format='png', dpi=100,
+        showSummaryPlot='on', image_format='png', dpi=100,
         legendLocation='below',
         plotTitle='a global title deliberately much wider than the data block',
         heatmapYAxisLabel='a very long\ncommon vertical y label',
@@ -710,11 +710,11 @@ def test_wide_summary_legend_and_long_structural_text_stay_on_canvas(
 def test_rotated_region_label_is_not_double_counted_as_bottom_decoration(
         monkeypatch):
     _, baseline = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar')
+        'master_multi.mat.gz', showSummaryPlot='off')
     labels = ['long rotated region label\nsecond line'
               for _ in range(2)]
     figure, decorated = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar',
+        'master_multi.mat.gz', showSummaryPlot='off',
         group_labels=labels)
     baseline_bottom = min(rect.y0 for rect in _block_rects(baseline))
     decorated_bottom = min(rect.y0 for rect in _block_rects(decorated))
@@ -732,7 +732,7 @@ def test_hidden_summary_xaxis_does_not_inflate_heatmap_bottom_slack(
         monkeypatch):
     figure, solution = _render(
         'master_multi.mat.gz',
-        whatToShow='plot, heatmap and colorbar')
+        showSummaryPlot='on')
     # Actual visible heatmap x ticks plus physical padding are roughly 31pt;
     # the hidden summary xlabel formerly inflated this to more than 80pt.
     assert min(rect.y0 for rect in _block_rects(solution)) < 50
@@ -745,7 +745,7 @@ def test_hidden_summary_xaxis_does_not_inflate_heatmap_bottom_slack(
 def test_high_output_dpi_uses_canvas_dpi_for_layout_measurement(monkeypatch):
     figure, solution = _render(
         'master_multi.mat.gz', dpi=300,
-        whatToShow='plot, heatmap and colorbar',
+        showSummaryPlot='on',
         yAxisLabel='log2FC', xAxisLabel='distance from TSS',
         minorTickMarks=4, sortIndicator='auto', sort_method='descend')
     figure.canvas.draw()
@@ -770,7 +770,7 @@ def test_high_output_dpi_uses_canvas_dpi_for_layout_measurement(monkeypatch):
 def test_outer_merged_summary_y_label_uses_structural_slot(monkeypatch):
     figure, _solution = _render(
         'master_multi.mat.gz',
-        whatToShow='plot, heatmap and colorbar',
+        showSummaryPlot='on',
         yAxisLabel=['signal'], yAxisVisibility='outer_merged')
     assert any(axis.get_gid() == 'label/y/1/1'
                for axis in figure.axes)
@@ -779,7 +779,7 @@ def test_outer_merged_summary_y_label_uses_structural_slot(monkeypatch):
 def test_per_column_heatmap_y_labels_split_summary_axis_runs(monkeypatch):
     figure, _solution = _render(
         'master_multi.mat.gz',
-        whatToShow='plot, heatmap and colorbar',
+        showSummaryPlot='on',
         heatmapYAxisLabel=['RNA', 'RNA', 'ChIP', 'ChIP'],
         yAxisLabel=['signal'],
         yAxisVisibility='outer', yAxisLimits='per_y_label',
@@ -806,7 +806,7 @@ def test_per_column_heatmap_y_labels_split_summary_axis_runs(monkeypatch):
 def test_right_region_labels_precede_side_colorbar(monkeypatch):
     figure, solution = _render(
         'master_multi.mat.gz',
-        whatToShow='heatmap and colorbar')
+        showSummaryPlot='off')
     figure.canvas.draw()
     renderer = figure.canvas.get_renderer()
     scale = 72.0 / figure.dpi
@@ -842,7 +842,7 @@ def test_hidden_region_label_reserves_no_gap_with_show_region_counts(
                 colorMapDict={'colorMap': ['Reds'], 'colorList': None,
                               'colorNumber': 256, 'missingDataColor': 'black',
                               'alpha': 1.0},
-                regionsLabel=group_labels, whatToShow='heatmap and colorbar',
+                regionsLabel=group_labels, showSummaryPlot='off',
                 image_format='png', dpi=100, threads=1)
         finally:
             matplotlib.rcParams.update(original_rc)
@@ -866,7 +866,7 @@ def test_merged_outer_x_axes_render_with_resolved_geometry(monkeypatch):
     # SampleGeometry and raises AttributeError: 'figure_edge_padding'.
     figure, solution = _render(
         'master_multi.mat.gz',
-        whatToShow='heatmap and colorbar', xAxisVisibility='outer_merged')
+        showSummaryPlot='off', xAxisVisibility='outer_merged')
     assert figure is not None
     assert solution.figure_size.width > 0
 
@@ -881,7 +881,7 @@ def test_colorbar_roles_are_independently_wired(tmp_path, monkeypatch):
         'colorbar_tick_label_text': {'size': 17}}}))
     figure, solution = _render(
         'master_multi.mat.gz',
-        whatToShow='heatmap and colorbar', zMin=[0.0], zMax=[1.0],
+        showSummaryPlot='off', zMin=[0.0], zMax=[1.0],
         colorbarLabels=['SCALE'])
     assert _heatmap_slot_texts(figure, 'colorbar_title/') == ('SCALE',)
     title_sizes, tick_sizes = [], []
@@ -906,7 +906,7 @@ def test_auto_below_colorbar_titles_render_the_solved_wrap(monkeypatch):
         'colorNumber': 256, 'missingDataColor': 'black', 'alpha': 1.0}
     figure, solution = _render(
         'master_multi.mat.gz',
-        colorMapDict=colors, whatToShow='heatmap and colorbar',
+        colorMapDict=colors, showSummaryPlot='off',
         colorbarLocation='below', xAxisVisibility='all', heatmapWidth=1,
         colorbarLabels=[long_title])
 
@@ -932,7 +932,7 @@ def test_auto_below_common_titles_render_inside_final_grid_envelope(monkeypatch)
         'colorNumber': 256, 'missingDataColor': 'black', 'alpha': 1.0}
     figure, solution = _render(
         'master_multi.mat.gz',
-        colorMapDict=colors, whatToShow='heatmap and colorbar',
+        colorMapDict=colors, showSummaryPlot='off',
         colorbarLocation='below_common', heatmapWidth=1,
         colorbarLabels=['short scale', long_title])
 
@@ -981,7 +981,7 @@ def test_disabling_horizontal_colorbar_layout_keeps_literal_title(monkeypatch):
     assert messages == []
     figure, solution = _render(
         'master_multi.mat.gz',
-        whatToShow='heatmap and colorbar', colorbarLocation='below',
+        showSummaryPlot='off', colorbarLocation='below',
         colorbarLabels=[literal], style=style)
 
     assert _heatmap_slot_texts(figure, 'colorbar_title/')[0] == literal
@@ -1001,7 +1001,7 @@ def test_colorbar_slots_and_ticks_fit_canvas_at_each_location(
         monkeypatch, location):
     figure, solution = _render(
         'master_multi.mat.gz',
-        whatToShow='heatmap and colorbar', colorbarLocation=location,
+        showSummaryPlot='off', colorbarLocation=location,
         heatmapWidth=3,
         colorbarLabels=['a long colour scale description with several words'])
     figure.canvas.draw()
@@ -1023,7 +1023,7 @@ def test_heatmap_side_region_labels_use_their_own_font_role(
             'size': 18, 'weight': 'bold', 'style': 'italic',
             'family': 'Courier'}}}))
     figure, _ = _render(
-        'master_multi.mat.gz', whatToShow='heatmap and colorbar')
+        'master_multi.mat.gz', showSummaryPlot='off')
     labels = [text for axis in figure.axes
               if (axis.get_gid() or '').startswith('label/stack/')
               for text in axis.texts if text.get_text()]
@@ -1040,7 +1040,7 @@ def test_summary_minor_ticks_match_the_heatmap(monkeypatch):
     # not the summary panels above them.
     figure, _ = _render(
         'master_multi.mat.gz',
-        whatToShow='plot, heatmap and colorbar', minorTickMarks=4)
+        showSummaryPlot='on', minorTickMarks=4)
     summary_minor = [len(ax.xaxis.get_minorticklocs())
                      for ax in figure.axes
                      if (ax.get_gid() or '').endswith('/profile')]
@@ -1805,7 +1805,7 @@ def test_profile_data_export_uses_display_panels_and_cached_statistics(
         # Repeated visible labels are intentionally retained; occurrence IDs
         # distinguish them both within a panel and between panels.
         assert {row['panel_label'] for row in rows} == {'WT'}
-        assert {row['series_label'] for row in rows} == {'same: WT'}
+        assert {row['series_label'] for row in rows} == {'same'}
         assert {row['component'] for row in rows} == {'mean'}
         assert {row['valid_bin_count'] for row in rows} == {'3'}
         assert all(len(json.loads(row['breakpoint_labels'])) >= 1 for row in rows)
@@ -2342,7 +2342,7 @@ def test_profile_mixed_policy_structuralizes_titles_and_keeps_x_labels_local(
 def test_profile_common_legend_remeasures_against_solved_grid_width(
         tmp_path, monkeypatch):
     common = dict(
-        groups=('A', 'B'), subplot_samples=['1', '2'],
+        groups=('A', 'B', 'C', 'D'), subplot_samples=['1', '2'],
         subplot_columns=2, subplot_common_legend='yes',
         legend_location='above', image_format='png')
     narrow_path = tmp_path / 'narrow'
@@ -2571,8 +2571,8 @@ def test_two_by_two_external_legend_rows_are_disjoint(tmp_path, monkeypatch,
                                                       location):
     profile = _profile(
         tmp_path, subplot_samples=['1', '2', '3', '4'], subplot_columns=2,
-        legend_location=location, real_profile_width=3,
-        real_profile_height=3, image_format='png')
+        legend_location=location, subplot_common_legend='no',
+        real_profile_width=3, real_profile_height=3, image_format='png')
 
     profile.figure.canvas.draw()
     renderer = profile.figure.canvas.get_renderer()
@@ -2638,7 +2638,7 @@ def test_short_heatmap_with_many_groups_is_refused():
                     resolve_labels(layout, header=matrix.header))
     with pytest.raises(ValueError, match='heatmap height'):
         render_heatmap(
-            data, colorMapDict=COLORS, whatToShow='heatmap and colorbar',
+            data, colorMapDict=COLORS, showSummaryPlot='off',
             image_format='png', dpi=100, heatmapHeight=3.0, threads=1)
 
 

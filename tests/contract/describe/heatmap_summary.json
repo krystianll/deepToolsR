@@ -1,6 +1,7 @@
 {
-  "protocol": 1,
+  "protocol": 2,
   "tool": "plotHeatmapR",
+  "values_read": false,
   "groups": [
     {
       "index": 1,
@@ -186,55 +187,64 @@
       "key": "g1:s1",
       "group": 1,
       "sample": 1,
-      "label": "Equal"
+      "label": "Equal",
+      "pseudocount": null
     },
     {
       "key": "g2:s1",
       "group": 2,
       "sample": 1,
-      "label": "Other"
+      "label": "Other",
+      "pseudocount": null
     },
     {
       "key": "g3:s1",
       "group": 3,
       "sample": 1,
-      "label": "Equal"
+      "label": "Equal",
+      "pseudocount": null
     },
     {
       "key": "g1:s2",
       "group": 1,
       "sample": 2,
-      "label": "Equal"
+      "label": "Equal",
+      "pseudocount": null
     },
     {
       "key": "g2:s2",
       "group": 2,
       "sample": 2,
-      "label": "Other"
+      "label": "Other",
+      "pseudocount": null
     },
     {
       "key": "g3:s2",
       "group": 3,
       "sample": 2,
-      "label": "Equal"
+      "label": "Equal",
+      "pseudocount": null
     },
     {
       "key": "g1:s3",
       "group": 1,
       "sample": 3,
-      "label": "Equal"
+      "label": "Equal",
+      "pseudocount": null
     },
     {
       "key": "g2:s3",
       "group": 2,
       "sample": 3,
-      "label": "Other"
+      "label": "Other",
+      "pseudocount": null
     },
     {
       "key": "g3:s3",
       "group": 3,
       "sample": 3,
-      "label": "Equal"
+      "label": "Equal",
+      "pseudocount": null
     }
   ],
   "color_domains": [
@@ -254,7 +264,9 @@
             2,
             3
           ],
-          "cells": []
+          "cells": [],
+          "label": "Equal",
+          "automatic": "#000080"
         },
         {
           "position": 2,
@@ -268,7 +280,9 @@
             2,
             3
           ],
-          "cells": []
+          "cells": [],
+          "label": "Other",
+          "automatic": "#00d4ff"
         },
         {
           "position": 3,
@@ -282,7 +296,9 @@
             2,
             3
           ],
-          "cells": []
+          "cells": [],
+          "label": "Equal",
+          "automatic": "#ffe600"
         }
       ]
     },
@@ -296,7 +312,9 @@
           "panels": [],
           "cells": [
             1
-          ]
+          ],
+          "label": "Repeat",
+          "automatic": "RdYlBu"
         },
         {
           "position": 2,
@@ -304,7 +322,9 @@
           "panels": [],
           "cells": [
             2
-          ]
+          ],
+          "label": "Repeat",
+          "automatic": "RdYlBu"
         },
         {
           "position": 3,
@@ -312,10 +332,501 @@
           "panels": [],
           "cells": [
             3
-          ]
+          ],
+          "label": "Third",
+          "automatic": "RdYlBu"
         }
       ]
     }
   ],
-  "warnings": []
+  "colorbars": [
+    {
+      "index": 1,
+      "position": "below",
+      "row": 1,
+      "cells": [
+        1
+      ],
+      "sample_sets": [
+        1
+      ],
+      "scale": {
+        "color_map": "Reds",
+        "color_list": null,
+        "z_min": "auto",
+        "z_max": "auto",
+        "z_mid": null
+      },
+      "z_range": null,
+      "title": {
+        "auto": null,
+        "value": null,
+        "auto_text": "Repeat"
+      }
+    },
+    {
+      "index": 2,
+      "position": "below",
+      "row": 1,
+      "cells": [
+        2
+      ],
+      "sample_sets": [
+        2
+      ],
+      "scale": {
+        "color_map": "Blues",
+        "color_list": null,
+        "z_min": "auto",
+        "z_max": "auto",
+        "z_mid": null
+      },
+      "z_range": null,
+      "title": {
+        "auto": null,
+        "value": null,
+        "auto_text": "Repeat"
+      }
+    },
+    {
+      "index": 3,
+      "position": "below",
+      "row": 1,
+      "cells": [
+        3
+      ],
+      "sample_sets": [
+        3
+      ],
+      "scale": {
+        "color_map": "Reds",
+        "color_list": null,
+        "z_min": "auto",
+        "z_max": "auto",
+        "z_mid": null
+      },
+      "z_range": null,
+      "title": {
+        "auto": null,
+        "value": null,
+        "auto_text": "Third"
+      }
+    }
+  ],
+  "warnings": [],
+  "sample_sets": [
+    {
+      "index": 1,
+      "samples": [
+        1
+      ],
+      "groups": null,
+      "geometry": {
+        "mode": "scale-regions",
+        "reference_point": null,
+        "upstream": 1,
+        "downstream": 1,
+        "body": 0,
+        "unscaled_5_prime": 0,
+        "unscaled_3_prime": 0,
+        "bin_size": 1,
+        "bin_count": 2
+      },
+      "y_scale": {
+        "scale": "linear",
+        "sigma": null
+      },
+      "texts": {
+        "subplot_title": {
+          "auto": "Repeat",
+          "value": "Repeat"
+        },
+        "x_axis_label": {
+          "auto": "gene distance",
+          "value": "gene distance"
+        },
+        "y_axis_label": {
+          "auto": "",
+          "value": ""
+        },
+        "heatmap_y_axis_label": {
+          "auto": "",
+          "value": ""
+        },
+        "reference_label": {
+          "auto": null,
+          "value": null
+        },
+        "start_label": {
+          "auto": "TSS",
+          "value": "TSS"
+        },
+        "end_label": {
+          "auto": "TES",
+          "value": "TES"
+        }
+      }
+    },
+    {
+      "index": 2,
+      "samples": [
+        2
+      ],
+      "groups": null,
+      "geometry": {
+        "mode": "scale-regions",
+        "reference_point": null,
+        "upstream": 1,
+        "downstream": 1,
+        "body": 0,
+        "unscaled_5_prime": 0,
+        "unscaled_3_prime": 0,
+        "bin_size": 1,
+        "bin_count": 2
+      },
+      "y_scale": {
+        "scale": "linear",
+        "sigma": null
+      },
+      "texts": {
+        "subplot_title": {
+          "auto": "Repeat",
+          "value": "Repeat"
+        },
+        "x_axis_label": {
+          "auto": "gene distance",
+          "value": "gene distance"
+        },
+        "y_axis_label": {
+          "auto": "",
+          "value": ""
+        },
+        "heatmap_y_axis_label": {
+          "auto": "",
+          "value": ""
+        },
+        "reference_label": {
+          "auto": null,
+          "value": null
+        },
+        "start_label": {
+          "auto": "TSS",
+          "value": "TSS"
+        },
+        "end_label": {
+          "auto": "TES",
+          "value": "TES"
+        }
+      }
+    },
+    {
+      "index": 3,
+      "samples": [
+        3
+      ],
+      "groups": null,
+      "geometry": {
+        "mode": "scale-regions",
+        "reference_point": null,
+        "upstream": 1,
+        "downstream": 1,
+        "body": 0,
+        "unscaled_5_prime": 0,
+        "unscaled_3_prime": 0,
+        "bin_size": 1,
+        "bin_count": 2
+      },
+      "y_scale": {
+        "scale": "linear",
+        "sigma": null
+      },
+      "texts": {
+        "subplot_title": {
+          "auto": "Third",
+          "value": "Third"
+        },
+        "x_axis_label": {
+          "auto": "gene distance",
+          "value": "gene distance"
+        },
+        "y_axis_label": {
+          "auto": "",
+          "value": ""
+        },
+        "heatmap_y_axis_label": {
+          "auto": "",
+          "value": ""
+        },
+        "reference_label": {
+          "auto": null,
+          "value": null
+        },
+        "start_label": {
+          "auto": "TSS",
+          "value": "TSS"
+        },
+        "end_label": {
+          "auto": "TES",
+          "value": "TES"
+        }
+      }
+    }
+  ],
+  "y_limits": [
+    {
+      "index": 1,
+      "sample_sets": [
+        1,
+        2,
+        3
+      ],
+      "panels": [
+        1,
+        2,
+        3
+      ],
+      "data_range": null,
+      "auto": null,
+      "per_panel": [
+        {
+          "panel": 1,
+          "sample_set": 1,
+          "auto": null,
+          "value": null
+        },
+        {
+          "panel": 2,
+          "sample_set": 2,
+          "auto": null,
+          "value": null
+        },
+        {
+          "panel": 3,
+          "sample_set": 3,
+          "auto": null,
+          "value": null
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "option": "--samplesLabel",
+      "counts": "sample",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--regionsLabel",
+      "counts": "region group",
+      "recycles": false,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--sampleSetLabels",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--xAxisLabel",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--yAxisLabelSummaryPlot",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--yAxisLabel",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--refPointLabel",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--startLabel",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--endLabel",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--yMinSummaryPlot",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--yMaxSummaryPlot",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--yScaleSummaryPlot",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--colorMap",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--colorList",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--zMin",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--zMax",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--zMid",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--colorbarLabels",
+      "counts": "colorbar",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--colorsSummaryPlot",
+      "counts": "series",
+      "recycles": false,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    }
+  ],
+  "size_defaults": [
+    {
+      "option": "--heatmapWidth",
+      "value": 5.0,
+      "derived": null
+    },
+    {
+      "option": "--heightSummaryPlot",
+      "value": 5.0,
+      "derived": null
+    },
+    {
+      "option": "--aspectRatioSummaryPlot",
+      "value": 1.0,
+      "derived": null
+    },
+    {
+      "option": "--heatmapHeight",
+      "value": 10.0,
+      "derived": null
+    },
+    {
+      "option": "--aspectRatio",
+      "value": 0.5,
+      "derived": null
+    }
+  ],
+  "problems": []
 }

@@ -2,8 +2,8 @@
   "heatmap_no_summary": {
     "category": "heatmap-no-summary",
     "options": [
-      "--whatToShow",
-      "heatmap and colorbar",
+      "--showSummaryPlot",
+      "off",
       "--colorMap",
       "Reds",
       "Blues"
@@ -15,8 +15,8 @@
   "heatmap_summary": {
     "category": "heatmap-summary",
     "options": [
-      "--whatToShow",
-      "plot, heatmap and colorbar",
+      "--showSummaryPlot",
+      "on",
       "--colorsSummaryPlot",
       "red",
       "blue",
@@ -38,8 +38,8 @@
   "heatmap_summary_color_lists": {
     "category": "heatmap-summary",
     "options": [
-      "--whatToShow",
-      "plot, heatmap and colorbar",
+      "--showSummaryPlot",
+      "on",
       "--colorsSummaryPlot",
       "red",
       "blue",
@@ -61,8 +61,8 @@
   "heatmap_summary_per_group": {
     "category": "heatmap-summary",
     "options": [
-      "--whatToShow",
-      "plot, heatmap and colorbar",
+      "--showSummaryPlot",
+      "on",
       "--perGroup",
       "--colorsSummaryPlot",
       "red",
@@ -2035,8 +2035,8 @@
     "category": "heatmap-summary",
     "options": [
       "--perGroup",
-      "--whatToShow",
-      "plot, heatmap and colorbar",
+      "--showSummaryPlot",
+      "on",
       "--arrangeSamples",
       "1,2",
       "3"

@@ -111,7 +111,7 @@ def test_new_matrix_cases_match_wrapper_outputs(name, tmp_path):
                      '--heatmapYAxisLabel': '--yAxisLabel'}
         wrapper_flags = [spellings.get(flag, flag) for flag in wrapper_flags]
         if not profile:
-            wrapper_flags.extend(['--whatToShow', 'heatmap and colorbar'])
+            wrapper_flags.extend(['--showSummaryPlot', 'off'])
     # plotHeatmapR deliberately offers only lines/fill/se/std summaries;
     # matrix_ci_summary has no equivalent wrapper spelling.
     outputs = []
@@ -181,15 +181,15 @@ def test_filter_nans_is_shared_membership(tmp_path):
     assert beds[0] == beds[1]
 
 
-@pytest.mark.parametrize('choice', ['plot and heatmap', 'heatmap only'])
-def test_removed_heatmap_choices_are_usage_errors(choice, capsys):
+@pytest.mark.parametrize('choice', ['yes', 'heatmap only'])
+def test_invalid_summary_plot_choices_are_usage_errors(choice, capsys):
     with pytest.raises(SystemExit) as stopped:
         plotHeatmap.process_args(['-m', 'unused', '-o', 'unused.png',
-                                  '--whatToShow', choice])
+                                  '--showSummaryPlot', choice])
     assert stopped.value.code == 2
     error = capsys.readouterr().err
-    assert 'plot, heatmap and colorbar' in error
-    assert 'heatmap and colorbar' in error
+    assert "'on'" in error
+    assert "'off'" in error
 
 
 def test_plot_matrix_error_spells_its_y_min(capsys):

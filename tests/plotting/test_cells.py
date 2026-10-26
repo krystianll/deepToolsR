@@ -188,7 +188,7 @@ def test_series_import_without_matplotlib():
 
 def test_hidden_summary_colours_are_inert(tmp_path):
     case = replace(cases()['heatmap_no_summary'], options=(
-        '--whatToShow', 'heatmap and colorbar', '--colorsSummaryPlot', 'red'))
+        '--showSummaryPlot', 'off', '--colorsSummaryPlot', 'red'))
     _module, argv, *_ = _inputs(tmp_path, case)
     plotHeatmap.main(argv)
 

@@ -1,12 +1,13 @@
 """The shared plot command front end over one matrix and cell plan."""
 
 import sys
+import unicodedata
 
 from deeptoolsr import parserCommon
 from deeptoolsr.cli_errors import concise_cli_errors
 from deeptoolsr.matrix import save, save_bed
 from deeptoolsr.matrix_file import matrix_output_is_compressed
-from deeptoolsr.path_validation import OutputSet
+from deeptoolsr.path_validation import OutputSet, portable_file_name
 from deeptoolsr.prepare import (
     DataError, OptionError, PlotData, _common_spec, command_labels,
     option_error, parse_command, warning_text)
@@ -18,32 +19,8 @@ from deeptoolsr.plotting.prepared import prepare_matrix
 from deeptoolsr.plotting.profile import write_profile_table
 from deeptoolsr.plotting.rendering import (
     resolve_figure_format, save_figure_atomic)
+from deeptoolsr.session import StagedNumeric
 from deeptoolsr.stats import statistics_spec
-
-
-class _NumericProvider:
-    """Batch projected statistics and scan misses through session caches."""
-
-    def __init__(self, session, cancelled, progress):
-        self.session = session
-        self.cancelled = cancelled
-        self.progress = progress
-        self.limits_staged = False
-
-    def statistics_batch(self, data, pairs, spec, threads):
-        return self.session.statistics_batch(data, pairs, spec, threads)
-
-    def scan(self, data, probabilities, exact, threads):
-        if not self.limits_staged:
-            self.session.stage('limits', self.cancelled, self.progress)
-            self.limits_staged = True
-        return self.session.scan(data, probabilities, exact, threads)
-
-    def render(self, requests, threads):
-        if not requests:
-            return
-        self.session.stage('bitmaps', self.cancelled, self.progress)
-        self.session.render_bitmaps(requests, threads)
 
 
 def _prepare_data(session, args, emit):
@@ -77,11 +54,11 @@ def _prepare_data(session, args, emit):
 # How each tool asks for a profile panel, for errors that need one.
 _PROFILE_PANEL_OPTION = {
     'plotMatrixR': '--profile',
-    'plotHeatmapR': "--whatToShow 'plot, heatmap and colorbar'",
+    'plotHeatmapR': '--showSummaryPlot on',
 }
 
 
-def _check_outputs(args):
+def _check_outputs(args, group_paths=()):
     if args.outFileNameData and not args.show_profile:
         raise OptionError(
             '--outFileNameData writes the profile values and needs a '
@@ -91,7 +68,8 @@ def _check_outputs(args):
         (args.outFileName, '--outFileName/-out/-o'),
         (args.outFileNameData, '--outFileNameData'),
         (args.outFileNameMatrix, '--outFileNameMatrix'),
-        (args.outFileSortedRegions, '--outFileSortedRegions')]
+        (args.outFileSortedRegions, '--outFileSortedRegions'),
+        *((path, '--outFileSortedRegionsPerGroup') for path in group_paths)]
     try:
         check_plot_outputs(args.matrixFile, outputs)
     except ValueError as error:
@@ -100,15 +78,43 @@ def _check_outputs(args):
         raise option_error(error) from error
 
 
-def _stage_outputs(outputs, args):
+def _group_region_paths(args, labels):
+    """PREFIX_<label>.bed of every drawn group; clashing names are refused."""
+    prefix = args.outFileSortedRegionsPerGroup
+    if prefix is None:
+        return ()
+    if prefix.lower().endswith('.bed'):
+        prefix = prefix[:-len('.bed')]
+    paths, seen = [], {}
+    for label in labels.group_keys:
+        name = portable_file_name(label)
+        if not name:
+            raise option_error(ValueError(
+                f"--outFileSortedRegionsPerGroup: region group '{label}' "
+                'gives an empty file name; name it with --regionsLabel'))
+        key = unicodedata.normalize('NFC', name).casefold()
+        if key in seen:
+            raise option_error(ValueError(
+                f"--outFileSortedRegionsPerGroup: region groups "
+                f"'{seen[key]}' and '{label}' would both be written to "
+                f"{prefix}_{name}.bed; give them different names with "
+                '--regionsLabel'))
+        seen[key] = label
+        paths.append(f'{prefix}_{name}.bed')
+    return tuple(paths)
+
+
+def _stage_outputs(outputs, args, group_paths):
     """Stage the auxiliary outputs; each is published atomically."""
     return (outputs.stage(args.outFileNameData, '.profile.tsv.tmp'),
             outputs.stage(args.outFileNameMatrix, '.matrix.tmp'),
-            outputs.stage(args.outFileSortedRegions, '.regions.tmp'))
+            outputs.stage(args.outFileSortedRegions, '.regions.tmp'),
+            tuple(outputs.stage(path, '.regions.tmp')
+                  for path in group_paths))
 
 
 def _write_outputs(paths, args, data, plan, spec, prepared):
-    table, matrix, regions = paths
+    table, matrix, regions, group_regions = paths
     if table:
         write_profile_table(table, plan, prepared, spec)
     if matrix:
@@ -118,6 +124,10 @@ def _write_outputs(paths, args, data, plan, spec, prepared):
     if regions:
         with open(regions, 'w', newline='', encoding='utf-8') as handle:
             save_bed(data.matrix, data.layout, data.labels, handle)
+    for group, path in enumerate(group_regions):
+        with open(path, 'w', newline='', encoding='utf-8') as handle:
+            save_bed(data.matrix, data.layout, data.labels, handle,
+                     group=group)
 
 
 def _stage_data(session, args, cancelled, progress, emit):
@@ -148,7 +158,7 @@ def _plan_for_request(args, tool, data):
 
 def _prepare_numeric(session, args, data, figure_spec, plan, sample_plans,
                      scales, cancelled, progress, emit):
-    numeric = _NumericProvider(session, cancelled, progress)
+    numeric = StagedNumeric(session, cancelled, progress)
     session.stage('statistics', cancelled, progress)
     try:
         prepared = prepare_matrix(
@@ -174,6 +184,9 @@ def run_session_request(session, args, run_options, *, cancelled, progress,
     args.run_options = run_options
     _check_outputs(args)
     data, data_spec = _stage_data(session, args, cancelled, progress, emit)
+    group_paths = _group_region_paths(args, data.labels)
+    if group_paths:
+        _check_outputs(args, group_paths)
     figure_spec, plan, sample_plans, scales = _plan_for_request(
         args, args.tool, data)
     prepared, numeric = _prepare_numeric(
@@ -186,7 +199,7 @@ def run_session_request(session, args, run_options, *, cancelled, progress,
         data.layout, config_digest=session.config_digest)
     with OutputSet() as outputs:
         plot_path = outputs.stage(args.outFileName, '.plot.tmp')
-        paths = _stage_outputs(outputs, args)
+        paths = _stage_outputs(outputs, args, group_paths)
         session.stage('scene', cancelled, progress)
         try:
             figure, _ = build_matrix_figure(
@@ -205,7 +218,7 @@ def run_session_request(session, args, run_options, *, cancelled, progress,
             raise option_error(error) from error
     return tuple(path for path in (
         args.outFileName, args.outFileNameData, args.outFileNameMatrix,
-        args.outFileSortedRegions) if path), digest
+        args.outFileSortedRegions) if path) + group_paths, digest
 
 
 def matrix_main(tool):

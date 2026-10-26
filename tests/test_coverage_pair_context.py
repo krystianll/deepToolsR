@@ -62,7 +62,7 @@ SHAPES = {
     "center": (33, 38),
 }
 FILTERS = [
-    ("both", [], (60, 60), (99, 147), 2),
+    ("both", [], (60, 60), (99, 147), 1),
     ("include-left", ["--samFlagInclude", "64"], (60, 60), (99, 147), 1),
     ("include-right", ["--samFlagInclude", "128"], (60, 60), (99, 147), 1),
     ("exclude-left", ["--samFlagExclude", "64"], (60, 60), (99, 147), 1),
@@ -107,6 +107,8 @@ def test_pair_shapes_respect_each_filter(
             metric,
             "--zoomLevels",
             "0",
+            "--countUnit",
+            "fragment",
         ]
         + shape_args
         + extra
@@ -143,6 +145,7 @@ def test_missing_mate_contributes_only_the_observed_alignment(
         window_size=7,
         threads=2,
         max_zooms=0,
+        count_unit="fragment",
         **kwargs,
     )
     expected = np.zeros(200)
@@ -180,6 +183,7 @@ def test_long_pair_entire_placement_is_window_independent(
         threads=threads,
         window_size=window,
         max_zooms=0,
+        count_unit="fragment",
         **kwargs,
     )
     begin, stop = {
@@ -191,7 +195,7 @@ def test_long_pair_entire_placement_is_window_independent(
     expected_bins = np.zeros(length // 100)
     for i in range(begin // 100, (stop - 1) // 100 + 1):
         expected_bins[i] = (
-            2
+            1
             if aggregation == "count"
             else min(stop, (i + 1) * 100) - max(begin, i * 100)
         )
@@ -333,12 +337,13 @@ def test_filtered_alignment_class_cannot_overwrite_primary_mate(
         filter_by_overlap=True,
         whitelist={"chr1": [(10, 20)]},
         max_zooms=0,
+        count_unit="fragment",
     )
     expected = np.zeros(200)
     if model == "aligned":
         expected[10:20] = expected[90:100] = 1
     else:
-        expected[10:100] = 1 if model == "depth" else 2
+        expected[10:100] = 1
     np.testing.assert_array_equal(read_values(output), expected)
 
 
@@ -382,7 +387,7 @@ def test_duplicate_qnames_use_reciprocal_mate_coordinates(tmp_path):
     )
     _coverage.bam_coverage_bigwig(
         str(bam), str(output), bin_size=1, aggregation="sum",
-        extend_reads=100, max_zooms=0,
+        extend_reads=100, max_zooms=0, count_unit="fragment",
     )
     expected = np.zeros(200)
     expected[10:60] += 1
@@ -731,11 +736,12 @@ def test_mixed_cigar_filtered_normalization_matches_oracle_and_upstream(tmp_path
         np.testing.assert_allclose(actual, reference, rtol=5.2e-06, atol=1e-06)
 
 
-@pytest.mark.usefixtures('coverage_isolated_config')
-@pytest.mark.parametrize('metric', ['coverage-mean', 'coverage-sum', 'read-count', 'CPM', 'RPKM', 'BPM'])
-@pytest.mark.parametrize('touch_mode', ['mask', 'ignore', 'sense', 'antisense'])
-@pytest.mark.parametrize('extend', [False, True])
-def test_paired_split_overlap_metrics_against_independent_bin_oracle(tmp_path, metric, touch_mode, extend):
+def _paired_split_bin_oracle(tmp_path, metric, touch_mode, extend, count_unit):
+    """Counting fragments, each retained fragment counts once per bin over the
+    union of its retained mates' blocks (once over its span with -e), and the
+    filtered CPM/RPKM denominator counts fragments. Counting reads, each
+    retained mate counts (with -e, each over the fragment span)."""
+    fragments = count_unit == 'fragment'
     length, bin_size = (997, 13)
     bam, plus, minus = (tmp_path / name for name in ('pairs.bam', 'plus.bw', 'minus.bw'))
     white = [(40, 300, 1), (340, 650, -1), (700, 990, 0)]
@@ -763,10 +769,14 @@ def test_paired_split_overlap_metrics_against_independent_bin_oracle(tmp_path, m
         retained = [r for r in pair if r.mapping_quality >= 30 and (not r.flag & 1024)]
         if touch_mode != 'mask' and (not touches(retained, white, strand) or touches(retained, black, strand)):
             continue
-        denominator += len(retained)
-        intervals = [[(start, start + 80)]] * (len(retained) if read_count else bool(retained)) if extend else [r.get_blocks() for r in retained]
+        if fragments:
+            denominator += bool(retained)
+            units = [[(start, start + 80)] if extend else [b for r in retained for b in r.get_blocks()]] * bool(retained)
+        else:
+            denominator += len(retained)
+            units = [[(start, start + 80)]] * len(retained) if extend else [r.get_blocks() for r in retained]
         stream = 0 if strand == 1 else 1
-        for blocks in intervals:
+        for blocks in units:
             for b, width in enumerate(widths):
                 begin, end = (b * bin_size, b * bin_size + width)
                 overlaps = [max(0, min(end, last) - max(begin, first)) for first, last in blocks]
@@ -790,9 +800,25 @@ def test_paired_split_overlap_metrics_against_independent_bin_oracle(tmp_path, m
     expected[1] *= -6
     normalization = metric.lower() if metric in ('CPM', 'RPKM', 'BPM') else 'none'
     aggregation = 'count' if read_count else 'mean' if metric == 'coverage-mean' else 'sum'
-    _coverage.bam_coverage_bigwig(str(bam), str(plus), str(minus), bin_size=bin_size, aggregation=aggregation, min_mapping_quality=30, ignore_duplicates=True, strandedness='forward', filter_rna_strand='split', whitelist={'chr1': white}, blacklist={'chr1': black}, filter_by_overlap=touch_mode != 'mask', feature_touch_strand='ignore' if touch_mode == 'mask' else touch_mode, normalization=normalization, normalization_denominator='filtered', scale_factor=3, scale_factor_minus=-2, extend_reads=100 if extend else 0, threads=3, window_size=7, filter_by_overlap_halo=0, max_zooms=0)
+    _coverage.bam_coverage_bigwig(str(bam), str(plus), str(minus), bin_size=bin_size, aggregation=aggregation, min_mapping_quality=30, ignore_duplicates=True, strandedness='forward', filter_rna_strand='split', whitelist={'chr1': white}, blacklist={'chr1': black}, filter_by_overlap=touch_mode != 'mask', feature_touch_strand='ignore' if touch_mode == 'mask' else touch_mode, normalization=normalization, normalization_denominator='filtered', scale_factor=3, scale_factor_minus=-2, extend_reads=100 if extend else 0, threads=3, window_size=7, filter_by_overlap_halo=0, max_zooms=0, count_unit=count_unit)
     for output, oracle in zip((plus, minus), expected):
         np.testing.assert_allclose(read_values(output), np.repeat(oracle, widths), rtol=1.4e-07, atol=0)
+
+
+@pytest.mark.usefixtures('coverage_isolated_config')
+@pytest.mark.parametrize('metric', ['coverage-mean', 'coverage-sum', 'read-count', 'CPM', 'RPKM', 'BPM'])
+@pytest.mark.parametrize('touch_mode', ['mask', 'ignore', 'sense', 'antisense'])
+@pytest.mark.parametrize('extend', [False, True])
+def test_paired_split_overlap_metrics_against_independent_bin_oracle(tmp_path, metric, touch_mode, extend):
+    _paired_split_bin_oracle(tmp_path, metric, touch_mode, extend, 'fragment')
+
+
+@pytest.mark.usefixtures('coverage_isolated_config')
+@pytest.mark.parametrize('metric', ['coverage-mean', 'coverage-sum', 'read-count', 'CPM', 'RPKM', 'BPM'])
+@pytest.mark.parametrize('touch_mode', ['mask', 'ignore', 'sense', 'antisense'])
+@pytest.mark.parametrize('extend', [False, True])
+def test_read_mode_paired_split_metrics_count_each_mate(tmp_path, metric, touch_mode, extend):
+    _paired_split_bin_oracle(tmp_path, metric, touch_mode, extend, 'read')
 
 
 # From equivalence regressions.
@@ -900,7 +926,7 @@ def test_p01_extended_pairs_honor_each_mates_filters(tmp_path, filter_args, metr
         original('bamCoverage', args + ['-o', str(upstream), '--normalizeUsing', 'None' if metric == 'read-count' else metric])
         result = upstream
     else:
-        bamCoverage.main(args + ['-o', str(plus), '--normalizeUsing', metric, '--normalizationDenominator', 'filtered', '--filterMode', 'deeptools'])
+        bamCoverage.main(args + ['-o', str(plus), '--countUnit', 'read', '--normalizeUsing', metric, '--normalizationDenominator', 'filtered', '--filterMode', 'deeptools'])
         result = plus
     kept = 1 if filter_args else 2
     scale = {'read-count': 1.0, 'CPM': 1000000.0 / kept, 'RPKM': 1000000000.0 / (kept * 10)}[metric]
@@ -949,7 +975,7 @@ def test_p04_long_pair_placement_survives_production_window_boundary(tmp_path, t
     observed = []
     for maximum in (None, 100000):
         output = tmp_path / f'maximum-{maximum}.bw'
-        args = ['-b', str(bam), '-o', str(output), '--binSize', '10', '-p', str(threads), '--extendReads', '100', '--normalizeUsing', 'read-count']
+        args = ['-b', str(bam), '-o', str(output), '--binSize', '10', '-p', str(threads), '--extendReads', '100', '--countUnit', 'read', '--normalizeUsing', 'read-count']
         if maximum is not None:
             args += ['--maxFragmentLength', str(maximum)]
         bamCoverage.main(args)
@@ -1063,7 +1089,7 @@ def _budget_run(bam, out, options, budget=None):
 def test_tiny_mate_budgets_are_byte_identical(tmp_path, option, threads):
     bam = tmp_path / 'matrix.bam'
     _mate_matrix_bam(bam)
-    options = dict(_MATE_OPTIONS[option], threads=threads)
+    options = dict(_MATE_OPTIONS[option], threads=threads, count_unit='fragment')
     expected = _budget_run(bam, tmp_path / 'default', options)
     assert expected[0]
     for entries in (1, 4):
@@ -1088,7 +1114,8 @@ def test_deep_pileup_collapse_is_linear_and_memory_bounded(tmp_path):
     budget = {}
     started = time.monotonic()
     _coverage.bam_coverage_bigwig(str(bam), str(out), bin_size=1, collapse='5prime',
-                                  threads=4, max_zooms=0, mate_budget=budget)
+                                  threads=4, max_zooms=0, mate_budget=budget,
+                                  count_unit='fragment')
     assert time.monotonic() - started < 30
     expected = np.zeros(5000)
     expected[1000] = 80000
@@ -1104,7 +1131,8 @@ def test_deep_pileup_batch_flushes_repeatedly_within_one_window(tmp_path):
     _deep_pileup_bam(bam, 6000)
     budget = {'entries': 256, 'bytes': 64 << 10}
     _coverage.bam_coverage_bigwig(str(bam), str(out), bin_size=1, extend_reads=50,
-                                  threads=4, max_zooms=0, mate_budget=budget)
+                                  threads=4, max_zooms=0, mate_budget=budget,
+                                  count_unit='fragment')
     expected = np.zeros(5000)
     expected[1000:1110] = 6000
     np.testing.assert_array_equal(read_values(out), expected)
@@ -1133,14 +1161,14 @@ def test_mates_in_a_deep_pileup_on_another_chromosome(tmp_path, entries):
     assert 0 < budget['peak_batch_entries'] <= (entries or 16384)
 
 
-def _clipped_pair_reads():
+def _clipped_pair_reads(only=None):
     """STAR-like pairs: TLEN spans soft clips, so its sign can point either way.
 
     Each entry: name, forward (start, cigar, flag), reverse (start, cigar, flag),
     forward TLEN, and the MAPQ of (forward, reverse).
     """
     M, S = 0, 4
-    return [
+    pairs = [
         # chr21 example: the reverse mate carries the positive, clip-inflated TLEN.
         ('star', (30, ((S, 1), (M, 44), (S, 1)), 99), (33, ((S, 6), (M, 41), (S, 1)), 147), -48, (60, 60)),
         ('same_pos', (100, ((M, 10),), 99), (100, ((M, 10),), 147), 10, (60, 60)),
@@ -1152,11 +1180,12 @@ def _clipped_pair_reads():
         ('rev_only', (275, ((S, 2), (M, 10),), 163), (280, ((M, 10), (S, 3)), 83), 18, (0, 60)),
         ('long', (5, ((M, 10),), 99), (285, ((M, 10),), 147), 290, (60, 60)),
     ]
+    return [entry for entry in pairs if only is None or entry[0] in only]
 
 
-def _write_clipped_pairs(path):
+def _write_clipped_pairs(path, only=None):
     reads = []
-    for name, (fpos, fcig, fflag), (rpos, rcig, rflag), tlen, (fq, rq) in _clipped_pair_reads():
+    for name, (fpos, fcig, fflag), (rpos, rcig, rflag), tlen, (fq, rq) in _clipped_pair_reads(only):
         for pos, cig, flag, mpos, t, q in ((fpos, fcig, fflag, rpos, tlen, fq),
                                            (rpos, rcig, rflag, fpos, -tlen, rq)):
             reads.append(record(name, pos, mpos, flag, t, mapq=q, cigar=cig))
@@ -1167,12 +1196,21 @@ def _aligned_end(pos, cigar):
     return pos + sum(n for op, n in cigar if op in (0, 2, 3, 7, 8))
 
 
-def _expected_clipped(collapse, strandedness, rna_filter, extend):
-    """Independent oracle: a proper pair is [forward start, reverse end), once."""
+def _expected_clipped(collapse, strandedness, rna_filter, extend, only=None, fragments=True):
+    """Independent oracle: a proper pair is [forward start, reverse end), once.
+
+    'outward' is dovetailed (its reverse mate starts left of its forward mate
+    and overlaps it). Counting fragments, it is one fragment spanning its
+    leftmost to rightmost aligned base, oriented like its forward mate;
+    counting reads, each mate is its own alignment.
+    """
     out = [np.zeros(300), np.zeros(300)]
-    for name, (fpos, fcig, fflag), (rpos, rcig, rflag), tlen, (fq, rq) in _clipped_pair_reads():
+    for name, (fpos, fcig, fflag), (rpos, rcig, rflag), tlen, (fq, rq) in _clipped_pair_reads(only):
         mates = [(fpos, fcig, fflag, fq >= 10), (rpos, rcig, rflag, rq >= 10)]
-        if name == 'outward':  # not inward-facing: each mate is its own alignment
+        if name == 'outward' and fragments:
+            pieces = [(min(fpos, rpos), max(_aligned_end(fpos, fcig), _aligned_end(rpos, rcig)),
+                       rflag, False)]
+        elif name == 'outward':
             pieces = [(pos, _aligned_end(pos, cig), flag, bool(flag & 16))
                       for pos, cig, flag, ok in mates if ok]
         elif mates[1][3]:  # reverse mate kept: it holds both bounds
@@ -1218,8 +1256,30 @@ def test_proper_fragment_spans_forward_start_to_reverse_end(tmp_path, mode, wind
     _coverage.bam_coverage_bigwig(
         str(bam), str(out), out_path_reverse=str(rev), bin_size=1, min_mapping_quality=10,
         strandedness=strandedness, filter_rna_strand=rna_filter, threads=threads,
-        max_zooms=0, **options)
+        max_zooms=0, count_unit='fragment', **options)
     expected = _expected_clipped(collapse, strandedness, rna_filter, collapse == 'extend')
+    for stream, path in enumerate([out, rev] if rna_filter == 'split' else [out]):
+        np.testing.assert_array_equal(np.nan_to_num(read_values(path)), expected[stream])
+
+
+@pytest.mark.parametrize('threads', [1, 4])
+@pytest.mark.parametrize('mode', [
+    ('5prime', 'none', 'none'), ('3prime', 'none', 'none'), ('center', 'none', 'none'),
+    ('5prime', 'forward', 'split'), ('3prime', 'reverse', 'none'),
+    ('extend', 'none', 'none'), ('extend', 'forward', 'split')])
+def test_read_mode_places_each_dovetailed_mate_on_its_own(tmp_path, mode, threads):
+    """--countUnit read: a dovetailed pair's mates are two single reads."""
+    collapse, strandedness, rna_filter = mode
+    bam = tmp_path / 'outward.bam'
+    _write_clipped_pairs(bam, only={'outward'})
+    out, rev = tmp_path / 'out.bw', tmp_path / 'rev.bw'
+    options = dict(extend_reads=5) if collapse == 'extend' else dict(collapse=collapse)
+    _coverage.bam_coverage_bigwig(
+        str(bam), str(out), out_path_reverse=str(rev), bin_size=1, min_mapping_quality=10,
+        strandedness=strandedness, filter_rna_strand=rna_filter, threads=threads,
+        max_zooms=0, count_unit='read', **options)
+    expected = _expected_clipped(collapse, strandedness, rna_filter, collapse == 'extend',
+                                 only={'outward'}, fragments=False)
     for stream, path in enumerate([out, rev] if rna_filter == 'split' else [out]):
         np.testing.assert_array_equal(np.nan_to_num(read_values(path)), expected[stream])
 

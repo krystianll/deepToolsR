@@ -17,7 +17,7 @@ CASES = {
     'shared_colours': ('plotProfileR', 'repeated', (
         '--sameGroupLabels', 'together', '--perGroup', '--showRegionCounts')),
     'heatmap_summary': ('plotHeatmapR', 'repeated', (
-        '--whatToShow', 'plot, heatmap and colorbar', '--colorMap', 'Reds', 'Blues')),
+        '--showSummaryPlot', 'on', '--colorMap', 'Reds', 'Blues')),
     'profile_heatmap': ('plotProfileR', 'repeated', (
         '--plotType', 'heatmap', '--colorsPerSample', 'Reds', 'Blues', 'Greens')),
     'relabel_together': ('plotProfileR', 'distinct', (

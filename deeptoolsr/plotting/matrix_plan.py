@@ -3,7 +3,8 @@
 from deeptoolsr.parserCommon import plot_option_strings_by_dest
 
 from .series import (build_sample_set_plans, parse_sample_sets,
-                     promote_group_panels, resolve_cells)
+                     promote_group_panels, resolve_assigned_limits,
+                     resolve_cells, resolve_recyclable)
 
 
 def tool_option_spellings(tool, invoked=()):
@@ -14,19 +15,22 @@ def tool_option_spellings(tool, invoked=()):
     return spellings
 
 
-def resolve_matrix_plan(header, layout, labels, spec):
-    """Resolve sample sets, cells and their per-scale heatmap assignments.
+def resolve_matrix_plan(header, layout, labels, spec, sizes=None):
+    """Resolve sample sets, cells and their per-sample-set assignments.
 
-    The assignments are ``None`` without heatmaps. Resolving them here
-    rejects an assignment naming a missing scale before anything is drawn,
-    for ``describe`` as well as for plotting. With --groupsAsSampleSets,
+    The assignments always hold the typed Y limits and scales
+    (``yMin``/``yMax``/``yScale``) and, with heatmaps, the colour and Z
+    options. Resolving them here rejects an
+    assignment naming a missing sample set before anything is drawn, for
+    ``describe`` as well as for plotting. With --groupsAsSampleSets,
     every group panel becomes a sample set here, so every per-set option
-    counts panels.
+    counts panels. ``sizes`` replaces the layout's group sizes in titles.
     """
     sample_sets = parse_sample_sets(
         labels.samples, spec.arrange_samples, per_group=spec.per_group)
-    bounds = layout.group_bounds
-    sizes = tuple(end - start for start, end in zip(bounds, bounds[1:]))
+    if sizes is None:
+        bounds = layout.group_bounds
+        sizes = tuple(end - start for start, end in zip(bounds, bounds[1:]))
     groups = default_labels = None
     if spec.series_options.groups_as_sample_sets:
         sample_sets, groups, default_labels = promote_group_panels(
@@ -36,14 +40,27 @@ def resolve_matrix_plan(header, layout, labels, spec):
         sample_sets, subplot_labels=spec.sample_set_labels,
         x_axis_labels=spec.x_axis_label, y_axis_labels=spec.y_axis_label,
         reference_labels=spec.reference_point_label, start_labels=spec.start_label,
-        end_labels=spec.end_label, groups=groups,
+        end_labels=spec.end_label,
+        heatmap_y_axis_labels=(spec.heatmap_y_axis_label
+                               if spec.show_heatmap else None),
+        groups=groups,
         default_labels=default_labels,
         option_spellings=tool_option_spellings(spec.tool, spec.invoked_spellings),
         context=('--arrangeSamples ' + ' '.join(spec.arrange_samples)
                  if spec.arrange_samples else None))
     plan = resolve_cells(sizes, sample_plans, labels, spec.series_options)
-    scales = None
+    spellings = tool_option_spellings(spec.tool, spec.invoked_spellings)
+    context = ('--arrangeSamples ' + ' '.join(spec.arrange_samples)
+               if spec.arrange_samples else None)
+    y_min, y_max = resolve_assigned_limits(
+        spec.y_min, spec.y_max, len(sample_plans),
+        minimum_option=spellings['yMin'], maximum_option=spellings['yMax'],
+        context=context)
+    y_scale = resolve_recyclable(
+        spec.y_scale, len(sample_plans), 'linear',
+        option=spellings['yScale'], domain='sample set', context=context)
+    scales = {'yMin': y_min, 'yMax': y_max, 'yScale': y_scale}
     if spec.show_heatmap:
         from .heatmap import scale_assignments
-        scales = scale_assignments(spec, plan)
+        scales.update(scale_assignments(spec, plan))
     return plan, tuple(sample_plans), scales

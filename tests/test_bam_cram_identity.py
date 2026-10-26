@@ -116,20 +116,25 @@ def introns(read):
     return gaps
 
 
-@pytest.mark.parametrize("threads", [1, 4])
-@pytest.mark.parametrize("kind", ["bam", "cram"])
-def test_skip_introns_empties_exactly_the_reads_introns(tmp_path, kind, threads):
-    """--skipIntrons removes, per fragment, exactly its mates' N gaps.
-
-    A proper pair (forward mate first) is one fragment; a dovetailed pair is
-    extended as two reads, each its own unit.
-    """
-    pysam = pytest.importorskip("pysam")
+def removed_by_skip_introns(tmp_path, kind, threads, count_unit):
+    """Per base, how much --skipIntrons removes from --extendReads coverage."""
     tracks = {}
     for name, extra in (("filled", []), ("skipped", ["--skipIntrons"])):
         run_coverage(ROOT, f"pointseq_slice.{kind}", tmp_path / name, threads,
-                     ["--outFileFormat", "bedgraph", "-bs", "1", "--extendReads", *extra])
+                     ["--outFileFormat", "bedgraph", "-bs", "1", "--extendReads",
+                      "--countUnit", count_unit, *extra])
         tracks[name] = per_base(tmp_path / name)
+    return {pos: value - tracks["skipped"].get(pos, 0.0)
+            for pos, value in tracks["filled"].items()
+            if value != tracks["skipped"].get(pos, 0.0)}
+
+
+def expected_intron_removal(fragments):
+    """Each unit loses its mates' N gaps once. A proper pair with its forward
+    mate first is one fragment (two units counting reads). A dovetailed pair
+    (reverse mate starting left of the forward mate and overlapping it) is
+    one fragment counting fragments, otherwise two reads."""
+    pysam = pytest.importorskip("pysam")
     pairs = collections.defaultdict(list)
     with pysam.AlignmentFile(os.path.join(ROOT, "pointseq_slice.bam")) as reads:
         for read in reads:
@@ -138,15 +143,40 @@ def test_skip_introns_empties_exactly_the_reads_introns(tmp_path, kind, threads)
     for mates in pairs.values():
         forward = [read for read in mates if not read.is_reverse]
         reverse = [read for read in mates if read.is_reverse]
-        fragment = (len(forward) == len(reverse) == 1 and
-                    forward[0].reference_start <= reverse[0].reference_start)
-        for unit in [mates] if fragment else [[read] for read in mates]:
+        pair = len(forward) == len(reverse) == 1
+        inward = pair and forward[0].reference_start <= reverse[0].reference_start
+        dovetail = (pair and not inward and
+                    reverse[0].reference_end > forward[0].reference_start)
+        if inward or (dovetail and fragments):
+            units = [mates] if fragments else [mates, mates]
+        else:
+            units = [[read] for read in mates]
+        for unit in units:
             expected.update(set().union(*map(introns, unit)))
     assert sum(all(map(introns, mates)) for mates in pairs.values()) > 500
-    removed = {pos: value - tracks["skipped"].get(pos, 0.0)
-               for pos, value in tracks["filled"].items()
-               if value != tracks["skipped"].get(pos, 0.0)}
-    assert removed == {pos: float(count) for pos, count in expected.items()}
+    return {pos: float(count) for pos, count in expected.items()}
+
+
+@pytest.mark.parametrize("threads", [1, 4])
+@pytest.mark.parametrize("kind", ["bam", "cram"])
+def test_skip_introns_empties_exactly_the_reads_introns(tmp_path, kind, threads):
+    """--skipIntrons removes, per fragment, exactly its mates' N gaps.
+
+    A proper pair (forward mate first) is one fragment; so is a dovetailed
+    pair, whose span (leftmost to rightmost aligned base) loses both mates'
+    introns.
+    """
+    assert removed_by_skip_introns(tmp_path, kind, threads, "fragment") == \
+        expected_intron_removal(fragments=True)
+
+
+@pytest.mark.parametrize("threads", [1, 4])
+@pytest.mark.parametrize("kind", ["bam", "cram"])
+def test_read_mode_skip_introns_treats_dovetailed_mates_as_reads(tmp_path, kind, threads):
+    """--countUnit read: each mate counts; a dovetailed pair's mates are
+    extended as two reads, each losing its own introns."""
+    assert removed_by_skip_introns(tmp_path, kind, threads, "read") == \
+        expected_intron_removal(fragments=False)
 
 
 def test_cram_reference_fasta(tmp_path, capsys):

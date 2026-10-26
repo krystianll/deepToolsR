@@ -8,7 +8,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "deepToolsR"
-version = "0.10.2b0"
+version = "0.10.4b0"
 authors = [
     {name="Krystian Łazowski", email="k.lazowski@exeter.ac.uk"}
 ]

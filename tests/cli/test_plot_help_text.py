@@ -30,5 +30,6 @@ def test_plot_help_text_is_unchanged(monkeypatch, tool, variant,
     monkeypatch.setattr(deeptoolsr.plotting, 'colormap_names',
                         lambda: ['RdYlBu', 'RdYlBu_r', 'Reds', 'viridis'])
     parser = parserCommon.plot_parser(tool, full_color_help=full_color_help)
-    expected = (HELP / FORMAT / f'{tool}.{variant}.txt').read_text()
+    expected = (HELP / FORMAT / f'{tool}.{variant}.txt').read_text(
+        encoding='utf-8')
     assert parser.format_help() == expected

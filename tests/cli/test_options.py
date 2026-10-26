@@ -25,6 +25,7 @@ def test_options_are_persisted(tmp_path, monkeypatch, capsys):
         'raster_filter': 'cubic',
         'raster_bit_depth': 8,
         'number_of_processors': 2,
+        'count_unit': 'auto',
     }
     with (tmp_path / 'options.txt').open() as handle:
         assert json.load(handle)['number_of_processors'] == 2
@@ -86,7 +87,7 @@ def test_legacy_raster_setting_and_environment_are_ignored(tmp_path, monkeypatch
     matrix = Path(__file__).parent.parent / 'test_heatmapper' / 'master.mat.gz'
     output = tmp_path / 'heatmap.png'
     plotHeatmap.main(['-m', str(matrix), '-o', str(output),
-                      '--whatToShow', 'heatmap and colorbar'])
+                      '--showSummaryPlot', 'off'])
     assert output.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
     assert rendered
 
@@ -165,7 +166,7 @@ def test_config_file_changes_plot_fonts_and_auto_uses_config_dir(tmp_path,
     custom = tmp_path / 'custom.txt'
     custom.write_text(json.dumps({'font_multiplier': 1.5}))
     first, second = tmp_path / 'default.png', tmp_path / 'custom.png'
-    base = ['-m', str(matrix), '--whatToShow', 'heatmap and colorbar', '-p', '1']
+    base = ['-m', str(matrix), '--showSummaryPlot', 'off', '-p', '1']
     plotHeatmap.main(base + ['-o', str(first)])
     plotHeatmap.main(base + ['-o', str(second), '--config', str(custom)])
     assert first.read_bytes() != second.read_bytes()
@@ -425,14 +426,14 @@ def test_explicit_inert_profile_bootstrap_controls_warn(tmp_path, capsys, extra,
     assert message in capsys.readouterr().err
 
 
-@pytest.mark.parametrize('extra,message', [(['--pseudocountSummaryPlot', '1'], 'unused unless --averageTypeSummaryPlot geom_mean'), (['--trimPercSummaryPlot', '0.1'], 'unused unless --averageTypeSummaryPlot trim_mean'), (['--colorNumber', '16'], 'unused without --colorList'), (['--bootstrapReplicates', '20'], 'unused unless --plotTypeSummaryPlot bootstrap'), (['--ci_level', '0.8'], 'unused unless --plotTypeSummaryPlot ci or bootstrap'), (['--whatToShow', 'heatmap and colorbar', '--averageTypeSummaryPlot', 'median'], 'summary-plot statistic options are unused'), (['--whatToShow', 'heatmap and colorbar', '--ci_level', '0.8'], 'summary-plot statistic options are unused')])
+@pytest.mark.parametrize('extra,message', [(['--pseudocountSummaryPlot', '1'], 'unused unless --averageTypeSummaryPlot geom_mean'), (['--trimPercSummaryPlot', '0.1'], 'unused unless --averageTypeSummaryPlot trim_mean'), (['--colorNumber', '16'], 'unused without --colorList'), (['--bootstrapReplicates', '20'], 'unused unless --plotTypeSummaryPlot bootstrap'), (['--ci_level', '0.8'], 'unused unless --plotTypeSummaryPlot ci or bootstrap'), (['--showSummaryPlot', 'off', '--averageTypeSummaryPlot', 'median'], 'summary-plot statistic options are unused'), (['--showSummaryPlot', 'off', '--ci_level', '0.8'], 'summary-plot statistic options are unused')])
 def test_explicit_inert_heatmap_controls_warn(tmp_path, capsys, extra, message):
     plotHeatmap.process_args(['-m', str(MATRIX), '-o', str(tmp_path / 'out.pdf')] + extra)
     assert message in capsys.readouterr().err
 
 
 def test_incompatible_hidden_heatmap_summary_is_only_warned(tmp_path, capsys):
-    plotHeatmap.process_args(['-m', str(MATRIX), '-o', str(tmp_path / 'out.pdf'), '--whatToShow', 'heatmap and colorbar', '--plotTypeSummaryPlot', 'se', '--averageTypeSummaryPlot', 'median'])
+    plotHeatmap.process_args(['-m', str(MATRIX), '-o', str(tmp_path / 'out.pdf'), '--showSummaryPlot', 'off', '--plotTypeSummaryPlot', 'se', '--averageTypeSummaryPlot', 'median'])
     assert 'summary-plot statistic options are unused' in capsys.readouterr().err
 
 

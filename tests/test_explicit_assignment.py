@@ -9,7 +9,7 @@ from deeptoolsr.plotting.series import (
     has_explicit_assignment, parse_index_spec, parse_sample_sets, recycle,
     resolve_recyclable)
 from deeptoolsr.prepare import OptionError
-from deeptoolsr.prepare import parse_command
+from deeptoolsr.prepare import parse_command, region_names
 from deeptoolsr import plotMatrix
 from deeptoolsr.describe import describe
 from deeptoolsr.session import PlotSession
@@ -64,7 +64,8 @@ def test_text_escapes_decode_after_assignment_detection():
         '--plotTitle', r'Top\nBottom', '--regionsLabel', r'1\=A',
         '--samplesLabel', r'1\=Control', '2=Case'], 'worker')
     assert args.plotTitle == 'Top\nBottom'
-    assert args.regionsLabel == ['1=A']
+    assert args.regionsLabel == [r'1\=A']
+    assert region_names(args.regionsLabel, ('genes',)) == ('1=A',)
     assert args.samplesLabel == [r'1\=Control', '2=Case']
     assert resolve_recyclable(args.samplesLabel, 3, text=True,
                               default=lambda index: str(index)) == [
@@ -126,9 +127,11 @@ def test_samples_label_assignment_uses_sample_domain(tmp_path):
 def test_samples_label_out_of_range_names_invoked_alias(tmp_path, capsys):
     command = ['--profile', '-m', 'tests/test_data/prepare_expected/input.gz',
                '-o', str(tmp_path / 'plot.png'), '--sampleLabels', '4=Case']
-    with pytest.raises(OptionError, match=(
-            r'--sampleLabels: 4 names sample 4, but there are only 3 samples')):
-        describe('plotMatrixR', command)
+    problem, = describe('plotMatrixR', command)['problems']
+    assert (problem['code'], problem['option'], problem['target'],
+            problem['slot'], problem['message']) == (
+        'assignment_out_of_range', '--sampleLabels', 'sample', 4,
+        '--sampleLabels: 4 names sample 4, but there are only 3 samples')
     with pytest.raises(SystemExit) as error:
         plotMatrix.main(command)
     assert error.value.code == 2
@@ -140,10 +143,12 @@ def test_sample_set_assignment_out_of_range_names_invoked_alias(tmp_path):
     command = ['--heatmap', '-m', 'tests/test_data/prepare_expected/input.gz',
                '-o', str(tmp_path / 'plot.png'), '--arrangeSamples', '1,2',
                '3', '--colorMap', '1-3=viridis']
-    with pytest.raises(OptionError, match=(
-            r'--colorMap: 1-3 names sample set 3, but there are only '
-            r'2 sample sets')):
-        describe('plotMatrixR', command)
+    problems = describe('plotMatrixR', command)['problems']
+    assert [(problem['code'], problem['option'], problem['slot'])
+            for problem in problems if problem['severity'] == 'error'] == [
+        ('assignment_out_of_range', '--colorMap', 3)]
+    assert ('--colorMap: 1-3 names sample set 3, but there are only '
+            '2 sample sets') in problems[0]['message']
 
 
 def test_y_limit_assignment_checks_sample_set_count(tmp_path, capsys):

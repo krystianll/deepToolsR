@@ -370,6 +370,16 @@ constexpr uint16_t SAM_QC_FAIL        = 0x200;  // fails platform/vendor QC
 constexpr uint16_t SAM_DUPLICATE      = 0x400;  // PCR or optical duplicate
 constexpr uint16_t SAM_SUPPLEMENTARY  = 0x800;  // supplementary alignment
 
+// --samFlagInclude: (bits that must be set, bits that must be unset) patterns.
+// A read passes when the list is empty or it matches any pattern.
+using FlagPatterns = std::vector<std::pair<uint16_t, uint16_t>>;
+inline bool flag_included(uint16_t flag, const FlagPatterns &patterns) {
+    if (patterns.empty()) return true;
+    for (const auto &[set, unset] : patterns)
+        if ((flag & set) == set && !(flag & unset)) return true;
+    return false;
+}
+
 // Library strandedness: which read of a pair is sense to the transcript.
 //   Forward = second/fr/secondstrand: read1 sense.
 //   Reverse = first/rf/firststrand (dUTP): read2 sense.
@@ -452,6 +462,20 @@ inline void subtract_gaps(std::vector<std::pair<int64_t, int64_t>> &iv,
     iv.swap(out);
 }
 
+// Joins the start-sorted `other` into the start-sorted, disjoint `iv`, so an
+// overlap of the two is covered once.
+inline void join_blocks(std::vector<std::pair<int64_t, int64_t>> &iv,
+                        const std::vector<std::pair<int64_t, int64_t>> &other) {
+    std::vector<std::pair<int64_t, int64_t>> all(iv.size() + other.size());
+    std::merge(iv.begin(), iv.end(), other.begin(), other.end(), all.begin());
+    iv.clear();
+    for (const auto &block : all) {
+        if (!iv.empty() && block.first <= iv.back().second)
+            iv.back().second = std::max(iv.back().second, block.second);
+        else iv.push_back(block);
+    }
+}
+
 // All parsed coverage options, shared by the serial and parallel drivers so the
 // per-read logic has a single source of truth.
 struct FetchBounds {
@@ -468,7 +492,7 @@ struct CovParams {
     uint32_t bin_size;
     Agg agg;
     int min_mapq;
-    uint16_t include;
+    FlagPatterns include;
     uint16_t exclude;
     int min_frag;
     int max_frag;
@@ -479,8 +503,8 @@ struct CovParams {
     StrandFilter sfilter;
     Collapse collapse;
     int collapsed_len;
+    bool fragments;  // --countUnit fragment: a pair's mates count once together
     int64_t halo;  // optional extra query padding; never required for correctness
-    int64_t mate_prefetch_padding;  // automatic padding only for bulk mate reads
     uint32_t window_bins;
     const std::vector<std::vector<FetchBounds>> *fetch_bounds = nullptr;
     double scale;        // normalization x scaleFactor (stream 0 / plus)
@@ -549,6 +573,22 @@ inline bool proper_fragment_bounds(const bam1_t *rec, uint32_t chrom_len,
     return true;
 }
 
+// A proper-flagged pair whose reverse mate starts left of its forward mate and
+// overlaps it (a read-through of a short insert). Only the reverse mate can see
+// the overlap; the forward mate learns it from its mate's summary. A pair
+// spanning a circular origin does not overlap and stays two single reads.
+inline bool is_dovetail(const bam1_t *rec) {
+    const uint16_t flag = rec->core.flag;
+    if (!(flag & SAM_READ_PAIRED) || !(flag & SAM_PROPER_PAIR) ||
+        (flag & SAM_MATE_UNMAPPED) || rec->core.mtid != rec->core.tid ||
+        rec->core.mpos < 0 || rec->core.isize == 0)
+        return false;
+    const bool reverse = flag & SAM_READ_REVERSE;
+    if (reverse == bool(flag & SAM_MATE_REVERSE)) return false;
+    return reverse ? rec->core.pos < rec->core.mpos && bam_endpos(rec) > rec->core.mpos
+                   : rec->core.pos > rec->core.mpos;
+}
+
 // pysam.AlignedSegment.infer_query_length(always=False): query-consuming CIGAR
 // operations, excluding hard clips: the read length behind the estimated
 // --extendReads value.
@@ -578,7 +618,7 @@ struct RegionSet {
 inline bool passes_filters(const bam1_t *rec, const CovParams &P) {
     const uint16_t flag = rec->core.flag;
     if (flag & P.exclude) return false;
-    if (P.include && (flag & P.include) != P.include) return false;
+    if (!flag_included(flag, P.include)) return false;
     if (rec->core.qual < P.min_mapq) return false;
     if (P.min_frag > 0 || P.max_frag > 0) {
         const uint64_t length = fragment_length_for_filter(rec);
@@ -593,6 +633,27 @@ inline bool passes_filters(const bam1_t *rec, const CovParams &P) {
     return true;
 }
 
+// Collapses [fs, fe) to its 5'/3' end (by `sign`) or centre, clamped to the
+// span and to [0, limit).
+inline void collapse_span(int64_t fs, int64_t fe, int sign, const CovParams &P,
+                          int64_t limit, std::vector<std::pair<int64_t, int64_t>> &iv) {
+    const int64_t L = P.collapsed_len;
+    int64_t a, b;
+    if (P.collapse == Collapse::Center) {
+        a = (fs + fe) / 2 - L / 2;
+        b = a + L;
+    } else {
+        const bool five_at_left = (sign >= 0);
+        const bool anchor_left =
+            (P.collapse == Collapse::FivePrime) ? five_at_left : !five_at_left;
+        if (anchor_left) { a = fs; b = fs + L; }
+        else { a = fe - L; b = fe; }
+    }
+    a = std::max<int64_t>({a, fs, 0});
+    b = std::min({b, fe, limit});
+    if (b > a) iv.emplace_back(a, b);
+}
+
 // Apply filters + build coverage intervals for one record. Returns the output
 // stream index (0 for now; strand-split is P5) or -1 to skip the read. `chrom_len`
 // is used to clamp fragment/collapse intervals to the reference.
@@ -605,36 +666,17 @@ inline int shape_read(const bam1_t *rec, const CovParams &P, uint32_t chrom_len,
     iv.clear();
     read_weight = 1;
     if (P.collapse != Collapse::None) {
-        int64_t fs, fe;
-        const bool proper = proper_fragment_bounds(rec, chrom_len, fs, fe);
-        if (!proper) {
-            fs = rec->core.pos;
-            fe = bam_endpos(rec);
-        }
+        // Counting reads, each read collapses within its own aligned span;
+        // counting fragments, a proper pair collapses within its fragment.
+        int64_t fs = rec->core.pos, fe = bam_endpos(rec);
+        const bool proper = P.fragments && proper_fragment_bounds(rec, chrom_len, fs, fe);
         if (fe <= fs) return -1;
         // An unstranded proper fragment takes its forward mate's orientation.
         const bool reverse = !proper && (flag & SAM_READ_REVERSE);
         const int sign = (P.strand != Strand::None)
                              ? transcript_strand(rec, P.strand)
                              : (reverse ? -1 : +1);
-        const int64_t L = P.collapsed_len;
-        int64_t a, b;
-        if (P.collapse == Collapse::Center) {
-            const int64_t c = (fs + fe) / 2;
-            a = c - L / 2;
-            b = a + L;
-        } else {
-            const bool five_at_left = (sign >= 0);
-            const bool anchor_left =
-                (P.collapse == Collapse::FivePrime) ? five_at_left : !five_at_left;
-            if (anchor_left) { a = fs; b = fs + L; }
-            else { a = fe - L; b = fe; }
-        }
-        if (a < fs) a = fs;
-        if (b > fe) b = fe;
-        if (a < 0) a = 0;
-        if (b > chrom_len) b = chrom_len;
-        if (b > a) iv.emplace_back(a, b);
+        collapse_span(fs, fe, sign, P, chrom_len, iv);
     } else if (P.extend) {
         int64_t fs, fe;
         if (!proper_fragment_bounds(rec, chrom_len, fs, fe)) {
@@ -694,13 +736,13 @@ inline void accumulate_read(const std::vector<std::pair<int64_t, int64_t>> &iv,
             const int64_t fs = s / P.bin_size - bs_bin;
             const int64_t fe = (e - 1) / P.bin_size - bs_bin;
             if (fs == fe) {
-                acc[fs] += (e - s);
+                acc[fs] += (e - s) * read_weight;
             } else {
-                acc[fs] += ((fs + bs_bin + 1) * static_cast<int64_t>(P.bin_size) - s);
-                acc[fe] += (e - (fe + bs_bin) * static_cast<int64_t>(P.bin_size));
+                acc[fs] += ((fs + bs_bin + 1) * static_cast<int64_t>(P.bin_size) - s) * read_weight;
+                acc[fe] += (e - (fe + bs_bin) * static_cast<int64_t>(P.bin_size)) * read_weight;
                 if (fe - 1 >= fs + 1) {
-                    rng[fs + 1] += P.bin_size;
-                    rng[fe] -= P.bin_size;
+                    rng[fs + 1] += int64_t(P.bin_size) * read_weight;
+                    rng[fe] -= int64_t(P.bin_size) * read_weight;
                 }
             }
         }
@@ -808,6 +850,9 @@ public:
             if (end & 1) tree_[--end].include(bounds);
         }
     }
+    void merge(const FetchRangeTree &other) {
+        for (std::size_t i = 1; i < tree_.size(); ++i) tree_[i].include(other.tree_[i]);
+    }
     std::vector<FetchBounds> finish() {
         for (std::size_t i = 1; i < n_; ++i) {
             tree_[2 * i].include(tree_[i]);
@@ -817,64 +862,21 @@ public:
     }
 };
 
-template<class Observe>
-std::vector<std::vector<FetchBounds>> prepare_coverage(
-        const std::string &path, const CovParams &P,
-        const std::vector<uint32_t> &lengths, bool plan_fetches, Observe observe) {
-    std::vector<FetchRangeTree> trees;
-    if (plan_fetches) for (uint32_t length : lengths) {
-        const uint64_t bins = (static_cast<uint64_t>(length) + P.bin_size - 1) / P.bin_size;
-        trees.emplace_back((bins + P.window_bins - 1) / P.window_bins);
-    }
-    Alignments reads = open_reads(path, P.reference, false);
-    htsFile *file = reads.file.get();
-    sam_hdr_t *header = reads.hdr.get();
-    BamRecordPtr record(bam_init1());
-    if (!record.get()) throw std::runtime_error("could not allocate a BAM record");
-    std::vector<std::pair<int64_t, int64_t>> intervals;
-    uint64_t scanned = 0;
-    while (checked_read(sam_read1(file, header, record.get())) >= 0) {
-        poll_coverage_work(++scanned);
-        const int tid = record.get()->core.tid;
-        if (tid < 0) continue;
-        if (static_cast<std::size_t>(tid) >= lengths.size())
-            throw std::runtime_error("BAM record has an invalid reference id");
-        observe(record.get());
-        if (!plan_fetches) continue;
-        int weight = 1;
-        if (shape_read(record.get(), P, lengths[tid], intervals, weight) < 0) continue;
-        // Fetching one base at an alignment's start is sufficient to retrieve it.
-        const FetchBounds bounds{record.get()->core.pos, record.get()->core.pos + 1};
-        for (const auto &interval : intervals) {
-            const uint64_t first = interval.first / P.bin_size / P.window_bins;
-            const uint64_t last = (interval.second - 1) / P.bin_size / P.window_bins;
-            trees[tid].include(first, last + 1, bounds);
-        }
-    }
-    std::vector<std::vector<FetchBounds>> result;
-    for (auto &tree : trees) result.push_back(tree.finish());
-    return result;
-}
-
 struct MateInfo {
     bool eligible = false;
     // |TLEN| of an eligible proper mate: always for a reverse mate; for a forward
     // mate only when its reverse mate completes the fragment (see `pairs_`).
     uint64_t span = 0;
     uint8_t touch = 0;  // bit 0 whitelist; bit 1 blacklist
-    std::vector<std::pair<int64_t, int64_t>> introns;  // forward mate's, --skipIntrons
+    std::vector<std::pair<int64_t, int64_t>> introns;  // partner mate's, --skipIntrons
+    // Partner mate's aligned blocks, when its placer joins them (counting fragments).
+    std::vector<std::pair<int64_t, int64_t>> blocks;
 };
 
 inline bool same_mate_info(const MateInfo &a, const MateInfo &b) {
     return a.eligible == b.eligible && a.span == b.span &&
-           a.touch == b.touch && a.introns == b.introns;
+           a.touch == b.touch && a.introns == b.introns && a.blocks == b.blocks;
 }
-
-struct CachedMate {
-    MateInfo info;
-    bool ambiguous = false;
-    bool verify = false;
-};
 
 std::string same_end_key(const bam1_t *rec) {
     std::string result(bam_get_qname(rec));
@@ -1561,14 +1563,91 @@ void for_each_record(CramContainers *cram, Alignments &reads, bam1_t *record,
         visit(record);
 }
 
-// Each worker has its own lazy htslib handle. Most nearby mates are served from
-// a bounded window prefetch whose summaries live in a cache with a fixed
-// entry/byte budget. Genomic padding affects speed, never correctness. A read
-// whose mate is not cached (budget pressure, distant or other-reference mates)
-// is deferred into a batch with its own fixed budget; a full batch resolves
-// all its mates with one sequential query per cluster of nearby coordinates.
-// Accumulators are order-independent sums, so deferring a read never changes
-// the output. High-water marks are reported through the test-only knob.
+// The planning pass reads the file as chunks of whole windows, in parallel.
+// Each record belongs to the chunk holding its start; the last chunk of a
+// reference reaches to its end, so it also holds records placed past it.
+struct Chunk { int tid; int64_t begin, end; };
+
+std::vector<Chunk> coverage_chunks(const CovParams &P, const std::vector<uint32_t> &lengths) {
+    const int64_t width = static_cast<int64_t>(P.window_bins) * P.bin_size * 16;
+    std::vector<Chunk> chunks;
+    for (std::size_t tid = 0; tid < lengths.size(); ++tid)
+        for (int64_t begin = 0; begin == 0 || begin < lengths[tid]; begin += width)
+            chunks.push_back({static_cast<int>(tid), begin,
+                              begin + width < lengths[tid] ? begin + width : HTS_POS_MAX});
+    return chunks;
+}
+
+// `observe(worker, chunk, record)` sees each placed record once; a worker
+// handles its chunks one at a time, each in coordinate order.
+template<class Observe>
+std::vector<std::vector<FetchBounds>> prepare_coverage(
+        const std::string &path, const CovParams &P, const std::vector<uint32_t> &lengths,
+        const std::vector<Chunk> &chunks, std::size_t workers,
+        bool plan_fetches, Observe observe) {
+    std::vector<std::vector<FetchRangeTree>> trees(workers);
+    if (plan_fetches) for (auto &worker_trees : trees) for (uint32_t length : lengths) {
+        const uint64_t bins = (static_cast<uint64_t>(length) + P.bin_size - 1) / P.bin_size;
+        worker_trees.emplace_back((bins + P.window_bins - 1) / P.window_bins);
+    }
+    std::atomic<std::size_t> next{0};
+    dtp::parallel_rows(workers, static_cast<int>(workers), [&](std::size_t worker) {
+        Alignments reads = open_reads(path, P.reference, true);
+        BamRecordPtr record(bam_init1());
+        if (!record.get()) throw std::runtime_error("could not allocate a BAM record");
+        std::vector<std::pair<int64_t, int64_t>> intervals;
+        uint64_t scanned = 0;
+        for (std::size_t c; !dtp::interruption_requested() &&
+                            (c = next.fetch_add(1, std::memory_order_relaxed)) < chunks.size();) {
+            const Chunk &chunk = chunks[c];
+            for_each_record(nullptr, reads, record.get(), chunk.tid, chunk.begin, chunk.end,
+                            "could not query BAM/CRAM region", [&](const bam1_t *rec) {
+                poll_coverage_work(++scanned);
+                if (rec->core.pos < chunk.begin) return;
+                observe(worker, c, rec);
+                if (!plan_fetches) return;
+                const int tid = rec->core.tid;
+                int weight = 1;
+                if (shape_read(rec, P, lengths[tid], intervals, weight) < 0) return;
+                // Counting fragments, a placer may also cover its partner's blocks
+                // (the union, or a dovetailed span): plan its whole fragment.
+                if (P.fragments && (rec->core.flag & SAM_READ_PAIRED) && rec->core.mtid == tid &&
+                    rec->core.mpos >= 0 && rec->core.mpos <= rec->core.pos) {
+                    const int64_t end = std::max<int64_t>(
+                        bam_endpos(rec), rec->core.mpos + fragment_length_for_filter(rec));
+                    intervals.emplace_back(rec->core.mpos, std::min<int64_t>(end, lengths[tid]));
+                }
+                // Fetching one base at an alignment's start is sufficient to retrieve it.
+                const FetchBounds bounds{rec->core.pos, rec->core.pos + 1};
+                for (const auto &interval : intervals) {
+                    const uint64_t first = interval.first / P.bin_size / P.window_bins;
+                    const uint64_t last = (interval.second - 1) / P.bin_size / P.window_bins;
+                    trees[worker][tid].include(first, last + 1, bounds);
+                }
+            });
+        }
+    });
+    std::vector<std::vector<FetchBounds>> result;
+    if (plan_fetches) for (std::size_t tid = 0; tid < lengths.size(); ++tid) {
+        for (std::size_t worker = 1; worker < workers; ++worker) trees[0][tid].merge(trees[worker][tid]);
+        result.push_back(trees[0][tid].finish());
+    }
+    return result;
+}
+
+// Each worker has its own lazy htslib handle. Mates are paired in-stream: the
+// query a caller already streams (a window, or a whole reference) is the
+// evidence. Each primary pair seen gets one entry, which collects every
+// record that is either end. A read whose mate starts earlier in the stream
+// is decided at once; one whose mate starts later waits in the entry until
+// the stream has passed the mate's coordinate, when every record starting
+// there has been seen, and the entry is dropped. A read whose mate lies
+// outside the stream (another reference, before or after the query, a
+// non-primary requester, or budget pressure) is deferred into a batch with
+// its own fixed budget; a full batch resolves all its mates with one
+// sequential query per cluster of nearby coordinates. Accumulators are
+// order-independent sums, so deferring a read never changes the output.
+// High-water marks are reported through the test-only knob.
 struct MateBudget {
     std::size_t cache_entries = 32768, cache_bytes = 8u << 20;
     std::size_t batch_entries = 16384, batch_bytes = 4u << 20;
@@ -1585,65 +1664,104 @@ class MateLookup {
     const std::vector<RegionSet> &black_, &white_;
     NonprimaryTouchIndex::Reader nonprimary_touch_;
     // `fragment_`: reads are fragments, placed once per proper pair. `pairs_`:
-    // the reverse mate also needs its forward mate (complete()).
-    const bool fragment_, pairs_;
+    // the placer also needs its partner mate (complete()); a dovetailed pair's
+    // placer always does. `plain_`: counting fragments without --extendReads or
+    // --collapse, a fragment is the union of its mates' aligned blocks.
+    const bool fragment_, plain_, pairs_;
+    const bool asks_;  // some read may need its mate: the stream is tracked
     CramContainers *cram_;  // shared decoded containers of a CRAM, else null
     Alignments reads_;
     BamRecordPtr record_{bam_init1()};
     Intervals blocks_, shape_;
-    std::unordered_map<std::string, CachedMate> full_cache_, loose_cache_;
-    static constexpr std::size_t MAX_CACHE_KEY_BYTES = 4096;
-    std::size_t cache_bytes_ = 0;
-    std::string observation_key_;
-    std::vector<uint64_t> positive_full_, positive_loose_, zero_full_, zero_loose_, positive_positions_;
+    std::string key_;
+    // Reused summaries: the observed record's, and a flush candidate's (a
+    // flush can run inside observe()).
+    MateInfo info_, candidate_;
     // What a read's keep/drop decision needs from its mate.
-    struct Need { bool drop = false, touch = false, once = false, pair = false; uint64_t span = 0; };
-    struct Deferred {
-        std::string key;
-        int32_t tid;
-        int64_t pos;
-        bool loose;
+    struct Need {
+        bool drop = false, touch = false, once = false, pair = false, dovetail = false;
+        uint64_t span = 0;
+        int64_t start = 0, end = 0;  // a dovetailed placer's aligned span
+        int sign = 1;                // and its fragment orientation (--collapse)
+    };
+    // One fragment's mates: the placer places it, its partner is counted
+    // through it. The reverse mate places an inward pair; counting fragments,
+    // the right-hand forward mate places a dovetailed pair.
+    struct Role { bool placer = false, partner = false, dovetail = false; };
+    Role role(const bam1_t *rec) const {
+        Role r;
+        if (!fragment_) return r;
+        const bool reverse = rec->core.flag & SAM_READ_REVERSE;
+        if (is_proper_fragment(rec)) r.placer = reverse;
+        else if (P_.fragments && is_dovetail(rec)) r.placer = !reverse, r.dovetail = true;
+        else return r;
+        r.partner = !r.placer;
+        return r;
+    }
+    // A read waiting for its mate, and what it adds once decided.
+    struct Request {
         uint8_t touch;
         Need need;
         int stream, weight;
-        std::size_t iv_begin, iv_end;
+        Intervals iv;
     };
+    struct Deferred {  // batched: the mate is found by its key
+        std::string key;
+        int32_t tid;
+        int64_t pos;  // the mate's
+        bool loose;
+        Request read;
+        std::size_t bytes() const {
+            return sizeof(Deferred) + key.size() + read.iv.size() * sizeof(read.iv[0]);
+        }
+    };
+    // Every primary record with one key: the first summary, and whether
+    // another one differed (an ambiguous mate counts as none).
     struct Match { MateInfo info; bool found = false, ambiguous = false; };
+    static void add_candidate(Match &match, const MateInfo &candidate) {
+        if (!match.found) match.info = candidate, match.found = true, match.ambiguous = false;
+        else if (!same_mate_info(match.info, candidate)) match.ambiguous = true;
+    }
+    static MateInfo value(const Match &match) { return match.ambiguous ? MateInfo{} : match.info; }
+
+    // The stream, and one entry per primary pair seen in it. A pair's key is
+    // its name, read group and both ends (position, end flag) in coordinate
+    // order; side 0 is the first end. A pair whose ends coincide has one side.
+    static constexpr std::size_t END_BYTES = sizeof(int64_t) + sizeof(uint16_t);
+    struct Pair {
+        Match side[2];
+        int32_t waiting = -1;  // first waiting read (index into waiting_)
+        std::size_t bytes = 0;
+    };
+    using PairMap = std::unordered_map<std::string, Pair>;
+    using PairEntry = PairMap::value_type;
+    PairMap pairs_map_;
+    // Dropped entries' nodes, reused with their key and vector capacity.
+    std::vector<PairMap::node_type> spare_pairs_;
+    // Min-heap by the later end's position: past it, the entry is complete.
+    std::vector<std::pair<int64_t, PairEntry *>> expiries_;
+    struct Waiting { Request read; int mate_side; int32_t next; };
+    std::vector<Waiting> waiting_;   // a pool; resolved slots keep their buffers
+    std::vector<int32_t> free_waiting_;
+    PairEntry *current_ = nullptr;   // the observed read's pair, if any
+    int current_side_ = 0, current_mate_side_ = 0;
+    int stream_tid_ = -1;
+    int64_t stream_begin_ = 0, stream_end_ = 0;
+    bool incomplete_ = false;  // a pair entry was dropped: absence proves nothing
+    std::size_t cache_bytes_ = 0;
+
     std::vector<Deferred> batch_;
-    Intervals batch_iv_;
     std::size_t batch_bytes_ = 0;
     std::size_t peak_cache_entries_ = 0, peak_cache_bytes_ = 0;
     std::size_t peak_batch_entries_ = 0, peak_batch_bytes_ = 0;
-    static void bloom_add(std::vector<uint64_t> &bits, const std::string &key) {
-        const uint64_t hash = std::hash<std::string>{}(key);
-        for (unsigned shift : {0u, 21u, 42u}) {
-            const auto bit = (hash >> shift) & ((1u << 22) - 1);
-            bits[bit >> 6] |= uint64_t(1) << (bit & 63);
-        }
-    }
-    static bool bloom_contains(const std::vector<uint64_t> &bits, const std::string &key) {
-        if (bits.empty()) return true;
-        const uint64_t hash = std::hash<std::string>{}(key);
-        for (unsigned shift : {0u, 21u, 42u}) {
-            const auto bit = (hash >> shift) & ((1u << 22) - 1);
-            if (!(bits[bit >> 6] & (uint64_t(1) << (bit & 63)))) return false;
-        }
-        return true;
-    }
     static void raise_peak(std::atomic<std::size_t> &peak, std::size_t value) {
         std::size_t seen = peak.load();
         while (seen < value && !peak.compare_exchange_weak(seen, value)) {}
     }
-    int prefetch_tid_ = -1;
-    int64_t prefetch_begin_ = 0, prefetch_end_ = 0;
 
     void open_lookup() {
         if (!cram_ && !reads_.file.get()) reads_ = open_reads(path_, P_.reference, true);
     }
-    void clear_cache() {
-        full_cache_.clear(); loose_cache_.clear(); cache_bytes_ = 0;
-    }
-
     static uint16_t read_end(const bam1_t *rec, bool mate) {
         uint16_t end = rec->core.flag & (SAM_FIRST_IN_PAIR | SAM_SECOND_IN_PAIR);
         if (mate) end = ((end & SAM_FIRST_IN_PAIR) << 1) |
@@ -1671,70 +1789,25 @@ class MateLookup {
             result.append(reinterpret_cast<const char *>(reciprocal), sizeof(reciprocal));
         }
     }
-    void remember_in(std::unordered_map<std::string, CachedMate> &cache,
-                            const std::string &name, const MateInfo &info) {
-        if (name.size() > MAX_CACHE_KEY_BYTES) return;
-        auto found = cache.find(name);
-        if (found == cache.end()) {
-            const auto bytes = name.size() + sizeof(CachedMate) + sizeof(std::string) + 64 +
-                               info.introns.size() * sizeof(info.introns[0]);
-            const std::size_t entries = full_cache_.size() + loose_cache_.size();
-            if (entries >= budget_.cache_entries || cache_bytes_ + bytes > budget_.cache_bytes) return;
-            cache_bytes_ += bytes;
-            cache.emplace(name, CachedMate{info, false});
-            peak_cache_entries_ = std::max(peak_cache_entries_, entries + 1);
-            peak_cache_bytes_ = std::max(peak_cache_bytes_, cache_bytes_);
-        } else if (!same_mate_info(found->second.info, info)) {
-            found->second.ambiguous = true;
-        }
-    }
-    void remember_primary(const bam1_t *rec, const MateInfo &info) {
-        // Overhanging alignments before the query start are incomplete evidence
-        // for a coordinate: another same-key record may end before this window.
-        if (rec->core.pos < prefetch_begin_ || rec->core.pos >= prefetch_end_) return;
-        build_key(observation_key_, rec, false, false);
-        const bool useful = info.touch || (info.span && fragment_);
-        auto remember = [&](auto &cache, auto &positive, auto &zero, const std::string &key) {
-            if (!useful) {
-                bloom_add(zero, key);
-                const auto existing = cache.find(key);
-                if (existing != cache.end()) existing->second.verify = true;
-                return;
-            }
-            bloom_add(positive, key);
-            const bool verify = bloom_contains(zero, key);
-            remember_in(cache, key, info);
-            const auto existing = cache.find(key);
-            if (existing != cache.end()) existing->second.verify |= verify;
-        };
-        if (useful) {
-            const uint64_t bit = static_cast<uint64_t>(rec->core.pos - prefetch_begin_) % (positive_positions_.size() * 64);
-            positive_positions_[bit >> 6] |= uint64_t(1) << (bit & 63);
-        }
-        remember(full_cache_, positive_full_, zero_full_, observation_key_);
-        if ((P_.exclude & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) !=
-            (SAM_SECONDARY | SAM_SUPPLEMENTARY)) {
-            build_key(observation_key_, rec, false, true);
-            remember(loose_cache_, positive_loose_, zero_loose_, observation_key_);
-        }
-    }
-    static MateInfo cached_value(const CachedMate &cached) {
-        return cached.ambiguous ? MateInfo{} : cached.info;
-    }
-    MateInfo summarize(const bam1_t *rec) {
-        MateInfo info;
+    // Fills `info` in place, so its vectors keep their capacity.
+    void summarize(const bam1_t *rec, MateInfo &info) {
+        info.span = 0;
+        info.touch = 0;
+        info.introns.clear();
+        info.blocks.clear();
         info.eligible = passes_filters(rec, P_);
-        if (!info.eligible) return info;
-        const bool reverse = rec->core.flag & SAM_READ_REVERSE;
-        if (is_proper_fragment(rec) && (reverse || pairs_)) {
+        if (!info.eligible) return;
+        const Role r = role(rec);
+        if (r.placer || (r.partner && (pairs_ || r.dovetail))) {
             info.span = fragment_length_for_filter(rec);
-            if (P_.skip_introns && !reverse) extract_introns(rec, info.introns);
+            if (r.partner && P_.skip_introns) extract_introns(rec, info.introns);
+            if (r.partner && P_.fragments && (r.dovetail || plain_))
+                extract_blocks(rec, info.blocks);
         }
         if (P_.overlap_filter && (P_.has_whitelist || P_.has_blacklist)) {
             info.touch = record_touch(rec, P_, black_, white_, blocks_);
             info.touch |= nonprimary_touch_.touch(rec);
         }
-        return info;
     }
     Need need(const bam1_t *rec, const MateInfo &own) const {
         Need result;
@@ -1743,22 +1816,46 @@ class MateLookup {
             if (P_.has_blacklist && (own.touch & 2)) { result.drop = true; return result; }
             result.touch = P_.has_blacklist || !(own.touch & 1);
         }
-        // A retained fragment is placed at its reverse mate; its forward mate
-        // stands in only when the reverse mate is missing.
-        const bool proper = fragment_ && is_proper_fragment(rec);
-        const bool reverse = rec->core.flag & SAM_READ_REVERSE;
-        result.once = proper && !reverse;
-        result.pair = proper && reverse && pairs_;
+        // A retained fragment is placed at its placer; the partner stands in
+        // only when the placer is missing.
+        const Role r = role(rec);
+        result.once = r.partner;
+        result.pair = r.placer && (pairs_ || r.dovetail);
+        result.dovetail = r.dovetail;
         if (result.once || result.pair) result.span = fragment_length_for_filter(rec);
+        if (result.pair && r.dovetail) {
+            result.start = rec->core.pos;
+            result.end = bam_endpos(rec);
+            if (P_.strand != Strand::None) result.sign = transcript_strand(rec, P_.strand);
+        }
         return result;
     }
-    // A reverse mate completes its fragment with its forward mate: read-count
-    // metrics count both alignments, and --skipIntrons also leaves out the
-    // forward mate's introns.
+    // A placer completes its fragment with its partner. Counting reads, both
+    // alignments count (weight 2). Counting fragments, plain coverage is the
+    // union of both mates' blocks, and a dovetailed pair spans from the
+    // leftmost to the rightmost aligned base. --skipIntrons also leaves out
+    // the partner's introns.
     void complete(const Need &need, const MateInfo &mate, int &weight, Intervals &shape) const {
         if (!need.pair || mate.span != need.span) return;
-        if (P_.agg == Agg::Count) weight *= 2;
+        if (!P_.fragments) weight *= 2;
+        if (need.dovetail) {
+            const int64_t fs = std::min(need.start, mate.blocks.front().first);
+            const int64_t fe = std::max(need.end, mate.blocks.back().second);
+            if (P_.collapse != Collapse::None) {
+                shape.clear();
+                collapse_span(fs, fe, need.sign, P_, fe, shape);
+                return;
+            }
+            if (P_.extend) {
+                Intervals own_introns;  // the gaps shape_read left in the placer
+                for (std::size_t i = 1; i < shape.size(); ++i)
+                    own_introns.emplace_back(shape[i - 1].second, shape[i].first);
+                shape.assign(1, {fs, fe});
+                subtract_gaps(shape, own_introns);
+            }
+        }
         subtract_gaps(shape, mate.introns);
+        if (!P_.extend) join_blocks(shape, mate.blocks);
     }
     bool keeps(uint8_t own_touch, const Need &need, const MateInfo &mate) const {
         const uint8_t touch = own_touch | mate.touch;
@@ -1766,111 +1863,127 @@ class MateLookup {
                             (!P_.has_blacklist || !(touch & 2)))) return false;
         return !need.once || mate.span != need.span;
     }
-    // Answers from the prefetched summaries; false when only the BAM can tell.
-    bool cached(const bam1_t *rec, MateInfo &info) {
-        info = {};
-        if (!(rec->core.flag & SAM_READ_PAIRED) || (rec->core.flag & SAM_MATE_UNMAPPED) ||
-            rec->core.mtid < 0 || rec->core.mpos < 0) return true;
-        const bool nonprimary = rec->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY);
-        const bool in_prefetch = rec->core.mtid == prefetch_tid_ &&
-            rec->core.mpos >= prefetch_begin_ && rec->core.mpos < prefetch_end_;
-        if (in_prefetch) {
-            const uint64_t bit = static_cast<uint64_t>(rec->core.mpos - prefetch_begin_) % (positive_positions_.size() * 64);
-            if (!(positive_positions_[bit >> 6] & (uint64_t(1) << (bit & 63)))) return true;
-        }
-        build_key(observation_key_, rec, true, nonprimary);
-        // Bloom negatives prove absence. Every positive is verified exactly.
-        if (in_prefetch && !bloom_contains(nonprimary ? positive_loose_ : positive_full_, observation_key_))
-            return true;
-        const auto &cache = nonprimary ? loose_cache_ : full_cache_;
-        const auto found = cache.find(observation_key_);
-        if (found == cache.end() || found->second.verify) return false;
-        info = cached_value(found->second);
-        return true;
-    }
-public:
-    enum class Decision { Drop, Keep, Defer };
-    MateLookup(const std::string &path, const CovParams &P, MateBudget &budget,
-               const std::vector<RegionSet> &black, const std::vector<RegionSet> &white,
-               const NonprimaryTouchIndex &nonprimary_touch, bool fragment,
-               CramContainers *cram)
-        : path_(path), P_(P), budget_(budget), black_(black), white_(white),
-          nonprimary_touch_(nonprimary_touch), fragment_(fragment),
-          pairs_(fragment && (P.agg == Agg::Count || P.skip_introns)), cram_(cram) {
-        if (!record_.get()) throw std::runtime_error("could not allocate a mate record");
-    }
-    ~MateLookup() {
-        raise_peak(budget_.peak_cache_entries, peak_cache_entries_);
-        raise_peak(budget_.peak_cache_bytes, peak_cache_bytes_);
-        raise_peak(budget_.peak_batch_entries, peak_batch_entries_);
-        raise_peak(budget_.peak_batch_bytes, peak_batch_bytes_);
-    }
-    // One sequential query supplies nearby mate summaries before any output
-    // decisions. Prefetched entries are never evicted mid-window; keys omitted
-    // under budget pressure and distant/cross-chromosome mates are deferred.
-    void prefetch(int tid, int64_t begin, int64_t end) {
-        if (tid == prefetch_tid_ && begin >= prefetch_begin_ && end <= prefetch_end_) return;
-        // Tiny output windows must not clear megabytes of membership storage
-        // and decode the same nearby reads for every few bases. Coalesce only
-        // mate queries; output windows remain independent.
-        constexpr int64_t minimum_span = 1 << 16;
-        if (end - begin < minimum_span) {
-            begin = begin / minimum_span * minimum_span;
-            end = ((end + minimum_span - 1) / minimum_span) * minimum_span;
-        }
-        open_lookup();
-        clear_cache();
-        positive_full_.assign(65536, 0); zero_full_.assign(65536, 0);
-        positive_loose_.assign(65536, 0); zero_loose_.assign(65536, 0);
-        positive_positions_.assign((std::min<int64_t>(end - begin, 1u << 22) + 63) / 64, 0);
-        prefetch_tid_ = tid; prefetch_begin_ = begin; prefetch_end_ = end;
-        uint64_t scanned = 0;
-        for_each_record(cram_, reads_, record_.get(), tid, begin, end,
-                        "could not prefetch BAM mate context", [&](const bam1_t *record) {
-            poll_coverage_work(++scanned);
-            if (!(record->core.flag & SAM_READ_PAIRED) ||
-                (record->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY))) return;
-            remember_primary(record, summarize(record));
-        });
-    }
-    void prefetch_for_record(const bam1_t *rec) {
-        const int tid = rec->core.tid;
-        const int64_t pos = rec->core.pos;
-        if (tid == prefetch_tid_ && pos >= prefetch_begin_ && pos < prefetch_end_) return;
-        const int64_t width = static_cast<int64_t>(P_.window_bins) * P_.bin_size;
-        const int64_t begin = pos / width * width;
-        const int64_t padding = P_.halo + P_.mate_prefetch_padding;
-        prefetch(tid, std::max<int64_t>(0, begin - padding), begin + width + padding);
-    }
-    MateInfo observe(const bam1_t *rec) { return summarize(rec); }
-    // Keep/drop from the read and its cached `mate`. Defer hands the read to
-    // defer(), which decides it when its batch resolves. A kept read then
-    // passes through complete().
-    Decision decide(const bam1_t *rec, const MateInfo &own, MateInfo &mate) {
-        mate = {};
-        const Need wanted = need(rec, own);
-        if (wanted.drop) return Decision::Drop;
-        if (!wanted.touch && !wanted.once && !wanted.pair) return Decision::Keep;
-        if (!cached(rec, mate)) return Decision::Defer;
-        return keeps(own.touch, wanted, mate) ? Decision::Keep : Decision::Drop;
-    }
-    void complete(const bam1_t *rec, const MateInfo &own, const MateInfo &mate,
-                  int &weight, Intervals &shape) const {
-        complete(need(rec, own), mate, weight, shape);
-    }
-    // `keep(stream, weight, intervals)` receives every deferred read retained.
     template <class Keep>
-    void defer(const bam1_t *rec, const MateInfo &own,
-               int stream, int weight, const Intervals &iv, Keep &&keep) {
-        Deferred read{std::string(), rec->core.mtid, rec->core.mpos,
-                      (rec->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) != 0,
-                      own.touch, need(rec, own), stream, weight, 0, 0};
-        build_key(read.key, rec, true, read.loose);
-        const std::size_t bytes = sizeof(Deferred) + read.key.size() + iv.size() * sizeof(iv[0]);
+    void resolve(Request &read, const MateInfo &info, Keep &&keep) {
+        if (!keeps(read.touch, read.need, info)) return;
+        int weight = read.weight;
+        complete(read.need, info, weight, read.iv);
+        keep(read.stream, weight, read.iv);
+    }
+    bool has_mate_coordinate(const bam1_t *rec) const {
+        return (rec->core.flag & SAM_READ_PAIRED) && !(rec->core.flag & SAM_MATE_UNMAPPED) &&
+               rec->core.mtid >= 0 && rec->core.mpos >= 0;
+    }
+    // Whether every primary record starting at the mate's coordinate is in
+    // the stream (once the stream has passed it).
+    bool in_stream(const bam1_t *rec) const {
+        return !(rec->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) &&
+               rec->core.mtid == stream_tid_ && rec->core.mpos >= stream_begin_ &&
+               rec->core.mpos < stream_end_;
+    }
+    // The pair key of a record (its mtid is the stream's): returns its side
+    // and its mate's.
+    std::pair<int, int> pair_key(std::string &key, const bam1_t *rec) const {
+        const char *name = bam_get_qname(rec);
+        const uint8_t *rg = bam_aux_get(rec, "RG");
+        const char *group = rg ? bam_aux2Z(rg) : nullptr;
+        const std::size_t name_size = std::strlen(name), group_size = group ? std::strlen(group) : 0;
+        key.resize(name_size + group_size + 2 + 2 * END_BYTES);  // one write, no appends
+        char *at = key.data();
+        std::memcpy(at, name, name_size + 1); at += name_size + 1;
+        if (group) std::memcpy(at, group, group_size);
+        at += group_size; *at++ = '\0';
+        const std::pair<int64_t, uint16_t> own{rec->core.pos, read_end(rec, false)},
+                                           mate{rec->core.mpos, read_end(rec, true)};
+        const bool swap = mate < own;
+        for (const auto &end : {swap ? mate : own, swap ? own : mate}) {
+            std::memcpy(at, &end.first, sizeof(end.first)); at += sizeof(end.first);
+            std::memcpy(at, &end.second, sizeof(end.second)); at += sizeof(end.second);
+        }
+        if (own == mate) return {0, 0};
+        return swap ? std::make_pair(1, 0) : std::make_pair(0, 1);
+    }
+    // A read waiting in `pair` for `mate_side`, batched instead (see build_key).
+    Deferred batched(const std::string &pair, int mate_side, Request &&read) const {
+        const std::size_t prefix = pair.size() - 2 * END_BYTES;
+        auto end = [&](int side) {
+            std::pair<int64_t, uint16_t> result;
+            const char *at = pair.data() + prefix + side * END_BYTES;
+            std::memcpy(&result.first, at, sizeof(result.first));
+            std::memcpy(&result.second, at + sizeof(result.first), sizeof(result.second));
+            return result;
+        };
+        const auto mate = end(mate_side), own = end(end(0) == end(1) ? mate_side : 1 - mate_side);
+        Deferred deferred{pair.substr(0, prefix), stream_tid_, mate.first, false, std::move(read)};
+        const int64_t coords[] = {stream_tid_, mate.first, stream_tid_, own.first};
+        deferred.key.append(reinterpret_cast<const char *>(coords), 2 * sizeof(int64_t));
+        deferred.key.append(reinterpret_cast<const char *>(&mate.second), sizeof(mate.second));
+        deferred.key.append(reinterpret_cast<const char *>(coords + 2), 2 * sizeof(int64_t));
+        return deferred;
+    }
+    void note_cache() {
+        const std::size_t entries = pairs_map_.size() + waiting_.size() - free_waiting_.size();
+        peak_cache_entries_ = std::max(peak_cache_entries_, entries);
+        peak_cache_bytes_ = std::max(peak_cache_bytes_, cache_bytes_);
+    }
+    bool cache_full(std::size_t bytes) const {
+        return pairs_map_.size() + waiting_.size() - free_waiting_.size() >= budget_.cache_entries ||
+               cache_bytes_ + bytes > budget_.cache_bytes;
+    }
+    // The pair entry for `key`, created when budget allows (else null).
+    PairEntry *pair_entry(const bam1_t *rec, std::size_t extra_bytes) {
+        auto found = pairs_map_.find(key_);
+        if (found != pairs_map_.end()) return &*found;
+        const std::size_t bytes = key_.size() + sizeof(PairEntry) + 64 + extra_bytes;
+        if (cache_full(bytes)) return nullptr;
+        PairEntry *entry;
+        if (spare_pairs_.empty()) {
+            entry = &*pairs_map_.emplace(key_, Pair{}).first;
+        } else {
+            PairMap::node_type node = std::move(spare_pairs_.back());
+            spare_pairs_.pop_back();
+            node.key() = key_;
+            Pair &pair = node.mapped();
+            for (Match &side : pair.side) side.found = side.ambiguous = false;
+            pair.waiting = -1;
+            entry = &*pairs_map_.insert(std::move(node)).position;
+        }
+        entry->second.bytes = bytes;
+        cache_bytes_ += bytes;
+        expiries_.emplace_back(std::max<int64_t>(rec->core.pos, rec->core.mpos), entry);
+        std::push_heap(expiries_.begin(), expiries_.end(), Later{});
+        note_cache();
+        return entry;
+    }
+    struct Later {
+        bool operator()(const std::pair<int64_t, PairEntry *> &a,
+                        const std::pair<int64_t, PairEntry *> &b) const { return a.first > b.first; }
+    };
+    // The stream has passed `pos`: every pair whose later end is before it is
+    // complete. Its waiting reads are decided and the entry is dropped.
+    template <class Keep>
+    void advance(int64_t pos, Keep &&keep) {
+        while (!expiries_.empty() && expiries_.front().first < pos) {
+            std::pop_heap(expiries_.begin(), expiries_.end(), Later{});
+            PairEntry *entry = expiries_.back().second;
+            expiries_.pop_back();
+            for (int32_t i = entry->second.waiting; i >= 0; i = waiting_[i].next) {
+                Waiting &w = waiting_[i];
+                const Match &mate = entry->second.side[w.mate_side];
+                cache_bytes_ -= sizeof(Waiting) + w.read.iv.size() * sizeof(w.read.iv[0]);
+                if (mate.found) resolve(w.read, value(mate), keep);
+                else if (!incomplete_) resolve(w.read, MateInfo{}, keep);
+                else batch(batched(entry->first, w.mate_side, std::move(w.read)), keep);
+                free_waiting_.push_back(i);
+            }
+            cache_bytes_ -= entry->second.bytes;
+            spare_pairs_.push_back(pairs_map_.extract(entry->first));
+        }
+    }
+    template <class Keep>
+    void batch(Deferred &&read, Keep &&keep) {
+        const std::size_t bytes = read.bytes();
         if (!batch_.empty() && batch_bytes_ + bytes > budget_.batch_bytes) flush(keep);
-        read.iv_begin = batch_iv_.size();
-        batch_iv_.insert(batch_iv_.end(), iv.begin(), iv.end());
-        read.iv_end = batch_iv_.size();
         batch_.push_back(std::move(read));
         batch_bytes_ += bytes;
         peak_batch_entries_ = std::max(peak_batch_entries_, batch_.size());
@@ -1909,25 +2022,136 @@ public:
                     return;
                 for (bool loose : {false, true}) {
                     if (matches[loose].empty()) continue;
-                    build_key(observation_key_, mate, false, loose);
-                    const auto match = matches[loose].find(observation_key_);
+                    build_key(key_, mate, false, loose);
+                    const auto match = matches[loose].find(key_);
                     if (match == matches[loose].end()) continue;
-                    const MateInfo candidate = summarize(mate);
-                    if (!match->second.found) match->second = Match{candidate, true, false};
-                    else if (!same_mate_info(match->second.info, candidate)) match->second.ambiguous = true;
+                    summarize(mate, candidate_);
+                    add_candidate(match->second, candidate_);
                 }
             });
         }
-        for (const auto &read : batch_) {
-            const Match &match = matches[read.loose].at(read.key);
-            const MateInfo &info = match.ambiguous ? MateInfo{} : match.info;
-            if (!keeps(read.touch, read.need, info)) continue;
-            shape_.assign(batch_iv_.begin() + read.iv_begin, batch_iv_.begin() + read.iv_end);
-            int weight = read.weight;
-            complete(read.need, info, weight, shape_);
-            keep(read.stream, weight, shape_);
+        std::vector<Deferred> resolving;
+        resolving.swap(batch_);
+        batch_bytes_ = 0;
+        for (auto &read : resolving) resolve(read.read, value(matches[read.loose].at(read.key)), keep);
+    }
+public:
+    enum class Decision { Drop, Keep, Defer };
+    MateLookup(const std::string &path, const CovParams &P, MateBudget &budget,
+               const std::vector<RegionSet> &black, const std::vector<RegionSet> &white,
+               const NonprimaryTouchIndex &nonprimary_touch, bool fragment,
+               CramContainers *cram)
+        : path_(path), P_(P), budget_(budget), black_(black), white_(white),
+          nonprimary_touch_(nonprimary_touch), fragment_(fragment),
+          plain_(P.fragments && !P.extend && P.collapse == Collapse::None),
+          pairs_(fragment && (!P.fragments || P.skip_introns || plain_)),
+          asks_(fragment || (P.overlap_filter && (P.has_whitelist || P.has_blacklist))),
+          cram_(cram) {
+        if (!record_.get()) throw std::runtime_error("could not allocate a mate record");
+    }
+    ~MateLookup() {
+        raise_peak(budget_.peak_cache_entries, peak_cache_entries_);
+        raise_peak(budget_.peak_cache_bytes, peak_cache_bytes_);
+        raise_peak(budget_.peak_batch_entries, peak_batch_entries_);
+        raise_peak(budget_.peak_batch_bytes, peak_batch_bytes_);
+    }
+    // Starts a stream: every record overlapping [begin, end) of `tid`, in
+    // coordinate order, passes through observe(). End it with finish().
+    void begin(int tid, int64_t begin, int64_t end) {
+        stream_tid_ = tid; stream_begin_ = begin; stream_end_ = end;
+    }
+    // The read's own summary (its eligibility and touch); the stream advances
+    // to it, and a primary record joins its pair's entry.
+    template <class Keep>
+    MateInfo observe(const bam1_t *rec, Keep &&keep) {
+        summarize(rec, info_);
+        // The caller needs no blocks or introns.
+        MateInfo info;
+        info.eligible = info_.eligible; info.span = info_.span; info.touch = info_.touch;
+        current_ = nullptr;
+        if (!asks_ || rec->core.tid != stream_tid_) return info;
+        advance(rec->core.pos, keep);
+        if (!(rec->core.flag & SAM_READ_PAIRED) ||
+            (rec->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) ||
+            rec->core.pos < stream_begin_ || rec->core.mtid != rec->core.tid) return info;
+        std::tie(current_side_, current_mate_side_) = pair_key(key_, rec);
+        current_ = pair_entry(rec, (info_.introns.size() + info_.blocks.size()) * sizeof(info_.introns[0]));
+        if (!current_) { incomplete_ = true; return info; }
+        add_candidate(current_->second.side[current_side_], info_);
+        return info;
+    }
+    // Keep/drop from the read and its `mate` seen earlier in the stream (valid
+    // until the next observe()). Defer hands the read to defer(), which decides
+    // it once its mate is known. A kept read then passes through complete().
+    Decision decide(const bam1_t *rec, const MateInfo &own, const MateInfo *&mate) {
+        static const MateInfo none;
+        mate = &none;
+        const Need wanted = need(rec, own);
+        if (wanted.drop) return Decision::Drop;
+        if (!wanted.touch && !wanted.once && !wanted.pair) return Decision::Keep;
+        if (has_mate_coordinate(rec)) {
+            // In the stream, an earlier mate's end is complete; the read is in
+            // the stream too, so it joined the pair's entry unless dropped.
+            if (!in_stream(rec) || rec->core.mpos >= rec->core.pos || !current_)
+                return Decision::Defer;
+            const Match &found = current_->second.side[current_mate_side_];
+            if (found.found) {
+                if (!found.ambiguous) mate = &found.info;
+            } else if (incomplete_) {
+                return Decision::Defer;
+            }
         }
-        batch_.clear(); batch_iv_.clear(); batch_bytes_ = 0;
+        return keeps(own.touch, wanted, *mate) ? Decision::Keep : Decision::Drop;
+    }
+    void complete(const bam1_t *rec, const MateInfo &own, const MateInfo &mate,
+                  int &weight, Intervals &shape) const {
+        complete(need(rec, own), mate, weight, shape);
+    }
+    // `keep(stream, weight, intervals)` receives every deferred read retained.
+    template <class Keep>
+    void defer(const bam1_t *rec, const MateInfo &own,
+               int stream, int weight, const Intervals &iv, Keep &&keep) {
+        const std::size_t bytes = sizeof(Waiting) + iv.size() * sizeof(iv[0]);
+        if (in_stream(rec) && rec->core.mpos >= rec->core.pos) {
+            // A later mate: wait in the pair's entry. A read before the query
+            // start has not joined one yet.
+            PairEntry *entry = current_;
+            int mate_side = current_mate_side_;
+            if (!entry && rec->core.pos < stream_begin_) {
+                mate_side = pair_key(key_, rec).second;
+                entry = pair_entry(rec, 0);
+            }
+            if (entry && !cache_full(bytes)) {
+                int32_t i;
+                if (free_waiting_.empty()) { i = static_cast<int32_t>(waiting_.size()); waiting_.emplace_back(); }
+                else { i = free_waiting_.back(); free_waiting_.pop_back(); }
+                Waiting &w = waiting_[i];
+                w.read.touch = own.touch; w.read.need = need(rec, own);
+                w.read.stream = stream; w.read.weight = weight;
+                w.read.iv.assign(iv.begin(), iv.end());
+                w.mate_side = mate_side;
+                w.next = entry->second.waiting;
+                entry->second.waiting = i;
+                cache_bytes_ += bytes;
+                note_cache();
+                return;
+            }
+        }
+        Deferred read{std::string(), rec->core.mtid, rec->core.mpos,
+                      (rec->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) != 0,
+                      Request{own.touch, need(rec, own), stream, weight, iv}};
+        build_key(read.key, rec, true, read.loose);
+        batch(std::move(read), keep);
+    }
+    // Ends the stream: the whole query has been seen, so every pending read
+    // is decided, and the batch resolves.
+    template <class Keep>
+    void finish(Keep &&keep) {
+        advance(std::numeric_limits<int64_t>::max(), keep);
+        flush(keep);
+        incomplete_ = false;
+        current_ = nullptr;
+        stream_tid_ = -1;
     }
 };
 
@@ -1979,10 +2203,8 @@ inline void compute_window(Alignments &reads, CramContainers *cram, const Window
 
     const bool do_overlap = P.overlap_filter &&
                             (P.has_whitelist || P.has_blacklist);
-    const bool lookup = do_overlap || P.extend || P.collapse != Collapse::None;
-    if (lookup)
-        mates.prefetch(w.tid, std::max<int64_t>(0, qstart - P.mate_prefetch_padding),
-                       std::min<int64_t>(chrom_len, qend + P.mate_prefetch_padding));
+    const bool lookup = do_overlap || P.extend || P.fragments;
+    if (lookup) mates.begin(w.tid, qstart, qend);
     auto keep = [&](int s, int weight, const std::vector<std::pair<int64_t, int64_t>> &shape) {
         accumulate_read(shape, P, w.bin0, nbins, ws_bp, we_bp, acc[s], rng[s], cdiff[s], weight);
     };
@@ -1990,10 +2212,11 @@ inline void compute_window(Alignments &reads, CramContainers *cram, const Window
     for_each_record(cram, reads, rec, w.tid, qstart, qend, "could not query BAM/CRAM region",
                     [&](const bam1_t *read) {
         poll_coverage_work(++scanned);
-        MateInfo own, mate;
+        MateInfo own;
+        const MateInfo *mate = nullptr;
         auto decision = MateLookup::Decision::Keep;
         if (lookup) {
-            own = mates.observe(read);
+            own = mates.observe(read, keep);
             decision = mates.decide(read, own, mate);
             if (decision == MateLookup::Decision::Drop) return;
         }
@@ -2004,10 +2227,10 @@ inline void compute_window(Alignments &reads, CramContainers *cram, const Window
             mates.defer(read, own, s, read_weight, iv, keep);
             return;
         }
-        if (lookup) mates.complete(read, own, mate, read_weight, iv);
+        if (lookup) mates.complete(read, own, *mate, read_weight, iv);
         keep(s, read_weight, iv);
     });
-    mates.flush(keep);
+    if (lookup) mates.finish(keep);
 
     // Per-bin totals per lane, and the lane's mask: bins outside the
     // whitelist or overlapping the blacklist (entries of the lane's strand).
@@ -2086,7 +2309,7 @@ bool bam_coverage_bigwig(const std::string &bam_path,
                          uint32_t bin_size,
                          const std::string &aggregation,
                          int min_mapping_quality,
-                         uint16_t sam_flag_include,
+                         const FlagPatterns &sam_flag_include,
                          uint16_t sam_flag_exclude,
                          const std::string &filter_mode,
                          bool ignore_duplicates,
@@ -2098,6 +2321,7 @@ bool bam_coverage_bigwig(const std::string &bam_path,
                          const std::string &filter_rna_strand,
                          const std::string &collapse_str,
                          int collapsed_length,
+                         const std::string &count_unit,
                          py::object blacklist,
                          py::object whitelist,
                          int threads,
@@ -2194,6 +2418,8 @@ bool bam_coverage_bigwig(const std::string &bam_path,
     if (collapse != Collapse::None && extend_reads > 0)
         throw std::runtime_error(
             "extend_reads and collapse cannot be used together");
+    if (count_unit != "read" && count_unit != "fragment")
+        throw std::runtime_error("count_unit must be read|fragment");
     if (collapse != Collapse::None && collapsed_length < 1)
         throw std::runtime_error("collapsed_length must be >= 1");
 
@@ -2246,6 +2472,7 @@ bool bam_coverage_bigwig(const std::string &bam_path,
     P.has_whitelist = !whitelist.is_none();
     P.touch_strand = touch_strand;
     P.collapse = collapse; P.collapsed_len = collapsed_length;
+    P.fragments = count_unit == "fragment";
     P.scale = scale_factor;         // refined below (× normalization factor)
     P.scale_minus = scale_factor * scale_factor_minus;
     P.rpkm = false;
@@ -2255,7 +2482,6 @@ bool bam_coverage_bigwig(const std::string &bam_path,
     // when the user requests a smaller overlap-prefetch halo.
     P.halo = std::max<int64_t>(
         std::max(0, filter_by_overlap_halo), max_fragment_length);
-    P.mate_prefetch_padding = filter_by_overlap_halo < 0 ? 10000 : 0;
     P.window_bins = coverage_window_bins(bin_size, window_size);
     // Test-only: {"entries": n[, "bytes": n][, "nonprimary_bytes": n]
     // [, "cram_cache_bytes": n]} shrinks the mate, non-primary index and CRAM
@@ -2308,8 +2534,9 @@ bool bam_coverage_bigwig(const std::string &bam_path,
     const bool filtered = normalization_denominator == "filtered";
     if (read_normalization && !filtered && normalization_denominator != "library")
         throw std::runtime_error("normalization_denominator must be library|filtered");
-    const bool count_reads = read_normalization && (filtered || exact_scaling);
-    const bool fragment = extend || collapse != Collapse::None;
+    // Counting fragments, the library denominator is always an exact count.
+    const bool count_reads = read_normalization && (filtered || exact_scaling || P.fragments);
+    const bool fragment = extend || P.fragments;
     // Names what can empty a zero normalization denominator in this run:
     // `lists` when the black/whitelist acts on it, `reads` for the read filters.
     auto empty_after = [&](bool lists, bool reads) {
@@ -2328,33 +2555,59 @@ bool bam_coverage_bigwig(const std::string &bam_path,
     double counted_denominator = 0;
     std::vector<std::vector<FetchBounds>> fetch_bounds;
     if (fragment || count_reads) {
-        std::unique_ptr<MateLookup> count_mates;
-        auto count = [&](int, int, const std::vector<std::pair<int64_t, int64_t>> &) {
-            counted_denominator += 1;
+        const std::vector<Chunk> chunks = coverage_chunks(P, lengths);
+        const std::size_t workers = dtp::thread_count(threads, chunks.size());
+        // Per worker: its count, and (filtered) its mate lookup streaming the
+        // worker's current chunk.
+        struct Counter {
+            double count = 0;
+            std::unique_ptr<MateLookup> mates;
+            std::size_t chunk = SIZE_MAX;
         };
+        std::vector<Counter> counters(workers);
         if (count_reads && filtered)
-            count_mates = std::make_unique<MateLookup>(
-                bam_path, P, mate_budget, blacklist_by_tid, whitelist_by_tid, nonprimary_touch,
-                false, containers.get());
+            for (auto &counter : counters)
+                counter.mates = std::make_unique<MateLookup>(
+                    bam_path, P, mate_budget, blacklist_by_tid, whitelist_by_tid, nonprimary_touch,
+                    P.fragments, containers.get());
         // Both tasks inspect the same records. Keep their distinct eligibility
         // rules, but perform the BAM decode only once when both are requested.
-        fetch_bounds = prepare_coverage(bam_path, P, lengths, fragment,
-            [&](const bam1_t *record) {
-                if (!count_reads || ignore[record->core.tid] ||
-                    (record->core.flag & SAM_READ_UNMAPPED)) return;
-                if (filtered) {
-                    if (P.overlap_filter && (P.has_whitelist || P.has_blacklist))
-                        count_mates->prefetch_for_record(record);
-                    const MateInfo own = count_mates->observe(record);
-                    MateInfo mate;
-                    const auto decision = count_mates->decide(record, own, mate);
-                    if (decision == MateLookup::Decision::Keep) count(0, 1, {});
-                    else if (decision == MateLookup::Decision::Defer)
-                        count_mates->defer(record, own, 0, 1, {}, count);
-                } else if (!(record->core.flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)))
-                    counted_denominator += 1;
-            });
-        if (count_mates) count_mates->flush(count);
+        fetch_bounds = prepare_coverage(bam_path, P, lengths, chunks, workers,
+                                        fragment, [&](std::size_t worker, std::size_t chunk,
+                                                     const bam1_t *record) {
+            if (!count_reads || ignore[record->core.tid]) return;
+            Counter &counter = counters[worker];
+            auto count = [&](int, int, const std::vector<std::pair<int64_t, int64_t>> &) {
+                counter.count += 1;
+            };
+            if (filtered) {
+                // Unmapped records are mate evidence too.
+                if (chunk != counter.chunk) {
+                    counter.mates->finish(count);
+                    counter.chunk = chunk;
+                    counter.mates->begin(chunks[chunk].tid, chunks[chunk].begin, chunks[chunk].end);
+                }
+                const MateInfo own = counter.mates->observe(record, count);
+                if (record->core.flag & SAM_READ_UNMAPPED) return;
+                const MateInfo *mate;
+                const auto decision = counter.mates->decide(record, own, mate);
+                if (decision == MateLookup::Decision::Keep) count(0, 1, {});
+                else if (decision == MateLookup::Decision::Defer)
+                    counter.mates->defer(record, own, 0, 1, {}, count);
+            } else if (!(record->core.flag & SAM_READ_UNMAPPED)) {
+                // Counting fragments, a proper pair with both mates mapped
+                // counts once, at its first mate.
+                const uint16_t flag = record->core.flag;
+                const uint16_t pair = SAM_READ_PAIRED | SAM_PROPER_PAIR | SAM_SECOND_IN_PAIR;
+                if (!(flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) &&
+                    !(P.fragments && (flag & pair) == pair && !(flag & SAM_MATE_UNMAPPED)))
+                    counter.count += 1;
+            }
+        });
+        for (auto &counter : counters) {
+            if (counter.mates) counter.mates->finish([&](int, int, const auto &) { counter.count += 1; });
+            counted_denominator += counter.count;
+        }
         if (fragment) P.fetch_bounds = &fetch_bounds;
     }
 
@@ -2469,7 +2722,7 @@ bool bam_coverage_bigwig(const std::string &bam_path,
             P.scale_minus = scale_factor * scale_factor_minus * f;
         } else if (norm != N_NONE) {
             double D = counted_denominator;
-            if (!filtered && !exact_scaling) {
+            if (!count_reads) {
                 const ReadCounts library = read_counts(reads, bam_path);
                 // Library size straight from the index (mapped alignments/target).
                 for (int t = 0; t < n_targets; ++t) {
@@ -2616,7 +2869,7 @@ void record_strand_evidence(std::unordered_map<std::string, int8_t> &evidence,
 
 py::dict infer_strandedness(const std::string &bam_path, py::object regions,
                             int min_mapping_quality, bool require_proper_pair,
-                            bool ignore_duplicates, uint16_t sam_flag_include,
+                            bool ignore_duplicates, const FlagPatterns &sam_flag_include,
                             uint16_t sam_flag_exclude, std::size_t sample_size,
                             const std::string &reference_fasta) {
     if (!sample_size || sample_size > 1000000)
@@ -2713,7 +2966,7 @@ py::dict infer_strandedness(const std::string &bam_path, py::object regions,
             if (record.get()->core.qual < min_mapping_quality) continue;
             if (ignore_duplicates && (flag & SAM_DUPLICATE)) continue;
             if (flag & sam_flag_exclude) continue;
-            if (sam_flag_include && (flag & sam_flag_include) != sam_flag_include) continue;
+            if (!flag_included(flag, sam_flag_include)) continue;
             // The BAM iterator retrieves reference spans, including skipped
             // introns. Only aligned bases can supply probe-strand evidence.
             extract_blocks(record.get(), aligned_blocks);
@@ -2889,7 +3142,7 @@ PYBIND11_MODULE(_coverage, m) {
           py::arg("regions"), py::arg("min_mapping_quality") = 0,
           py::arg("require_proper_pair") = false,
           py::arg("ignore_duplicates") = false,
-          py::arg("sam_flag_include") = 0,
+          py::arg("sam_flag_include") = FlagPatterns{},
           py::arg("sam_flag_exclude") = 0,
           py::arg("sample_size") = 20000,
           py::arg("reference_fasta") = "",
@@ -2905,7 +3158,7 @@ PYBIND11_MODULE(_coverage, m) {
           py::arg("bin_size") = 50,
           py::arg("aggregation") = "mean",
           py::arg("min_mapping_quality") = 0,
-          py::arg("sam_flag_include") = 0,
+          py::arg("sam_flag_include") = FlagPatterns{},
           py::arg("sam_flag_exclude") = 0,
           py::arg("filter_mode") = "primary",
           py::arg("ignore_duplicates") = false,
@@ -2917,6 +3170,7 @@ PYBIND11_MODULE(_coverage, m) {
           py::arg("filter_rna_strand") = "none",
           py::arg("collapse") = "none",
           py::arg("collapsed_length") = 1,
+          py::arg("count_unit") = "read",
           py::arg("blacklist") = py::none(),
           py::arg("whitelist") = py::none(),
           py::arg("threads") = 1,

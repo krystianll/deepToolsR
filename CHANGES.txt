@@ -1,3 +1,74 @@
+deepToolsR 0.10.4-beta
+
+bamCoverageR
+* New `--countUnit auto|read|fragment` (default `auto`: `read` without
+  `--extendReads`/`--collapse`, `fragment` with either). `read` counts each
+  retained alignment, as deepTools 3.5.6 does, in every metric. `fragment`
+  counts a proper pair with both mates retained once: its coverage is the
+  union of both mates, `--extendReads` fills the fragment once and
+  `--collapse` places the fragment's end; CPM/RPKM divide by an exact
+  fragment count. With `--collapse` in `read` mode each alignment is placed
+  at its own end, strandedness-aware. Single-end data gives the same output
+  in both units. `deeptoolsr options --countUnit` stores the default.
+* `--samFlagInclude` takes one or more patterns and keeps a read matching
+  any of them; each pattern is a comma list of SAM flag names or numbers
+  (decimal or 0x hex) that must be set, or `^term` for unset. A single
+  number keeps the deepTools 3.5.6 meaning (samtools -f). `--samFlagExclude`
+  also accepts 0x hex and names (`DUP,SECONDARY`). Invalid patterns are
+  errors before any input is read. Example: a dUTP library's forward-strand
+  5' track is `--countUnit read --strandedness none --collapse 5prime
+  --samFlagInclude READ1,REVERSE READ2,^REVERSE`.
+* Documented that `--normalizeUsing BPM` follows the formula in the
+  deepTools documentation; the formula deepTools 3.5.6 implements equals
+  CPM.
+
+Plotting (plotMatrixR, plotProfileR, plotHeatmapR)
+* `--yScale linear|pseudolog` (plotHeatmapR `--yScaleSummaryPlot`) draws
+  profile Y axes on a pseudo-log scale (asinh, as ggplot's
+  `scales::pseudo_log_trans`), set by `--yPseudologSigma` (default 1). It
+  keeps 0 and negative values, takes one value per sample set like
+  `--yMin`, and limits, ticks and `--outFileNameData` stay in data units.
+  deepTools 3.5.6 has linear Y axes only.
+* With `--quantileSortedRegions N` above 1, `--regionsLabel` names the
+  quantiles as it names clusters (default `<first group>_Q1`…`_QN`).
+* `--clusterUsingGroups GROUP …` (also `--quantileUsingGroups`) clusters or
+  splits into quantiles only the listed region groups; the other groups are
+  left out of the plot and every output.
+* `--outFileSortedRegionsPerGroup PREFIX` writes one BED file per drawn
+  region group, `PREFIX_<group label>.bed`.
+* `--regionsLabel` accepts `N=label` (also `N,M=` and `a-b=`) to rename
+  single groups; deepTools 3.5.6 accepts only a full list. A label count
+  that differs from the groups or samples is reported as, for example,
+  "--regionsLabel: 5 labels given for 3 region groups".
+* An empty per-sample-set text (`--xAxisLabel 1=`) draws no text for that
+  set; with an empty `--refPointLabel` the automatic X-axis label is
+  `distance`.
+* `--perGroup` titles panels by region group alone, as deepTools 3.5.6
+  does, also when `--arrangeSamples` defines one sample set. Profile series
+  are named by region group alone unless their panel mixes samples.
+* plotHeatmapR `--showSummaryPlot on|off` replaces deepTools 3.5.6's
+  `--whatToShow`, which is removed; its other choices are covered by
+  `--colorbarLocation none`.
+* `--colorbarLocation none` draws no colour bars, `--regionLabelLocation
+  none` hides the region-group labels, and `--colorbarLabels auto` titles
+  each colour bar with every sample set it serves. Heatmaps share one
+  colour bar only when their given colour maps and z limits match.
+* A sample set whose samples have different X geometries is rejected with a
+  plain description of each sample's geometry.
+
+deeptoolsr describe
+* Records are protocol 2. They add `sample_sets` (samples, groups, X
+  geometry and every per-set text), `options` (the `N=` targets),
+  `colorbars` (with their automatic and effective `z_range` when values are
+  loaded), `y_limits` and each series' `pseudocount`, `size_defaults`, and
+  `problems`: errors the plot commands would reject (bad assignments, label
+  counts, unknown colour maps, `--zMid` outside the z limits) are reported
+  in an otherwise complete record. Describe reads only the matrix header
+  unless asked to load values (`values_read` says which), predicts groups
+  after clustering and quantiles, and can be cancelled like a plot command.
+* `deeptoolsr.plotting.colormap_names()` lists the accepted colour maps;
+  `PlotSession.describe` takes `progress=` like `PlotSession.run`.
+
 deepToolsR 0.10.2-beta
 
 * Faster CRAM input in bamCoverageR: each CRAM container is decoded once and

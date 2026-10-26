@@ -73,6 +73,11 @@ def parse_arguments(args=None):
     options.add_argument(
         '--rasterBitDepth', type=int, choices=[8, 16],
         help='Intermediate precision for the native heatmap rasteriser.')
+    options.add_argument(
+        '--countUnit', choices=list(config.COUNT_UNITS),
+        help='Default bamCoverageR --countUnit: auto (default; read, or '
+             'fragment with --extendReads or --collapse), read (each '
+             'alignment counts) or fragment (a proper pair counts once).')
     run_options.add_config_option(options, default=argparse.SUPPRESS)
     run_options.add_processor_option(options, default=None)
     options.add_argument(
@@ -120,6 +125,8 @@ def _process_options(args):
         options['raster_bit_depth'] = args.rasterBitDepth
     if args.numberOfProcessors is not None:
         options['number_of_processors'] = args.numberOfProcessors
+    if args.countUnit is not None:
+        options['count_unit'] = args.countUnit
 
     font_family = None
     if args.fontFamily is not None:
@@ -158,6 +165,7 @@ def _process_options(args):
         print('Options in {} are unchanged'.format(path))
     print('Heatmap raster filter: {}'.format(options['raster_filter']))
     print('Heatmap raster bit depth: {}'.format(options['raster_bit_depth']))
+    print('bamCoverageR count unit: {}'.format(options['count_unit']))
     resolved = run_options.resolve_run_options(args)
     print('Number of processors: {}'.format(
         resolved.threads))

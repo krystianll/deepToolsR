@@ -38,8 +38,23 @@ def test_describe_golden(name, tmp_path):
                for domain in actual['color_domains'])
     assert actual == json.loads((GOLDENS / (name + '.json')).read_text())
     if name != 'kmeans':
-        assert actual == describe(tool, ['-m', str(matrix), *options],
-                                  force_load=True)
+        def without_values(record):
+            record = dict(record, values_read=None)
+            record['colorbars'] = [dict(bar, z_range=None)
+                                   for bar in record['colorbars']]
+            record['series'] = [dict(item, pseudocount=None)
+                                for item in record['series']]
+            if record['y_limits'] is not None:
+                record['y_limits'] = [
+                    dict(group, data_range=None, auto=None, per_panel=[
+                        dict(entry, auto=None, value=None)
+                        for entry in group['per_panel']])
+                    for group in record['y_limits']]
+            return record
+        loaded = describe(tool, ['-m', str(matrix), *options],
+                          force_load=True)
+        assert loaded['values_read'] and not actual['values_read']
+        assert without_values(actual) == without_values(loaded)
 
 
 @pytest.mark.parametrize('name,case', [
@@ -82,13 +97,31 @@ def test_describe_matches_series_plan(name, case, tmp_path):
             for item in actual['series']] == [
         (item.key, item.group + 1, item.sample + 1, item.label)
         for item in plan.series]
-    assert [(domain['option'], domain['kind'], domain['slots'])
+    assert [(domain['option'], domain['kind'],
+             [{key: slot[key] for key in ('position', 'series', 'panels',
+                                          'cells')}
+              for slot in domain['slots']])
             for domain in actual['color_domains']] == [
         (domain.option, domain.kind,
          [{'position': slot.position, 'series': list(slot.series),
            'panels': list(slot.panels), 'cells': list(slot.cells)}
           for slot in domain.slots])
         for domain in plan.color_domains]
+    titles = {panel.index: panel.title for panel in plan.panels}
+    cell_titles = {cell.index: cell.title for cell in plan.cells}
+    series_labels = {item.key: item.label for item in plan.series}
+    for domain in actual['color_domains']:
+        for slot in domain['slots']:
+            assert {'label', 'automatic'} <= set(slot)
+            if domain['kind'] == 'series':
+                assert slot['label'] == series_labels[slot['series'][0]]
+                assert slot['automatic'].startswith('#')
+            elif slot['panels']:
+                assert slot['label'] == titles[slot['panels'][0]]
+                assert slot['automatic'] == 'RdYlBu_r'
+            else:
+                assert slot['label'] == cell_titles[slot['cells'][0]]
+                assert slot['automatic'] == 'RdYlBu'
 
 
 def _run(*argv):
@@ -121,6 +154,15 @@ def test_prepare_rejections_match_cli(name):
                       input_name), '-o', str(ROOT / '.cache' / 'describe.png'),
             *options]
     result = _run('deeptoolsr', 'describe', command, *args)
+    if name == 'reject_label_count':
+        # describe reports the plot's label-count error as a problem.
+        assert result.returncode == 0, result.stderr
+        problems = [problem for problem in json.loads(result.stdout)['problems']
+                    if problem['severity'] == 'error']
+        assert [(problem['code'], problem['message'] + '\n')
+                for problem in problems] == [
+            ('label_count', PREPARE_INDEX[name]['stderr'])]
+        return
     assert result.returncode == PREPARE_INDEX[name]['status']
     assert result.stderr == PREPARE_INDEX[name]['stderr']
     assert result.stdout == ''
@@ -167,11 +209,13 @@ def test_cli_help_and_version_still_exit(tool, flags, capsys):
 
 
 def test_describe_imports_no_matplotlib():
+    # A profile's series colours are sampled from a Matplotlib colour map,
+    # so the Matplotlib-free case is a description without series colours.
     script = '''
 import sys
 from deeptoolsr.deeptoolsr_list_tools import main
 assert 'matplotlib' not in sys.modules
-main(['describe', 'plotProfileR', '-m', sys.argv[1]])
+main(['describe', 'plotProfileR', '-m', sys.argv[1], '--plotType', 'heatmap'])
 assert 'matplotlib' not in sys.modules
 '''
     result = _run(sys.executable, '-c', script, str(
@@ -247,20 +291,31 @@ def test_describe_reports_the_warnings_a_run_prints(tmp_path):
         'use adjacent, end, by_row, by_column or --perGroup to split them']
 
 
-@pytest.mark.parametrize('tool, extra', [
-    ('plotProfileR', ['--colorsPerSample', 'red']),
-    ('plotProfileR', ['--colorsPerSample', 'red', 'blue', 'green']),
-    ('plotProfileR', ['--colorsPerSample', '1=notacolor']),
-    ('plotProfileR', ['--colorsPerSample', 'red', 'blue']),
+@pytest.mark.parametrize('tool, extra, problem', [
+    ('plotProfileR', ['--colorsPerSample', 'red'], None),
+    ('plotProfileR', ['--colorsPerSample', 'red', 'blue', 'green'], None),
+    ('plotProfileR', ['--colorsPerSample', '1=notacolor'],
+     ('unknown_colour', '--colorsPerSample')),
+    ('plotProfileR', ['--colorsPerSample', 'red', 'blue'], None),
     ('plotProfileR', ['--perGroup', '--plotType', 'heatmap',
-                      '--colorsPerSample', 'bogusmap']),
-    ('plotHeatmapR', ['--colorMap', 'bogus']),
-    ('plotHeatmapR', ['--colorList', 'red,zzz']),
+                      '--colorsPerSample', 'bogusmap'], None),
+    ('plotHeatmapR', ['--colorMap', 'bogus'],
+     ('unknown_colour_map', '--colorMap')),
+    ('plotHeatmapR', ['--colorList', 'red,zzz'],
+     ('unknown_colour', '--colorList')),
 ])
-def test_describe_runs_the_plot_colour_checks(tool, extra, tmp_path):
+def test_describe_runs_the_plot_colour_checks(tool, extra, problem, tmp_path):
     matrix = str(ROOT / 'tests' / 'test_heatmapper' / 'master_multi.mat.gz')
     cli = _run(tool, '-m', matrix, '-o', str(tmp_path / 'p.png'), *extra)
     metadata = _run('deeptoolsr', 'describe', tool, '-m', matrix, *extra)
+    if problem:
+        # A bad colour is an error problem; the plot still rejects it.
+        assert cli.returncode == 2 and metadata.returncode == 0
+        found, = json.loads(metadata.stdout)['problems']
+        assert (found['code'], found['option'], found['severity']) == (
+            *problem, 'error')
+        assert found['message'] + '\n' == cli.stderr.splitlines()[-1] + '\n'
+        return
     assert metadata.returncode == cli.returncode
     if cli.returncode:
         assert metadata.stderr == cli.stderr.splitlines()[-1] + '\n'

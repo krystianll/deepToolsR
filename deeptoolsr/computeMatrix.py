@@ -595,10 +595,8 @@ def main(args=None):
         ordered['sample_boundaries'] = list(matrix.header.sample_boundaries)
         matrix.header = MatrixHeader.from_parameters(ordered)
         layout = replace(RowLayout.identity(matrix), rows=order)
-    group_names = tuple(
-        layout.base_names[origin.source] +
-        (f'_Q{origin.quantile}' if origin.quantile is not None else '')
-        for origin in layout.origins)
+    group_names = tuple(layout.base_names[origin.source]
+                        for origin in layout.origins)
     labels = Labels(group_names, group_names, matrix.header.sample_labels)
 
     # Produce every requested artifact before atomically replacing any final

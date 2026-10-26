@@ -2664,6 +2664,19 @@
       },
       {
         "flags": [
+          "--outFileSortedRegionsPerGroup"
+        ],
+        "dest": "outFileSortedRegionsPerGroup",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--outFileNameMatrix"
         ],
         "dest": "outFileNameMatrix",
@@ -2788,6 +2801,20 @@
       },
       {
         "flags": [
+          "--clusterUsingGroups",
+          "--quantileUsingGroups"
+        ],
+        "dest": "clusterUsingGroups",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--sortRegions"
         ],
         "dest": "sortRegions",
@@ -2872,13 +2899,13 @@
       },
       {
         "flags": [
-          "--whatToShow"
+          "--showSummaryPlot"
         ],
-        "dest": "whatToShow",
-        "default": "'plot, heatmap and colorbar'",
+        "dest": "showSummaryPlot",
+        "default": "'on'",
         "choices": [
-          "plot, heatmap and colorbar",
-          "heatmap and colorbar"
+          "on",
+          "off"
         ],
         "nargs": null,
         "type": null,
@@ -2935,7 +2962,7 @@
         "default": "None",
         "choices": null,
         "nargs": "+",
-        "type": "decode_text_escapes",
+        "type": null,
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -2948,7 +2975,8 @@
         "default": "'right'",
         "choices": [
           "left",
-          "right"
+          "right",
+          "none"
         ],
         "nargs": null,
         "type": null,
@@ -3303,7 +3331,8 @@
           "right_common",
           "bottom",
           "below",
-          "below_common"
+          "below_common",
+          "none"
         ],
         "nargs": null,
         "type": null,
@@ -3629,6 +3658,32 @@
       },
       {
         "flags": [
+          "--yScaleSummaryPlot"
+        ],
+        "dest": "yScale",
+        "default": "['linear']",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yPseudologSigmaSummaryPlot"
+        ],
+        "dest": "yPseudologSigma",
+        "default": "1.0",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--yAxisLabelSummaryPlot"
         ],
         "dest": "yAxisLabel",
@@ -3886,6 +3941,19 @@
       },
       {
         "flags": [
+          "--outFileSortedRegionsPerGroup"
+        ],
+        "dest": "outFileSortedRegionsPerGroup",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--outFileNameMatrix"
         ],
         "dest": "outFileNameMatrix",
@@ -3985,6 +4053,20 @@
         "choices": null,
         "nargs": "+",
         "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--clusterUsingGroups",
+          "--quantileUsingGroups"
+        ],
+        "dest": "clusterUsingGroups",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -4365,6 +4447,32 @@
       },
       {
         "flags": [
+          "--yScale"
+        ],
+        "dest": "yScale",
+        "default": "['linear']",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yPseudologSigma"
+        ],
+        "dest": "yPseudologSigma",
+        "default": "1.0",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--distanceUnit"
         ],
         "dest": "distanceUnit",
@@ -4472,7 +4580,7 @@
         "default": "None",
         "choices": null,
         "nargs": "+",
-        "type": "decode_text_escapes",
+        "type": null,
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -4851,7 +4959,8 @@
         "default": "'right'",
         "choices": [
           "left",
-          "right"
+          "right",
+          "none"
         ],
         "nargs": null,
         "type": null,
@@ -4903,7 +5012,8 @@
           "right_common",
           "bottom",
           "below",
-          "below_common"
+          "below_common",
+          "none"
         ],
         "nargs": null,
         "type": null,
@@ -5121,6 +5231,19 @@
       },
       {
         "flags": [
+          "--outFileSortedRegionsPerGroup"
+        ],
+        "dest": "outFileSortedRegionsPerGroup",
+        "default": "None",
+        "choices": null,
+        "nargs": null,
+        "type": "str",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--outFileNameMatrix"
         ],
         "dest": "outFileNameMatrix",
@@ -5233,6 +5356,20 @@
         "choices": null,
         "nargs": "+",
         "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--clusterUsingGroups",
+          "--quantileUsingGroups"
+        ],
+        "dest": "clusterUsingGroups",
+        "default": "None",
+        "choices": null,
+        "nargs": "+",
+        "type": null,
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -5697,6 +5834,32 @@
       },
       {
         "flags": [
+          "--yScale"
+        ],
+        "dest": "yScale",
+        "default": "['linear']",
+        "choices": null,
+        "nargs": "+",
+        "type": "convert",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--yPseudologSigma"
+        ],
+        "dest": "yPseudologSigma",
+        "default": "1.0",
+        "choices": null,
+        "nargs": null,
+        "type": "positive_finite_float",
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--distanceUnit"
         ],
         "dest": "distanceUnit",
@@ -5804,7 +5967,7 @@
         "default": "None",
         "choices": null,
         "nargs": "+",
-        "type": "decode_text_escapes",
+        "type": null,
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -6246,6 +6409,23 @@
       },
       {
         "flags": [
+          "--countUnit"
+        ],
+        "dest": "countUnit",
+        "default": "None",
+        "choices": [
+          "auto",
+          "read",
+          "fragment"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--collapsedLength"
         ],
         "dest": "collapsedLength",
@@ -6275,10 +6455,10 @@
           "--samFlagInclude"
         ],
         "dest": "samFlagInclude",
-        "default": "0",
+        "default": "[]",
         "choices": null,
-        "nargs": null,
-        "type": "convert",
+        "nargs": "+",
+        "type": "sam_flag_pattern",
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -6291,7 +6471,7 @@
         "default": "0",
         "choices": null,
         "nargs": null,
-        "type": "convert",
+        "type": "sam_flag_mask",
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -7036,6 +7216,23 @@
             ],
             "nargs": null,
             "type": "int",
+            "action": "_StoreAction",
+            "required": false,
+            "mutex_group": null
+          },
+          {
+            "flags": [
+              "--countUnit"
+            ],
+            "dest": "countUnit",
+            "default": "None",
+            "choices": [
+              "auto",
+              "read",
+              "fragment"
+            ],
+            "nargs": null,
+            "type": null,
             "action": "_StoreAction",
             "required": false,
             "mutex_group": null

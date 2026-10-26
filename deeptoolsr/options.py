@@ -23,6 +23,7 @@ class RunOptions:
     config_path: Path
     ward_distance_budget_bytes: int
     style: object = None
+    count_unit: str = 'auto'
 
 
 def physical_memory_bytes():
@@ -128,7 +129,13 @@ def resolve_run_options_from_bytes(args, raw, path, *, plotting=False,
     budget = values.get('ward_distance_budget_bytes')
     if budget is None:
         budget = default_ward_distance_budget_bytes()
-    return RunOptions(threads, raster, path, budget, style)
+    count_unit = getattr(args, 'countUnit', None)
+    if count_unit is None:
+        count_unit = values['count_unit']
+        if hasattr(args, 'countUnit') and stored.get('count_unit', count_unit) != count_unit:
+            (emit or _stderr_emit)(
+                'stderr', 'deeptoolsr: ignoring invalid count_unit; using {}\n'.format(count_unit))
+    return RunOptions(threads, raster, path, budget, style, count_unit)
 
 
 def _stderr_emit(_stream, message):

@@ -18,14 +18,13 @@ from .geometry import (CM_PER_INCH, POINTS_PER_INCH, Insets, Size,
                        HEATMAP_SMALL_GROUP_MAX_ROWS,
                        )
 from .heatmap import (
-    make_colormaps, resolve_colorbar_position,
+    make_colormaps,
     colorbar_mappable, shift_cmap_midpoint, draw_heatmap_image,
     get_plot_ticks, add_minor_x_ticks, style_horizontal_colorbar,
     style_vertical_colorbar, draw_sort_indicator,
     flush_deferred_heatmap_rasters)
 from .grid import BelowColorbarEntry
 from .legend import LegendEntrySpec, legend_spacing_kwargs, measure_legend
-from .matrix_plan import tool_option_spellings
 from .profile import (PreparedProfileSeries, ProfilePanelElements,
                       ProfilePanelSpec,
                       legend_identity,
@@ -40,7 +39,7 @@ from .scene import (MatplotlibMeasureContext, measure_axis,
 from .series import (apply_grouped_y_limits, contiguous_runs,
                      effective_per_group,
                      geometry_for_sample, has_explicit_assignment, label_runs,
-                     recycle, series_slot)
+                     series_slot)
 from .text_layout import (TextMeasurer, literal_label_candidate,
                           measure_label_candidates)
 
@@ -1017,7 +1016,9 @@ def _draw_profile(state, plot, provisional):
                     title=True, x_ticks=True, x_label=False,
                     y_ticks=True, y_label=False, legend=False)),
             _panel_series(state, panel),
-            line_width=state.run.style.drawing.profile_line_width)
+            line_width=state.run.style.drawing.profile_line_width,
+            y_scale=state.prepared.y_scale[_profile_panel_plan(state, plot).index],
+            sigma=state.spec.y_pseudolog_sigma)
     total_width = state.data.layout.block(
         state.data.matrix, *_profile_panel_series(state, plot)[-1][:2]
     ).shape[1]
@@ -1055,10 +1056,17 @@ def _resolve_profile_axes(state, axes):
                      for index in range(len(axes))]
     panel_y_labels = [state.prepared.sample_set_plans[index].y_axis_label
                       for index in panel_set_ids]
+    # A pseudolog panel autoscaled its data margins on its own scale when it
+    # was drawn; the limits are then shared in data units (see
+    # grouped_y_limits for groups mixing scales), and tick values merge only
+    # between panels of the same scale.
+    scales = [state.prepared.y_scale[index] for index in panel_set_ids]
     resolved_limits = apply_grouped_y_limits(
         axes, panel_set_ids, panel_y_labels,
-        state.prepared.y_min, state.prepared.y_max, state.spec.y_axis_limits)
-    return _apply_subplot_axes(state, axes, panel_y_labels, resolved_limits)
+        state.prepared.y_min, state.prepared.y_max, state.spec.y_axis_limits,
+        scales)
+    return _apply_subplot_axes(state, axes, panel_y_labels, [
+        (limits, scale) for limits, scale in zip(resolved_limits, scales)])
 
 
 def _draw_matrix(state):
@@ -1148,8 +1156,7 @@ def _setup_colors(state):
     explicit = (bool(prepared.color_options['colorList']) and
                 has_explicit_assignment(spec.color_list))
     state.cmap = make_colormaps(prepared.color_options, explicit)
-    state.colorbar_position = resolve_colorbar_position(
-        spec, state.cmap, prepared)
+    state.colorbar_position = prepared.colorbars.position
     state.group_count = len(state.data.labels.groups)
     state.sample_count = len(state.data.labels.samples)
 
@@ -1330,61 +1337,28 @@ def _draw_cell_blocks(state):
             state.heatmap_axes.append(axis)
 
 
-def _cell_color_identity(state, cell):
+def _cell_scale(state, cell):
+    """Return a cell's resolved colour limits and midpoint."""
     index = cell.sample_set
     prepared = state.prepared
-    color = index % len(state.cmap)
     low = prepared.z_min[index % len(prepared.z_min)]
     high = prepared.z_max[index % len(prepared.z_max)]
     mid = (None if prepared.z_mid is None else
            prepared.z_mid[index % len(prepared.z_mid)])
-    sampled = tuple(tuple(float(value) for value in state.cmap[color](point))
-                    for point in (0.0, 0.5, 1.0))
-    return sampled, low, high, mid
-
-
-def _cell_bar_groups(state):
-    cells = state.plan.cells
-    identities = tuple(_cell_color_identity(state, cell) for cell in cells)
-    if state.colorbar_position == 'below':
-        # Merged x axes share a bar across equal scales; best shares one
-        # across a sample set's adjacent group cells.
-        if state.spec.x_axis_visibility == 'outer_merged':
-            keys = identities
-        elif state.spec.colorbar_location == 'best':
-            keys = tuple(cell.sample_set for cell in cells)
-        else:
-            return tuple((index, index) for index in range(len(cells)))
-        groups = []
-        start = 0
-        for index in range(1, len(cells) + 1):
-            if (index == len(cells) or cells[index].row != cells[start].row or
-                    keys[index] != keys[start]):
-                groups.append((start, index - 1))
-                start = index
-        return tuple(groups)
-    groups = []
-    seen = set()
-    for index, identity in enumerate(identities):
-        key = ((cells[index].row, identity)
-               if state.colorbar_position == 'side' else identity)
-        if key not in seen:
-            seen.add(key)
-            groups.append((index, index))
-    return tuple(groups)
+    return low, high, mid
 
 
 def _draw_cell_colorbars(state):
     state.colorbar_axes = []
     state.colorbar_cbars = []
-    state.colorbar_groups = _cell_bar_groups(state)
     state.colorbar_records = []
     if not state.spec.show_heatmap:
         return
     row_counts = {}
-    for index, (start, _) in enumerate(state.colorbar_groups):
+    for index, bar in enumerate(state.prepared.colorbars.bars):
+        start = bar.cells[0]
         cell = state.plan.cells[start]
-        _, low, high, mid = _cell_color_identity(state, cell)
+        low, high, mid = _cell_scale(state, cell)
         color = cell.sample_set % len(state.cmap)
         below = state.colorbar_position not in ('side', 'side_common')
         kind = 'bar' if below else 'figure_bar'
@@ -1433,7 +1407,7 @@ def _draw_cell_indicator(state):
 def _heatmap_y_texts(state):
     """Heatmap Y labels, shown once per run of equal labels in a row."""
     requested = tuple(
-        state.prepared.resolved_heatmap_y_labels[cell.sample_set]
+        state.prepared.sample_set_plans[cell.sample_set].heatmap_y_axis_label
         for cell in state.plan.cells)
     labels = [''] * len(requested)
     for row in range(state.cell_rows):
@@ -1524,6 +1498,8 @@ def _heatmap_x_runs(state, context):
 def _stack_runs(state, context):
     """Region labels beside the stacks; equal neighbours share one label."""
     runs = []
+    if state.spec.region_label_location == 'none':
+        return runs
     cells = {cell.index: cell for cell in state.plan.cells}
     for run in label_runs(state.plan.cells, 'stack'):
         breaks = cells[run.cells[0]].stack_label_breaks
@@ -1540,35 +1516,20 @@ def _stack_runs(state, context):
     return runs
 
 
-def _scale_label(state, cell):
-    """Name a cell's colour scale: its sample set."""
-    return _cell_plan(state, cell).subplot_label
-
-
 def _cell_colorbar_decorations(state, context):
     if not state.spec.show_heatmap:
         return ()
     result = []
-    spellings = tool_option_spellings(
-        state.spec.tool, state.spec.invoked_spellings)
-    titles = recycle(
-        state.spec.colorbar_labels, len(state.colorbar_groups),
-        option=spellings['colorbarLabels'], domain='colorbar', text=True)
-    for index, (start, end) in enumerate(state.colorbar_groups):
+    for index, bar in enumerate(state.prepared.colorbars.bars):
         _, scope, owner, ordinal, _ = state.colorbar_records[index]
         axis = state.colorbar_axes[index]
         insets = axis_insets(axis, context.renderer, context.figure.dpi)
         location = ('right' if state.colorbar_position in
                     ('side', 'side_common') else 'below')
-        title = titles[index]
-        if title == 'auto':
-            title = ',\n'.join(dict.fromkeys(
-                _scale_label(state, state.plan.cells[position])
-                for position in range(start, end + 1)))
         candidates = (_cell_label_candidates(
-            title, 'colorbar_title_text', context,
+            bar.title, 'colorbar_title_text', context,
             state.run.style.label_layout.horizontal_colorbar_label_max_lines)
-            if title and title != 'none' else ())
+            if bar.title else ())
         entry = (BelowColorbarEntry(
             max(0.0, insets.left), max(0.0, insets.right),
             max(0.0, insets.bottom), 0.0, 0.0)
@@ -1576,7 +1537,8 @@ def _cell_colorbar_decorations(state, context):
         result.append(grid.Decoration(
             'colorbar', scope, owner,
             location, candidates=candidates,
-            covered_cells=(start, end) if scope == 'cell' else None,
+            covered_cells=((bar.cells[0], bar.cells[-1]) if scope == 'cell'
+                           else None),
             insets=insets, tick_label_width=insets.right,
             below_entry=entry, ordinal=ordinal))
     return tuple(result)
@@ -1593,8 +1555,7 @@ def _place_stack_axes(state, solved):
         start, _, _, _, role = state.colorbar_records[index]
         move_axis(axis, solved.rects[role], size)
         if state.colorbar_position in ('side', 'side_common'):
-            _, low, high, _ = _cell_color_identity(
-                state, state.plan.cells[start])
+            low, high, _ = _cell_scale(state, state.plan.cells[start])
             rect = solved.rects[role]
             style_vertical_colorbar(
                 state.colorbar_cbars[index], low, high,
@@ -1680,8 +1641,7 @@ def _retick_solved_colorbars(state, scene, context, solved):
         for index, (start, _, _, _, role) in enumerate(
                 state.colorbar_records):
             rect = solved.rects[role]
-            _, low, high, _ = _cell_color_identity(
-                state, state.plan.cells[start])
+            low, high, _ = _cell_scale(state, state.plan.cells[start])
             style_vertical_colorbar(
                 state.colorbar_cbars[index], low, high,
                 rect.height / POINTS_PER_INCH * CM_PER_INCH,

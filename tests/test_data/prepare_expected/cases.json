@@ -75,8 +75,8 @@
     "stdout": ""
   },
   "reject_label_count": {
-    "status": 1,
-    "stderr": "plotHeatmapR failed: length new labels != length original labels\n",
+    "status": 2,
+    "stderr": "--regionsLabel: 1 label given for 3 region groups\n",
     "stdout": ""
   },
   "reject_quantiles": {

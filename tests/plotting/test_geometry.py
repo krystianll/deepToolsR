@@ -574,7 +574,7 @@ def _render(colorMapDict, **kwargs):
     hm = Matrix.load(str(DATA / 'master_multi.mat.gz'), threads=1)
     return render_heatmap(
         plot_data(hm), colorMapDict=colorMapDict,
-        whatToShow='heatmap and colorbar', image_format='png', dpi=100,
+        showSummaryPlot='off', image_format='png', dpi=100,
         threads=1, **kwargs)
 
 
@@ -906,7 +906,7 @@ def test_heatmap_aspect_ratio_sets_solved_block_width():
     matrix = Matrix.load(str(Path(__file__).parent.parent / 'test_heatmapper' /
                              'master.mat.gz'), threads=1)
     _, solved = render_heatmap(plot_data(matrix),
-                               whatToShow='heatmap and colorbar',
+                               showSummaryPlot='off',
                                heatmapHeight=8, heatmapAspectRatio=0.75)
     assert solved.rects['cell/1/1/block/1'].width == \
         cm_to_points(8 * 0.75)

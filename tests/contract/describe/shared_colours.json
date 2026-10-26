@@ -1,6 +1,7 @@
 {
-  "protocol": 1,
+  "protocol": 2,
   "tool": "plotProfileR",
+  "values_read": false,
   "groups": [
     {
       "index": 1,
@@ -110,55 +111,64 @@
       "key": "g1:s1",
       "group": 1,
       "sample": 1,
-      "label": "Repeat"
+      "label": "Repeat",
+      "pseudocount": null
     },
     {
       "key": "g1:s2",
       "group": 1,
       "sample": 2,
-      "label": "Repeat"
+      "label": "Repeat",
+      "pseudocount": null
     },
     {
       "key": "g1:s3",
       "group": 1,
       "sample": 3,
-      "label": "Third"
+      "label": "Third",
+      "pseudocount": null
     },
     {
       "key": "g3:s1",
       "group": 3,
       "sample": 1,
-      "label": "Repeat"
+      "label": "Repeat",
+      "pseudocount": null
     },
     {
       "key": "g3:s2",
       "group": 3,
       "sample": 2,
-      "label": "Repeat"
+      "label": "Repeat",
+      "pseudocount": null
     },
     {
       "key": "g3:s3",
       "group": 3,
       "sample": 3,
-      "label": "Third"
+      "label": "Third",
+      "pseudocount": null
     },
     {
       "key": "g2:s1",
       "group": 2,
       "sample": 1,
-      "label": "Repeat"
+      "label": "Repeat",
+      "pseudocount": null
     },
     {
       "key": "g2:s2",
       "group": 2,
       "sample": 2,
-      "label": "Repeat"
+      "label": "Repeat",
+      "pseudocount": null
     },
     {
       "key": "g2:s3",
       "group": 2,
       "sample": 3,
-      "label": "Third"
+      "label": "Third",
+      "pseudocount": null
     }
   ],
   "color_domains": [
@@ -175,7 +185,9 @@
           "panels": [
             1
           ],
-          "cells": []
+          "cells": [],
+          "label": "Repeat",
+          "automatic": "#000080"
         },
         {
           "position": 2,
@@ -186,7 +198,9 @@
           "panels": [
             1
           ],
-          "cells": []
+          "cells": [],
+          "label": "Repeat",
+          "automatic": "#0028ff"
         },
         {
           "position": 3,
@@ -197,7 +211,9 @@
           "panels": [
             1
           ],
-          "cells": []
+          "cells": [],
+          "label": "Third",
+          "automatic": "#00d4ff"
         },
         {
           "position": 4,
@@ -207,7 +223,9 @@
           "panels": [
             2
           ],
-          "cells": []
+          "cells": [],
+          "label": "Repeat",
+          "automatic": "#7dff7a"
         },
         {
           "position": 5,
@@ -217,7 +235,9 @@
           "panels": [
             2
           ],
-          "cells": []
+          "cells": [],
+          "label": "Repeat",
+          "automatic": "#ffe600"
         },
         {
           "position": 6,
@@ -227,10 +247,237 @@
           "panels": [
             2
           ],
-          "cells": []
+          "cells": [],
+          "label": "Third",
+          "automatic": "#ff4700"
         }
       ]
     }
   ],
-  "warnings": []
+  "colorbars": [],
+  "warnings": [],
+  "sample_sets": [
+    {
+      "index": 1,
+      "samples": [
+        1,
+        2,
+        3
+      ],
+      "groups": null,
+      "geometry": {
+        "mode": "scale-regions",
+        "reference_point": null,
+        "upstream": 1,
+        "downstream": 1,
+        "body": 0,
+        "unscaled_5_prime": 0,
+        "unscaled_3_prime": 0,
+        "bin_size": 1,
+        "bin_count": 2
+      },
+      "y_scale": {
+        "scale": "linear",
+        "sigma": null
+      },
+      "texts": {
+        "subplot_title": {
+          "auto": "Repeat, Repeat, Third",
+          "value": "Repeat, Repeat, Third"
+        },
+        "x_axis_label": {
+          "auto": "gene distance",
+          "value": "gene distance"
+        },
+        "y_axis_label": {
+          "auto": "",
+          "value": ""
+        },
+        "heatmap_y_axis_label": {
+          "auto": "",
+          "value": ""
+        },
+        "reference_label": {
+          "auto": null,
+          "value": null
+        },
+        "start_label": {
+          "auto": "TSS",
+          "value": "TSS"
+        },
+        "end_label": {
+          "auto": "TES",
+          "value": "TES"
+        }
+      }
+    }
+  ],
+  "y_limits": [
+    {
+      "index": 1,
+      "sample_sets": [
+        1
+      ],
+      "panels": [
+        1,
+        2
+      ],
+      "data_range": null,
+      "auto": null,
+      "per_panel": [
+        {
+          "panel": 1,
+          "sample_set": 1,
+          "auto": null,
+          "value": null
+        },
+        {
+          "panel": 2,
+          "sample_set": 1,
+          "auto": null,
+          "value": null
+        }
+      ]
+    }
+  ],
+  "options": [
+    {
+      "option": "--samplesLabel",
+      "counts": "sample",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--regionsLabel",
+      "counts": "region group",
+      "recycles": false,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--sampleSetLabels",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--xAxisLabel",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--yAxisLabel",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--refPointLabel",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--startLabel",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--endLabel",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--yMin",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--yMax",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--yScale",
+      "counts": "sample set",
+      "recycles": true,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    },
+    {
+      "option": "--colorsPerSample",
+      "counts": "series",
+      "recycles": false,
+      "assignments": [
+        "N=",
+        "N,M=",
+        "a-b="
+      ]
+    }
+  ],
+  "size_defaults": [
+    {
+      "option": "--plotWidth",
+      "value": 5.0,
+      "derived": null
+    },
+    {
+      "option": "--plotHeight",
+      "value": 5.0,
+      "derived": null
+    },
+    {
+      "option": "--aspectRatio",
+      "value": 1.0,
+      "derived": null
+    }
+  ],
+  "problems": []
 }

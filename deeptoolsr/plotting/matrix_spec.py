@@ -46,6 +46,8 @@ class MatrixFigureSpec:
     y_min: object = _panel('profile')
     y_max: object = _panel('profile')
     y_axis_limits: str = _panel('profile')
+    y_scale: object = _panel('profile')
+    y_pseudolog_sigma: float = _panel('profile')
     x_axis_visibility: str
     y_axis_visibility: str
     axis_visibility: object
@@ -131,6 +133,7 @@ def project_matrix_spec(args, tool):
         x_axis_label=args.xAxisLabel, y_axis_label=args.yAxisLabel,
         heatmap_y_axis_label=_option(args, 'heatmapYAxisLabel'),
         y_min=args.yMin, y_max=args.yMax, y_axis_limits=args.yAxisLimits,
+        y_scale=args.yScale, y_pseudolog_sigma=args.yPseudologSigma,
         x_axis_visibility=args.xAxisVisibility,
         y_axis_visibility=args.yAxisVisibility,
         axis_visibility=_option(args, 'axisVisibility'),

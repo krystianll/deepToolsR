@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 import os
+import re
 import stat
 import tempfile
 import unicodedata
@@ -32,6 +33,22 @@ def _name_key(path):
     """Case- and normalisation-insensitive key (APFS, NTFS, HFS+)."""
     real = os.path.realpath(os.path.abspath(path))
     return unicodedata.normalize('NFC', real).casefold()
+
+
+_UNPORTABLE = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f]')
+_RESERVED = re.compile(r'CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9]', re.IGNORECASE)
+
+
+def portable_file_name(text):
+    """``text`` as a file name macOS, Linux and Windows all accept.
+
+    Characters Windows forbids and control characters become '_', trailing
+    dots and spaces go, and a reserved Windows device name (the part before
+    the first dot) gets '_' appended. The result may be empty.
+    """
+    name = _UNPORTABLE.sub('_', text).rstrip('. ')
+    stem, dot, rest = name.partition('.')
+    return stem + '_' + dot + rest if _RESERVED.fullmatch(stem) else name
 
 
 def _aliases(left, right):

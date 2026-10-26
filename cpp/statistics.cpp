@@ -434,6 +434,8 @@ double resample_statistic(std::vector<double> &sample, BootStat stat,
 // compute the statistic, and take the alpha/2 and 1-alpha/2 percentiles of the
 // bootstrap distribution. Parallel over bins; nothing but per-bin scratch is
 // allocated (no R x ncol estimate matrix). Optional stderr progress bar.
+// With the centre it also returns the pseudocount used (geom_mean resolves
+// an automatic one).
 py::tuple bootstrap_ci(const py::buffer &values,
                        const std::string &average_type, double pseudocount,
                        double trim_perc, std::size_t resamples,
@@ -544,7 +546,8 @@ py::tuple bootstrap_ci(const py::buffer &values,
             if (show_progress) report(++done);
         });
     }
-    if (include_center) return py::make_tuple(std::move(center), std::move(lower), std::move(upper));
+    if (include_center)
+        return py::make_tuple(std::move(center), std::move(lower), std::move(upper), pseudocount);
     return py::make_tuple(std::move(lower), std::move(upper));
 }
 

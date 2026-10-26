@@ -15,7 +15,6 @@ import sys
 
 
 INT32_MAX = (1 << 31) - 1
-UINT16_MAX = (1 << 16) - 1
 UINT32_MAX = (1 << 32) - 1
 FLOAT32_MAX = float.fromhex('0x1.fffffep+127')
 FLOAT32_MIN_SUBNORMAL = float.fromhex('0x1p-149')
@@ -59,7 +58,6 @@ def bounded_int(minimum=None, maximum=None, requirement=None):
 positive_int = bounded_int(1, INT32_MAX, "a positive integer")
 nonnegative_int = bounded_int(0, INT32_MAX, "a non-negative integer")
 positive_uint32 = bounded_int(1, UINT32_MAX, "an integer from 1 to 4294967295")
-uint16_int = bounded_int(0, UINT16_MAX, "an integer from 0 to 65535")
 uint8_int = bounded_int(0, 255, "an integer from 0 to 255")
 
 
@@ -216,6 +214,18 @@ def assigned_finite_float(*, keywords=(), allow_empty=False):
         if payload.lower() in allowed:
             return text
         finite_float(payload)
+        return text
+
+    return convert
+
+
+def assigned_choice(choices):
+    """Validate one of ``choices`` while preserving optional ``N,M=`` syntax."""
+    def convert(value):
+        text = str(value)
+        assignment = assignment_parts(text)
+        if (assignment[1] if assignment else text) not in choices:
+            _type_error(value, 'one of ' + ', '.join(choices))
         return text
 
     return convert

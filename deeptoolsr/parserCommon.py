@@ -2,9 +2,11 @@ import argparse
 import os
 from functools import lru_cache
 from importlib.metadata import version
+from deeptoolsr.plotting import DEFAULT_HEATMAP_COLORMAP
 from deeptoolsr.stats import STATISTIC_CHOICES, FILTER_NAN_MODES
 
 from deeptoolsr.numeric_validation import (
+    assigned_choice,
     assigned_finite_float,
     bounded_finite_float,
     decode_text_escapes,
@@ -56,15 +58,61 @@ def check_list_of_comma_values(value):
 # the capabilities that apply. `explicit` means the option accepts per-target
 # N,M= assignment; `recycled` means short lists are recycled across targets.
 
-# Options that accept explicit ``N,M=`` / ``a-b=`` per-target assignment.
-_EXPLICIT_TAG_DESTS = frozenset({
-    'colorMap', 'colorList', 'zMin', 'zMax', 'zMid', 'colors',
-    'sampleSetLabels', 'samplesLabel', 'xAxisLabel', 'yAxisLabel',
-    'heatmapYAxisLabel', 'refPointLabel', 'startLabel', 'endLabel',
-    'yMin', 'yMax', 'colorbarLabels'})
-# Options whose short lists recycle across heatmaps / samples / sample sets.
-# Series colours do not: a plain list names exactly one colour per series.
-_RECYCLED_TAG_DESTS = _EXPLICIT_TAG_DESTS - {'colors'}
+# The per-target options: destination -> (what N= counts, whether short
+# lists recycle).  'sample set' counts the promoted panels under
+# --groupsAsSampleSets; 'series' counts profile colour slots (one colour map
+# per panel for a series heatmap).  Series colours do not recycle: a plain
+# list names exactly one colour per series.
+_PER_TARGET = {
+    'samplesLabel': ('sample', True),
+    'regionsLabel': ('region group', False),
+    'sampleSetLabels': ('sample set', True),
+    'xAxisLabel': ('sample set', True),
+    'yAxisLabel': ('sample set', True),
+    'heatmapYAxisLabel': ('sample set', True),
+    'refPointLabel': ('sample set', True),
+    'startLabel': ('sample set', True),
+    'endLabel': ('sample set', True),
+    'yMin': ('sample set', True),
+    'yMax': ('sample set', True),
+    'yScale': ('sample set', True),
+    'colorMap': ('sample set', True),
+    'colorList': ('sample set', True),
+    'zMin': ('sample set', True),
+    'zMax': ('sample set', True),
+    'zMid': ('sample set', True),
+    'colorbarLabels': ('colorbar', True),
+    'colors': ('series', False),
+}
+ASSIGNMENT_FORMS = ('N=', 'N,M=', 'a-b=')
+
+
+def _target_rule(dest):
+    """``(counts, recycles, assignments)`` of one per-target option, or None."""
+    if dest not in _PER_TARGET:
+        return None
+    counts, recycles = _PER_TARGET[dest]
+    return counts, recycles, ASSIGNMENT_FORMS
+
+
+def per_target_options(tool):
+    """The options of ``tool`` that address targets by 1-based N=, as data.
+
+    This is the single source of the help capability tags too.
+    """
+    spellings = plot_option_strings_by_dest(tool)
+    result = []
+    for dest in _PER_TARGET:
+        if dest not in spellings:
+            continue
+        counts, recycles, assignments = _target_rule(dest)
+        names = spellings[dest]
+        result.append({
+            'option': next((name for name in names if name.startswith('--')),
+                           names[0]),
+            'counts': counts, 'recycles': recycles,
+            'assignments': list(assignments)})
+    return result
 
 
 def capability_tag(action):
@@ -73,11 +121,12 @@ def capability_tag(action):
     if not multiple:
         return '[global]'
     parts = ['multiple']
-    if (action.dest in _EXPLICIT_TAG_DESTS and
-            getattr(action, '_capability_explicit', True)):
-        parts.append('explicit')
-    if action.dest in _RECYCLED_TAG_DESTS:
-        parts.append('recycled')
+    rule = _target_rule(action.dest)
+    if rule is not None:
+        if rule[2]:
+            parts.append('explicit')
+        if rule[1]:
+            parts.append('recycled')
     return '[' + '|'.join(parts) + ']'
 
 
@@ -354,6 +403,20 @@ def add_shared_output_options(output):
         'first heatmap. Example: Heatmap1sortedRegions.bed',
         metavar='FILE',
         type=str)
+    output.add_argument(
+        '--outFileSortedRegionsPerGroup',
+        help='Save the regions of every drawn region group to a BED file of '
+        'its own, named PREFIX_<group label>.bed, with the lines '
+        '--outFileSortedRegions writes for that group; unlike '
+        '--outFileSortedRegions, these files have no header line. A ".bed" ending of PREFIX is dropped, so "regions" and '
+        '"regions.bed" both write regions_<group label>.bed. Characters a '
+        'file name cannot hold become "_". Two groups whose labels give the '
+        'same file name are an error; rename them with --regionsLabel. '
+        'Example: --kmeans 3 --regionsLabel up flat down '
+        '--outFileSortedRegionsPerGroup res/clusters writes '
+        'res/clusters_up.bed, res/clusters_flat.bed and res/clusters_down.bed.',
+        metavar='PREFIX',
+        type=str)
     output.add_argument('--outFileNameMatrix',
                         help='If this option is given, then the matrix '
                         'of values underlying the plot will be saved '
@@ -425,6 +488,17 @@ def add_shared_plot_options(optional, *, prog):
                           'Example: --ClusterUsingSamples 1 3',
                           type=positive_int, nargs='+')
 
+    optional.add_argument('--clusterUsingGroups', '--quantileUsingGroups',
+                          help='Region groups of the matrix whose regions '
+                          '--kmeans/--hclust cluster or --quantileSortedRegions '
+                          'splits into quantiles: 1-based numbers, a-b ranges '
+                          'or the group names stored in the matrix, in any '
+                          'order. The regions of the other groups are left '
+                          'out of the plot and of every output. By default '
+                          'all groups are used. Example: '
+                          '--clusterUsingGroups 1 3',
+                          metavar='GROUP', nargs='+')
+
     optional.add_argument('--sortRegions',
                           help='Whether the heatmap should present '
                           'the regions sorted. The default is '
@@ -460,7 +534,10 @@ def add_shared_plot_options(optional, *, prog):
                           'This is useful to visualize the distribution of the '
                           'signal across the regions. The default is %(default)s '
                           'which means no grouping. Setting > 1 will '
-                          'override any existing region groups. Note that this '
+                          'override any existing region groups: the quantiles '
+                          'are named after the first group they pool, for example '
+                          'genes_Q1 to genes_Q4, and --regionsLabel names '
+                          'them instead. Note that this '
                           'cannot be used with --kmeans or --hclust.',
                           type=positive_int, default=1)
 
@@ -508,12 +585,19 @@ def add_distance_and_landmark_options(optional):
 
 def add_regions_label(optional):
     optional.add_argument('--regionsLabel', '--regionLabels', '-z',
-                          help='Labels for the regions plotted in the '
-                          'heatmap. If more than one region is being '
-                          'plotted, a list of labels separated by spaces is required. '
+                          help='Labels for the region groups: the groups of '
+                          'the matrix, or the clusters of --kmeans/--hclust or '
+                          'the quantiles of --quantileSortedRegions when those '
+                          'make the groups. If there is more than one group, '
+                          'a list of labels separated by spaces is required, one '
+                          'per group. '
                           'If a label itself contains a space, then quotes are '
-                          'needed. For example, --regionsLabel label_1, "label 2". ',
-                          nargs='+', type=decode_text_escapes)
+                          'needed. For example, --regionsLabel label_1, "label 2". '
+                          'Use N=label to rename a 1-based region group (in the '
+                          'order the groups are defined, before --arrangeGroups); '
+                          'the others keep their names. For example, '
+                          '--regionsLabel 2=peaks. ',
+                          nargs='+')
 
 
 def add_show_region_counts(optional):
@@ -583,6 +667,36 @@ def add_y_max(group, *spellings, **kwargs):
     group.add_argument(*spellings, **kwargs)
 
 
+Y_SCALE_HELP = ('Y-axis scale: "linear" or "pseudolog", a '
+                'ggplot-style pseudo-log axis (asinh), near-linear for values '
+                'smaller than {sigma} and logarithmic beyond; it keeps 0 and '
+                'negative values. Limits and tick labels stay in data units. '
+                'One value per sample set (see --arrangeSamples; with '
+                '--groupsAsSampleSets, one per panel in drawing order), '
+                'separated by spaces. If there are fewer values than sample '
+                'sets, the values are recycled. Use N=value for a 1-based '
+                'sample set.')
+Y_PSEUDOLOG_SIGMA_HELP = ('Where a pseudolog Y axis ({scale} pseudolog) turns '
+                          'from linear to logarithmic, in data units; one '
+                          'value for the whole figure.')
+
+
+def add_y_scale(group, *spellings, sigma, **kwargs):
+    kwargs.setdefault('dest', 'yScale')
+    group.add_argument(*spellings, nargs='+', default=['linear'],
+                       metavar='SCALE',
+                       type=assigned_choice(('linear', 'pseudolog')),
+                       help=Y_SCALE_HELP.format(sigma=sigma), **kwargs)
+
+
+def add_y_pseudolog_sigma(group, *spellings, scale, **kwargs):
+    kwargs.setdefault('dest', 'yPseudologSigma')
+    group.add_argument(*spellings, type=positive_finite_float, default=1.0,
+                       metavar='SIGMA',
+                       help=Y_PSEUDOLOG_SIGMA_HELP.format(scale=scale),
+                       **kwargs)
+
+
 def add_x_axis_label(group, *spellings, **kwargs):
     kwargs.setdefault('dest', 'xAxisLabel')
     group.add_argument(*spellings, **kwargs)
@@ -598,10 +712,9 @@ def add_lines_at_tick_marks(group, *spellings, **kwargs):
     group.add_argument(*spellings, **kwargs)
 
 
-def add_y_axis_label(group, *spellings, explicit=True, **kwargs):
+def add_y_axis_label(group, *spellings, **kwargs):
     kwargs.setdefault('dest', 'yAxisLabel')
-    action = group.add_argument(*spellings, **kwargs)
-    action._capability_explicit = explicit
+    group.add_argument(*spellings, **kwargs)
 
 
 def add_y_axis_visibility(group, *spellings, **kwargs):
@@ -614,10 +727,9 @@ def add_y_axis_limits(group, *spellings, **kwargs):
     group.add_argument(*spellings, **kwargs)
 
 
-def add_colors(group, *spellings, explicit=True, **kwargs):
+def add_colors(group, *spellings, **kwargs):
     kwargs.setdefault('dest', 'colors')
-    action = group.add_argument(*spellings, **kwargs)
-    action._capability_explicit = explicit
+    group.add_argument(*spellings, **kwargs)
 
 
 def add_legend_location(optional, option_string):
@@ -781,7 +893,10 @@ def add_sample_set_options(optional):
         help='Titles for the sample panels created by --arrangeSamples. '
              'By default, joined sample labels are used. One value per sample '
              'set (with --groupsAsSampleSets, one per panel in drawing '
-             r'order). Use N=label to name a 1-based sample set. Text accepts \=, \\ and \n.')
+             r'order). Use N=label to name a 1-based sample set; an empty '
+             r'label gives no title. Unused with --perGroup and one sample '
+             r'set, whose panels are titled by region group. Text accepts '
+             r'\=, \\ and \n.')
     optional.add_argument(
         '--sampleSetGroupArrangement',
         choices=['overlay', 'adjacent', 'end', 'by_row', 'by_column'],
@@ -869,6 +984,8 @@ def _add_profile_axes(optional, *, common=None):
               '--arrangeSamples; with --groupsAsSampleSets, one per panel in drawing '
               'order), separated by spaces. If there are fewer values than sample '
               'sets, the values are recycled. Use N=value for a 1-based sample set.')
+    add_y_scale(optional, '--yScale', sigma='--yPseudologSigma')
+    add_y_pseudolog_sigma(optional, '--yPseudologSigma', scale='--yScale')
 
 
 def add_axis_visibility(group):
@@ -982,10 +1099,11 @@ def add_heatmap_dimensions(optional, aspect_spelling, *, include_width=True):
 
 def add_region_label_location(optional):
     optional.add_argument(
-        '--regionLabelLocation', choices=['left', 'right'],
+        '--regionLabelLocation', choices=['left', 'right', 'none'],
         default='right',
         help='Place region-group labels to the left of the heatmap or '
-             'to its right, inside any right-hand colorbar.')
+             'to its right, inside any right-hand colorbar; none hides '
+             'them.')
 
 
 def add_heatmap_y_axis_label(optional, *spellings):
@@ -1002,14 +1120,10 @@ def add_heatmap_y_axis_label(optional, *spellings):
 def _add_heatmap_structure(heatmap, common):
     add_filter_nans(common)
     common.add_argument(
-        '--whatToShow',
-        help='The default is to include a summary or profile plot on top '
-        'of the heatmap and a heatmap colorbar. Other options are: '
-        '"heatmap and colorbar" and the default '
-        '"plot, heatmap and colorbar".',
-        choices=["plot, heatmap and colorbar",
-                 "heatmap and colorbar"],
-        default='plot, heatmap and colorbar')
+        '--showSummaryPlot',
+        choices=['on', 'off'], default='on',
+        help='Draw the summary (profile) plot above the heatmaps; off '
+             'draws only the heatmaps and their colorbars.')
 
     add_heatmap_dimensions(heatmap, '--aspectRatio')
     add_regions_label(common)
@@ -1051,7 +1165,7 @@ def add_heatmap_axis_extras(optional):
     optional.add_argument(
         '--colorbarLocation',
         choices=['best', 'right', 'right_common', 'bottom', 'below',
-                 'below_common'],
+                 'below_common', 'none'],
         default='best',
         help='Place heatmap colorbars automatically ("best": below the '
              'heatmaps when there are several colour scales, otherwise to '
@@ -1060,7 +1174,7 @@ def add_heatmap_axis_extras(optional):
              'per column). "below_common" dedups identical colour scales and '
              'packs the distinct bars into centred rows below the heatmaps. '
              '"right_common" packs one grid of distinct bars to the right '
-             'of the full figure.')
+             'of the full figure. "none" draws no colorbars.')
     optional.add_argument(
         '--colorbarLabels', nargs='+', default=None, metavar='LABEL',
         help='Titles drawn above each colorbar. "none" (default) draws no '
@@ -1105,7 +1219,7 @@ def _add_heatmap_colors(optional, *, full_color_help):
              '(see --arrangeSamples; with --groupsAsSampleSets, one per panel in drawing order). '
              'Use N=name for a 1-based sample set. Available values can be seen here: http://matplotlib.org/users/colormaps.html '
              'The available options are: \'' + color_options + '\'',
-        default=['RdYlBu'],
+        default=[DEFAULT_HEATMAP_COLORMAP],
         nargs='+')
 
     optional.add_argument(
@@ -1272,16 +1386,18 @@ def _add_heatmap_summary(optional):
               '--arrangeSamples; with --groupsAsSampleSets, one per panel in drawing '
               'order), separated by spaces. If there are fewer values than sample '
               'sets, the values are recycled. Use N=value for a 1-based sample set.')
+    add_y_scale(optional, '--yScaleSummaryPlot',
+                sigma='--yPseudologSigmaSummaryPlot')
+    add_y_pseudolog_sigma(optional, '--yPseudologSigmaSummaryPlot',
+                          scale='--yScaleSummaryPlot')
     add_y_axis_label(optional,
                      '--yAxisLabelSummaryPlot',
-                     explicit=False,
                      metavar='YAXISLABELSUMMARYPLOT',
                      nargs='+', default=[''],
                      help='Y-axis label for the summary plot.')
 
     add_colors(optional,
                '--colorsSummaryPlot', '--plotColorsSummaryPlot', nargs='+',
-               explicit=False,
                metavar='COLORSSUMMARYPLOT',
                help='One colour per series, in drawing order (a series is what its '
                'line\'s label names: a sample, a region group, or a '
@@ -1312,9 +1428,12 @@ def add_shared_plot_tail(optional):
                           'set and panel, and region groups are its series. '
                           '--perGroup does the opposite: all samples form '
                           'one sample set whose panels are the region '
-                          'groups, with the samples as series. It is a '
-                          'shortcut for --arrangeSamples 1,2,...,n '
-                          '--sampleSetGroupArrangement adjacent; your own '
+                          'groups, with the samples as series. It arranges '
+                          'the panels like --arrangeSamples 1,2,...,n '
+                          '--sampleSetGroupArrangement adjacent, but titles '
+                          'each panel by its region group (as deepTools '
+                          '3.5.6 does; with several --arrangeSamples sets, '
+                          'by "set — group"); your own '
                           '--arrangeSamples or --sampleSetGroupArrangement '
                           'replaces either part (e.g. end/by_row/by_column '
                           'change the panel order). The group panels remain '

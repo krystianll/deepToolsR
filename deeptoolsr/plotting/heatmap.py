@@ -16,9 +16,9 @@ from deeptoolsr.numeric_validation import recycled_min_max_error
 from deeptoolsr.parallel import parallel_map
 from deeptoolsr.stats import NumericProvider, scan_prepared_matrix
 from deeptoolsr.plotting.ticks import choose_colorbar_ticks
-from . import colormap, fonts
+from . import DEFAULT_HEATMAP_COLORMAP, colormap, fonts
 from .matrix_plan import tool_option_spellings
-from .series import has_explicit_assignment, recycle, resolve_recyclable
+from .series import has_explicit_assignment, resolve_recyclable
 
 
 HEATMAP_RASTER_OVERSAMPLE = 2.0
@@ -49,12 +49,55 @@ def scale_assignments(spec, plan):
         from deeptoolsr.prepare import OptionError
         raise OptionError(error)
     return {
-        'colorMap': (resolve('colorMap', spec.color_map, 'RdYlBu')
+        'colorMap': (resolve('colorMap', spec.color_map,
+                             DEFAULT_HEATMAP_COLORMAP)
                      if spec.color_map else spec.color_map),
         'colorList': color_list,
         'zMin': z_min,
         'zMax': z_max,
-        'zMid': resolve('zMid', spec.z_mid, lambda index: None)}
+        'zMid': _typed_midpoints(
+            resolve('zMid', spec.z_mid, lambda index: None), z_min, z_max,
+            count, spellings['zMid'])}
+
+
+def _typed_number(value):
+    if value is None or value == '' or str(value).lower() == 'auto':
+        return None
+    return float(value)
+
+
+def _typed_midpoints(middle, lower, upper, count, option):
+    """Check each midpoint whose set has typed zMin and zMax, before values.
+
+    A midpoint of a set with an ``auto`` limit is checked once the values
+    give that limit (``_limits``). Describe collects an out-of-range one and
+    that set keeps no midpoint.
+    """
+    if not middle or not lower or not upper:
+        return middle
+    from deeptoolsr.prepare import OptionError, collected
+    result = list(middle)
+    for index in range(count):
+        mid = _typed_number(middle[index % len(middle)])
+        minimum = _typed_number(lower[index % len(lower)])
+        maximum = _typed_number(upper[index % len(upper)])
+        if None in (mid, minimum, maximum) or minimum < mid < maximum:
+            continue
+        problem = OptionError(
+            _midpoint_message(option, mid, minimum, maximum),
+            code='zmid_out_of_range', option=option, target='sample set',
+            slot=index + 1)
+        if not collected(problem):
+            raise problem
+        if len(result) < count:
+            result = [result[slot % len(result)] for slot in range(count)]
+        result[index] = None
+    return result
+
+
+def _midpoint_message(option, mid, minimum, maximum):
+    return (f'{option}: {mid:g} must be strictly between zMin '
+            f'({minimum:g}) and zMax ({maximum:g})')
 
 
 def _limits(data, assigned, numeric: NumericProvider | None = None, *,
@@ -86,8 +129,7 @@ def _limits(data, assigned, numeric: NumericProvider | None = None, *,
             if not minimum < mid < maximum:
                 from deeptoolsr.prepare import OptionError
                 raise OptionError(
-                    f'{mid_option}: {mid:g} must be strictly between zMin '
-                    f'({minimum:g}) and zMax ({maximum:g})')
+                    _midpoint_message(mid_option, mid, minimum, maximum))
     return percentiles, lower, upper, middle
 
 
@@ -103,13 +145,6 @@ def heatmap_scales(data, spec, assigned,
         mid_option=tool_option_spellings(
             spec.tool, spec.invoked_spellings)['zMid'])
     return options, percentiles, lower, upper, middle
-
-
-def heatmap_y_labels(spec, sample_plans):
-    return tuple(recycle(
-        spec.heatmap_y_axis_label, len(sample_plans),
-        option=tool_option_spellings(spec.tool, spec.invoked_spellings)[
-            'heatmapYAxisLabel'], text=True))
 
 
 def region_lengths(data):
@@ -167,52 +202,17 @@ def shift_cmap_midpoint(cmap, vmin, vcenter, vmax, samples=256):
 
 
 def make_colormaps(options, explicit):
+    from .colorbars import colour_sources
+
     maps = []
-    if options['colorMap']:
-        for name in options['colorMap']:
-            value = copy.copy(colormap(name))
-            value.set_bad(options['missingDataColor'])
-            maps.append(value)
-
-    def from_list(value):
-        built = matplotlib.colors.LinearSegmentedColormap.from_list(
-            'my_cmap', value.replace(' ', '').split(','),
-            N=options['colorNumber'])
-        built.set_bad(options['missingDataColor'])
-        return built
-
-    if options['colorList'] and len(options['colorList']) > 0:
-        if explicit:
-            defaults = options['colorMap'] or ['RdYlBu']
-            maps = []
-            for column, values in enumerate(options['colorList']):
-                if values:
-                    maps.append(from_list(values))
-                else:
-                    fallback = copy.copy(colormap(
-                        defaults[column % len(defaults)]))
-                    fallback.set_bad(options['missingDataColor'])
-                    maps.append(fallback)
-        else:
-            maps = [from_list(value) for value in options['colorList']]
+    for name, colours in colour_sources(
+            options['colorMap'], options['colorList'], explicit):
+        value = (copy.copy(colormap(name)) if colours is None else
+                 matplotlib.colors.LinearSegmentedColormap.from_list(
+                     'my_cmap', list(colours), N=options['colorNumber']))
+        value.set_bad(options['missingDataColor'])
+        maps.append(value)
     return maps
-
-
-def resolve_colorbar_position(spec, maps, prepared):
-    location = ('bottom' if spec.colorbar_location == 'below' else
-                spec.colorbar_location)
-    multiple = (len(maps) > 1 or len(prepared.z_min) > 1 or
-                len(prepared.z_max) > 1 or
-                prepared.z_mid is not None and len(prepared.z_mid) > 1)
-    if location == 'below_common':
-        return 'below_common'
-    if location == 'right_common':
-        return 'side_common'
-    if location == 'right':
-        return 'side'
-    if location == 'bottom' or location == 'best' and multiple:
-        return 'below'
-    return 'side'
 
 
 def colorbar_mappable(maps, index, minimum, maximum, midpoint):

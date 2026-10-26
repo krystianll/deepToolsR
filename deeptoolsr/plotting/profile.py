@@ -11,7 +11,7 @@ import numpy as np
 
 from deeptoolsr.matrix import Block, tabular_text
 from deeptoolsr.plotting.ticks import (
-    getDistanceUnit, getProfileTicks)
+    getDistanceUnit, getProfileTicks, set_pseudolog_y_scale)
 from .geometry import (PROFILE_LINE_WIDTH_POINTS,
                        SAMPLE_LABEL_TO_PANEL_GAP_POINTS)
 from deeptoolsr.stats import (
@@ -157,12 +157,24 @@ def _apply_panel_decorations(axis, panel):
         axis.legend(frameon=False)
 
 
-def draw_prepared_profile_panel(axis, panel, prepared_series,
-                                line_width=PROFILE_LINE_WIDTH_POINTS):
-    """Draw a panel whose statistics were prepared before rendering."""
+def draw_profile_data(axis, prepared_series, y_scale='linear', sigma=None,
+                      line_width=PROFILE_LINE_WIDTH_POINTS):
+    """Draw a panel's series on its Y scale: all its automatic Y limits
+    come from (see series.grouped_y_limits)."""
     statistics = [draw_prepared_profile_series(axis, prepared,
                                                line_width=line_width)
                   for prepared in prepared_series]
+    if y_scale == 'pseudolog':
+        set_pseudolog_y_scale(axis, sigma)
+    return statistics
+
+
+def draw_prepared_profile_panel(axis, panel, prepared_series,
+                                line_width=PROFILE_LINE_WIDTH_POINTS, *,
+                                y_scale='linear', sigma=None):
+    """Draw a panel whose statistics were prepared before rendering."""
+    statistics = draw_profile_data(axis, prepared_series, y_scale, sigma,
+                                   line_width)
     _apply_panel_decorations(axis, panel)
     return statistics
 
@@ -174,32 +186,6 @@ def draw_profile_panel(axis, panel, options,
         panel.series, options, threads=threads)
     return draw_prepared_profile_panel(axis, panel, prepared_series,
                                        line_width=line_width)
-
-
-def apply_panel_y_limits(axes, y_min, y_max, mode='shared'):
-    """Apply shared or independent limits with explicit per-panel overrides."""
-    axes = list(axes)
-    if not axes:
-        return
-    y_min = [None] if y_min is None else y_min
-    y_max = [None] if y_max is None else y_max
-    global_limits = [
-        min(axis.get_ylim()[0] for axis in axes),
-        max(axis.get_ylim()[1] for axis in axes)]
-    for index, axis in enumerate(axes):
-        if mode == 'independent':
-            limits = list(axis.get_ylim())
-        else:
-            limits = list(global_limits)
-        local_min = y_min[index % len(y_min)]
-        local_max = y_max[index % len(y_max)]
-        if local_min is not None:
-            limits[0] = float(local_min)
-        if local_max is not None:
-            limits[1] = float(local_max)
-        if limits[0] >= limits[1]:
-            limits[1] = limits[0] + 1
-        axis.set_ylim(limits)
 
 
 def _tabular_number(value):

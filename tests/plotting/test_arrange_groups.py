@@ -38,12 +38,12 @@ def _write_two_levels(path):
         str(path), json.dumps(header), regions, values, 1)
 
 
-def _describe(tmp_path, *flags, two_levels=False):
+def _describe(tmp_path, *flags, two_levels=False, force_load=False):
     matrix = tmp_path / 'input.gz'
     (_write_two_levels if two_levels else
      lambda path: write_input(path, distinct=True))(matrix)
     record = describe('plotProfileR', ['-m', str(matrix), '-o', 'x.png',
-                                       *flags])
+                                       *flags], force_load=force_load)
     return ([(group['original'], group['key'], group['regions'])
              for group in record['groups']], record['warnings'], record)
 
@@ -68,7 +68,9 @@ def _describe(tmp_path, *flags, two_levels=False):
      [(3, 'A', 4), (1, 'A', 2), (2, 'B', 3)]),
 ])
 def test_selection_and_order(tmp_path, flags, groups):
-    assert _describe(tmp_path, *flags)[0] == groups
+    # Clustering decides the counts, so they need the values.
+    assert _describe(tmp_path, *flags,
+                     force_load='--kmeans' in flags)[0] == groups
 
 
 @pytest.mark.parametrize('flags,message', [
@@ -96,7 +98,7 @@ def test_errors_need_no_values(tmp_path, monkeypatch, flags, message):
 def test_unformed_cluster_is_skipped_with_a_warning(tmp_path):
     groups, warnings, _ = _describe(
         tmp_path, '--kmeans', '4', '--arrangeGroups', '3', '2', '1',
-        two_levels=True)
+        two_levels=True, force_load=True)
     assert groups == [(2, 'cluster_2', 6), (1, 'cluster_1', 3)]
     assert warnings[-1] == ('WARNING: --arrangeGroups: group 3 was not formed '
                             '(2 of 4 clusters); drawing 2, 1.')
@@ -186,7 +188,7 @@ def test_merged_cluster_names_resolve_after_the_merge(tmp_path):
 def test_no_group_drawn_warning_lists_none(tmp_path):
     with pytest.raises(DataError, match='nothing to draw') as error:
         _describe(tmp_path, '--kmeans', '4', '--arrangeGroups', '3',
-                  two_levels=True)
+                  two_levels=True, force_load=True)
     assert warning_text(error.value.warnings[-1], error.value.layout) == (
         'WARNING: --arrangeGroups: group 3 was not formed (2 of 4 clusters).\n')
 
@@ -213,8 +215,9 @@ def _describe_empty_first(tmp_path, *flags):
 
 def test_quantile_names_follow_the_surviving_group(tmp_path):
     assert _describe_empty_first(tmp_path, '--arrangeGroups', 'Genes_Q2') == [(2, 'Genes_Q2')]
-    assert _describe_empty_first(tmp_path, '--regionsLabel', 'X', 'Y',
-                                 '--arrangeGroups', 'Y_Q1') == [(1, 'Y_Q1')]
+    assert _describe_empty_first(tmp_path, '--regionsLabel', '2=Y',
+                                 '--arrangeGroups', 'Y', 'Genes_Q1') == [
+        (2, 'Y'), (1, 'Genes_Q1')]
     with pytest.raises(DataError, match="unknown group 'Empty_Q1'; the quantiles are "
                                         "'Genes_Q1', 'Genes_Q2'"):
         _describe_empty_first(tmp_path, '--arrangeGroups', 'Empty_Q1')

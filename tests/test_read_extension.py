@@ -68,14 +68,14 @@ def spliced_pair(forward_mapq=60, reverse_mapq=60):
     ]
 
 
-@pytest.mark.parametrize("aggregation,weight", [("sum", 1), ("count", 2)])
+@pytest.mark.parametrize("aggregation,weight", [("sum", 1), ("count", 1)])
 @pytest.mark.parametrize("skip,intervals", [
     (False, [(10, 80)]),
     (True, [(10, 15), (35, 65), (75, 80)]),
 ])
 def test_proper_pair_with_spliced_mates(tmp_path, aggregation, weight, skip, intervals):
     values = coverage(tmp_path, spliced_pair(), aggregation=aggregation,
-                      extend_reads=20, skip_introns=skip)
+                      extend_reads=20, skip_introns=skip, count_unit="fragment")
     assert np.array_equal(values, expected(*intervals, value=weight))
 
 
@@ -105,10 +105,11 @@ def clipped_pair():
     (dict(collapse="3prime"), [(73, 74)]),
     (dict(collapse="center"), [(52, 53)]),
 ])
-@pytest.mark.parametrize("aggregation,weight", [("sum", 1), ("count", 2)])
+@pytest.mark.parametrize("aggregation,weight", [("sum", 1), ("count", 1)])
 def test_both_metrics_use_the_aligned_fragment(tmp_path, options, intervals,
                                                aggregation, weight):
-    values = coverage(tmp_path, clipped_pair(), aggregation=aggregation, **options)
+    values = coverage(tmp_path, clipped_pair(), aggregation=aggregation,
+                      count_unit="fragment", **options)
     assert np.array_equal(values, expected(*intervals, value=weight))
 
 

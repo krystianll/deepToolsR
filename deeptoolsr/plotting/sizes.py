@@ -5,7 +5,20 @@ from math import isclose
 
 
 class SizeError(ValueError):
-    """Explicit size options conflict or imply an out-of-range size."""
+    """Explicit size options conflict or imply an out-of-range size.
+
+    ``option`` names the option the message ends on.
+    """
+
+    def __init__(self, message, option):
+        super().__init__(message)
+        self.option = option
+
+
+# The size options, as parser destinations; a kind's options are inert
+# while it is not drawn.
+SIZE_OPTIONS = ('cellWidth', 'profileHeight', 'profileAspectRatio',
+                'heatmapHeight', 'heatmapAspectRatio')
 
 
 @dataclass(frozen=True)
@@ -21,7 +34,8 @@ def _check_bounds(width, width_sources, kinds, original, label):
     if not 1 <= width <= 100:
         sources = ', '.join(map(label, width_sources))
         raise SizeError(f'{sources} produce a cell width {width:g} cm; '
-                        'width must be between 1 and 100 cm')
+                        'width must be between 1 and 100 cm',
+                        label(width_sources[-1]))
     for kind, values in kinds.items():
         height, _, shown, options, _, bounds = values
         if not shown or bounds[0] <= height <= bounds[1]:
@@ -33,7 +47,8 @@ def _check_bounds(width, width_sources, kinds, original, label):
         names = ', '.join(map(label, dict.fromkeys(sources)))
         raise SizeError(f'{names} produce a height {height:g} cm; '
                         f'{label(options[0])} must be between '
-                        f'{bounds[0]:g} and {bounds[1]:g} cm')
+                        f'{bounds[0]:g} and {bounds[1]:g} cm',
+                        label(options[0]))
 
 
 def solve_sizes(*, cell_width=None, profile_height=None,
@@ -80,7 +95,8 @@ def solve_sizes(*, cell_width=None, profile_height=None,
                     prior = ', '.join(map(label, width_sources))
                     current = ', '.join(map(label, options))
                     raise SizeError(f'{prior} imply width {width:g} cm, but '
-                                    f'{current} imply width {implied:g} cm')
+                                    f'{current} imply width {implied:g} cm',
+                                    label(options[0]))
             if width is not None and height is not None:
                 values[1] = width / height
             elif width is not None and ratio is not None:
@@ -109,3 +125,28 @@ def solve_sizes(*, cell_width=None, profile_height=None,
         profile[1] if show_profile else None,
         heatmap[0] if show_heatmap else None,
         heatmap[1] if show_heatmap else None)
+
+
+def size_defaults(given, *, show_profile=True, show_heatmap=False):
+    """What each active size option is when it is not given.
+
+    Returns ``{dest: (value, sources)}`` for the options of the drawn
+    kinds: ``value`` is what ``solve_sizes`` uses with no size option
+    given and ``sources`` is empty, or, when other active size options are
+    ``given`` (``{dest: value}``), ``value`` is None and ``sources`` names
+    the options it is derived from (width = height x aspect ratio).
+    """
+    solved = solve_sizes(show_profile=show_profile, show_heatmap=show_heatmap)
+    values = {'cellWidth': solved.cell_width}
+    if show_profile:
+        values.update(profileHeight=solved.profile_height,
+                      profileAspectRatio=solved.profile_aspect_ratio)
+    if show_heatmap:
+        values.update(heatmapHeight=solved.heatmap_height,
+                      heatmapAspectRatio=solved.heatmap_aspect_ratio)
+    result = {}
+    for dest, value in values.items():
+        sources = tuple(other for other in values if other != dest and
+                        given.get(other) is not None)
+        result[dest] = (None, sources) if sources else (value, ())
+    return result

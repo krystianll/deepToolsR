@@ -99,26 +99,26 @@ def cases():
             'Greens', '--startLabel', 'TSS', 'TSS', 'TSS',
             '--endLabel', 'TES', 'TES', 'TES'), 'profile-heatmap'),
         'heatmap_summary': Case('heatmap', (
-            '--whatToShow', 'plot, heatmap and colorbar',
+            '--showSummaryPlot', 'on',
             '--colorsSummaryPlot', *SUMMARY_COLORS[:SUMMARY_SLOTS],
             '--colorMap', 'Reds', 'Blues'), 'heatmap-summary'),
         'heatmap_summary_per_group': Case('heatmap', (
-            '--whatToShow', 'plot, heatmap and colorbar', '--perGroup',
+            '--showSummaryPlot', 'on', '--perGroup',
             '--colorsSummaryPlot', *SUMMARY_COLORS[:SUMMARY_SLOTS],
             '--colorMap', 'Reds', 'Blues'), 'heatmap-summary'),
         'heatmap_summary_color_lists': Case('heatmap', (
-            '--whatToShow', 'plot, heatmap and colorbar',
+            '--showSummaryPlot', 'on',
             '--colorsSummaryPlot', *SUMMARY_COLORS[:SUMMARY_SLOTS],
             '--colorList', 'white,red', 'black,blue'), 'heatmap-summary'),
         'heatmap_no_summary': Case('heatmap', (
-            '--whatToShow', 'heatmap and colorbar', '--colorMap', 'Reds', 'Blues'),
+            '--showSummaryPlot', 'off', '--colorMap', 'Reds', 'Blues'),
             'heatmap-no-summary'),
         'reject_unknown_sample': Case('profile', (
             '--arrangeSamples', '4'), 'rejection', True),
         'reject_repeated_sample': Case('profile', (
             '--arrangeSamples', '1,1'), 'rejection', True),
         'reject_heatmap_per_group_sets': Case('heatmap', (
-            '--perGroup', '--whatToShow', 'plot, heatmap and colorbar',
+            '--perGroup', '--showSummaryPlot', 'on',
             '--arrangeSamples', '1,2', '3'), 'heatmap-summary'),
     })
     return result

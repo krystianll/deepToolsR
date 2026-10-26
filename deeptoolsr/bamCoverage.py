@@ -10,6 +10,7 @@ import argparse
 import bz2
 import gzip
 import os
+import re
 import sys
 import zlib
 
@@ -29,13 +30,65 @@ from deeptoolsr.numeric_validation import (
     positive_uint32,
     option_was_supplied,
     specified_options,
-    uint16_int,
     uint8_int,
     validate_compatibility_rules,
 )
 
 
 # --- helpers ---------------------------------------------------------------
+
+_SAM_FLAG_NAMES = {
+    "PAIRED": 0x1, "PROPER_PAIR": 0x2, "UNMAP": 0x4, "MUNMAP": 0x8,
+    "REVERSE": 0x10, "MREVERSE": 0x20, "READ1": 0x40, "READ2": 0x80,
+    "SECONDARY": 0x100, "QCFAIL": 0x200, "DUP": 0x400, "SUPPLEMENTARY": 0x800}
+
+
+def _sam_flag_terms(value):
+    """Yield (negated, bits) for each comma-separated term of a flag value."""
+    for term in value.split(","):
+        term = term.strip()
+        negated = term.startswith("^")
+        body = term[1:].strip() if negated else term
+        if body.upper() in _SAM_FLAG_NAMES:
+            bits = _SAM_FLAG_NAMES[body.upper()]
+        elif re.fullmatch(r"0[xX][0-9a-fA-F]+|[0-9]+", body):
+            bits = int(body, 0 if body[:2].lower() == "0x" else 10)
+            if bits > 0xFFFF:
+                raise argparse.ArgumentTypeError(
+                    "%r: flag number %s is out of range 0..65535" % (value, body))
+        elif not body:
+            raise argparse.ArgumentTypeError("%r: empty flag term" % value)
+        else:
+            raise argparse.ArgumentTypeError(
+                "%r: unknown flag %r (use a number or one of %s)"
+                % (value, body, ", ".join(_SAM_FLAG_NAMES)))
+        yield negated, bits
+
+
+def sam_flag_pattern(value):
+    """--samFlagInclude value -> (bits that must be set, bits that must be unset)."""
+    set_bits = unset_bits = 0
+    for negated, bits in _sam_flag_terms(value):
+        if negated:
+            unset_bits |= bits
+        else:
+            set_bits |= bits
+    if set_bits & unset_bits:
+        raise argparse.ArgumentTypeError(
+            "%r requires flag bits %d both set and unset" % (value, set_bits & unset_bits))
+    return set_bits, unset_bits
+
+
+def sam_flag_mask(value):
+    """--samFlagExclude value -> the bitwise OR of its terms."""
+    mask = 0
+    for negated, bits in _sam_flag_terms(value):
+        if negated:
+            raise argparse.ArgumentTypeError(
+                "%r: '^' is not allowed in --samFlagExclude" % value)
+        mask |= bits
+    return mask
+
 
 def _insert_suffix(path, suffix):
     """Insert ``suffix`` before the extension (``a.bw`` + ``.plus`` -> ``a.plus.bw``;
@@ -292,29 +345,72 @@ def parse_arguments():
     shape.add_argument("--extendReads", "-e", nargs="?", const=-1,
                        type=extend_reads_value, default=0,
                        help="Extend to the whole fragment, filled solidly. Proper pair: "
-                            "from the forward mate's start to the reverse mate's end "
-                            "(counted once by depth metrics; each eligible mate is "
-                            "counted by read-count metrics). Any other read: from its "
-                            "5' end, this length (or the inferred median with no "
-                            "value), but never shorter than the read's own span. A "
-                            "pair whose mates do not face inward (dovetailed, or "
-                            "spanning the origin of a circular chromosome such as "
-                            "chrM) is extended as two single reads.")
+                            "from the forward mate's start to the reverse mate's end; "
+                            "with --countUnit read each retained mate covers it (2 in "
+                            "every metric when both are retained), with fragment it "
+                            "counts once. Any other read: from its 5' end, this length "
+                            "(or the inferred median with no value), but never shorter "
+                            "than the read's own span. A dovetailed pair (see "
+                            "--countUnit) is two single reads, each extended on its "
+                            "own, with --countUnit read, and one fragment from its "
+                            "leftmost to its rightmost aligned base with fragment. A "
+                            "pair spanning the origin of a circular chromosome (such "
+                            "as chrM) is always two single reads.")
     shape.add_argument("--skipIntrons", action="store_true",
                        help="With --extendReads: leave each read's own introns (CIGAR "
                             "N) empty, for single reads and both mates of a pair. The "
                             "gap between mates and the extension past a single read's "
                             "end were not observed, so they stay filled.")
     shape.add_argument("--collapse", choices=list(_COLLAPSE), default="none",
-                       help="Collapse each fragment to its 5'/3' end or centre "
-                            "(strand/strandedness-aware), clamped to the fragment.")
+                       help="Collapse to a 5'/3' end or centre. Strandedness-aware: "
+                            "with --strandedness, 5prime/3prime refer to the "
+                            "transcript, so a read on the strand opposite the RNA "
+                            "(e.g. read 1 of a reverse-stranded library) uses its own "
+                            "3' end for 5prime; unstranded, each read uses its own "
+                            "5'/3' end. With --countUnit read, each alignment "
+                            "collapses within its own aligned span; with fragment, a "
+                            "proper pair collapses within its fragment, once.")
+    shape.add_argument("--countUnit", choices=["auto", "read", "fragment"], default=None,
+                       help="What counts once. auto (default): read without "
+                            "--extendReads and --collapse, fragment with either. "
+                            "read (deepTools behaviour): "
+                            "each retained alignment, so the overlap of two mates "
+                            "counts 2. fragment: a proper pair with both mates "
+                            "retained counts once in every metric (plain coverage is "
+                            "the union of its mates' blocks), and CPM/RPKM divide by "
+                            "fragments. A dovetailed pair (a proper pair whose reverse "
+                            "mate starts left of its forward mate and overlaps it) "
+                            "counts each mate with read, and once with fragment, "
+                            "spanning its leftmost to rightmost aligned base; a pair "
+                            "spanning a circular chromosome's origin stays two reads. "
+                            "Single-end data is the same in both units. The default can be set with 'deeptoolsr options "
+                            "--countUnit'.")
     shape.add_argument("--collapsedLength", type=positive_int, default=1,
                        help="Width of the collapsed feature (default 1; only with --collapse).")
 
     filt = p.add_argument_group("Filters")
     filt.add_argument("--minMappingQuality", type=uint8_int, default=0)
-    filt.add_argument("--samFlagInclude", type=uint16_int, default=0)
-    filt.add_argument("--samFlagExclude", type=uint16_int, default=0)
+    filt.add_argument(
+        "--samFlagInclude", type=sam_flag_pattern, nargs="+", default=[],
+        metavar="FLAGS",
+        help="Keep a read only if it matches at least one of the given values. "
+             "A value is a comma-separated list of terms that must all hold. A "
+             "term is a SAM flag name (PAIRED, PROPER_PAIR, UNMAP, MUNMAP, REVERSE, "
+             "MREVERSE, READ1, READ2, SECONDARY, QCFAIL, DUP, SUPPLEMENTARY; any "
+             "case) or a number (decimal or 0x hex), meaning all of its bits are "
+             "set; prefix a term with ^ to require its bits unset. A single number "
+             "works as samtools -f: '--samFlagInclude 3' = 'PAIRED,PROPER_PAIR' = "
+             "samtools -f 3. '--samFlagInclude READ1 REVERSE' = samtools --rf 80 "
+             "(either bit); '--samFlagInclude ^READ2 ^REVERSE' = samtools -G 144. "
+             "'--samFlagInclude READ1,REVERSE READ2,^REVERSE' keeps flags 83 and "
+             "163 among proper pairs: the forward-transcript reads of deepTools "
+             "--filterRNAstrand forward on a dUTP library. Default: no include filter.")
+    filt.add_argument(
+        "--samFlagExclude", type=sam_flag_mask, default=0, metavar="FLAGS",
+        help="Drop a read that has any of these flag bits (samtools -F). One value: "
+             "a number (decimal or 0x hex) or a comma-separated list of flag names "
+             "and numbers, combined by bitwise OR: '--samFlagExclude DUP,SECONDARY' "
+             "= '--samFlagExclude 0x500' = samtools -F 1280. Default 0.")
     filt.add_argument("--ignoreDuplicates", action="store_true",
                       help="Drop reads with the duplicate FLAG (honours upstream markdup).")
     filt.add_argument("--minFragmentLength", type=nonnegative_int, default=0,
@@ -384,15 +480,18 @@ def parse_arguments():
         help="Output metric: coverage-mean (default; mean per-base depth), "
              "coverage-sum (depth-bases per bin), read-count (reads overlapping "
              "each bin), CPM, RPKM, or BPM. Normalized metrics always use "
-             "read counts; each individually eligible alignment contributes once, "
-             "including each retained mate of a proper pair.")
+             "read counts, in the --countUnit: each retained alignment, or each "
+             "fragment.")
     norm.add_argument("--normalizationDenominator", choices=["library", "filtered"],
                       default="library",
                       help="For CPM and RPKM, 'library' (default) uses library size "
-                           "from the BAM index, "
+                           "from the BAM index (with --countUnit fragment, an exact "
+                           "count of fragments: a proper pair with both mates mapped "
+                           "counts once), "
                            "independent of filters and shared across strand outputs "
                            "(the correct, comparable normalization). 'filtered': "
-                           "post-filter read count (legacy, strand-dependent). "
+                           "post-filter read (or fragment) count (legacy, "
+                           "strand-dependent). "
                            "BPM instead uses its pooled placed-bin sum.")
     norm.add_argument("--exactScaling", action="store_true",
                       help="For CPM and RPKM with the library denominator, count the "
@@ -527,12 +626,18 @@ def main(args=None):
     elif touch_strand != "ignore" and strandedness == "none":
         sys.exit("--featureTouchStrand needs --strandedness forward|reverse.")
 
-    threads = run_options.resolve_run_options(args).threads
+    resolved_options = run_options.resolve_run_options(args)
+    threads = resolved_options.threads
 
     # extendReads: -1 sentinel (flag with no value) -> infer median fragment length.
     extend_reads = args.extendReads
     if extend_reads == -1:
         extend_reads = int(_estimate_fragment_length(args.bam, _coverage, reference))
+
+    count_unit = resolved_options.count_unit
+    if count_unit == 'auto':
+        count_unit = ('fragment' if args.extendReads or args.collapse != 'none'
+                      else 'read')
 
     blacklist = whitelist = None
     resolved_ignore = args.ignoreForNormalization
@@ -587,6 +692,7 @@ def main(args=None):
             filter_rna_strand=args.filterRNAstrand,
             collapse=_COLLAPSE[args.collapse],
             collapsed_length=args.collapsedLength,
+            count_unit=count_unit,
             blacklist=blacklist,
             whitelist=whitelist,
             threads=threads,

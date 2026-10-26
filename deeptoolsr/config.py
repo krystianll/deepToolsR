@@ -10,9 +10,11 @@ from deeptoolsr.path_validation import atomic_output_path
 DEFAULTS = {
     "raster_filter": "cubic",
     "raster_bit_depth": 8,
+    "count_unit": "auto",
 }
 
 RASTER_FILTERS = ("triangle", "mitchell", "catmullrom", "cubic", "box", "point")
+COUNT_UNITS = ("auto", "read", "fragment")
 
 # Top-level keys owned by the plotting style schema (typography/geometry/
 # drawing/label layout). They live in the same options.txt but are validated
@@ -39,6 +41,8 @@ def load_options(path=None, *, stored=None):
             options["raster_filter"] = stored["raster_filter"]
         if stored.get("raster_bit_depth") in (8, 16):
             options["raster_bit_depth"] = stored["raster_bit_depth"]
+        if stored.get("count_unit") in COUNT_UNITS:
+            options["count_unit"] = stored["count_unit"]
         processors = stored.get("number_of_processors")
         if ((isinstance(processors, int) and not isinstance(processors, bool)
              and processors >= 1) or processors == 'max'):

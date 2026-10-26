@@ -120,7 +120,7 @@ def test_ward_budget_message_only_on_fallback(tmp_path, capsys):
     settings = tmp_path / 'options.json'
     config.save_options({'ward_distance_budget_bytes': 1}, settings)
     common = ['-m', str(PREPARE), '--hclust', '2', '-p', '1',
-              '--whatToShow', 'heatmap and colorbar']
+              '--showSummaryPlot', 'off']
     plotHeatmap.main([*common, '-o', str(tmp_path / 'fallback.png'),
                       '--config', str(settings)])
     fallback = capsys.readouterr().err
