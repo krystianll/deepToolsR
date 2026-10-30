@@ -222,10 +222,8 @@ deepToolsR 0.10.2-beta was compared with deepTools 3.5.6 (Python) and deepTools
 4.0.0 (Rust core), all three timed on the same Apple M4 Pro (14 cores, 48 GB
 RAM, macOS 27.0.1, arm64) with the same data.
 
-Method in short: the machine was idle (other jobs stopped, runs repeated if
-anything else became busy), each case was run 3 times and the table gives the
-median.
-Memory is the peak physical footprint that the kernel records for each process,
+Method in short: Each case was run 3 times and the table gives the
+median. Memory is the peak physical footprint that the kernel records for each process,
 summed over the process tree; it is exact for deepToolsR and 4.0.0 (one
 process) and an upper bound for 3.5.6, which forks workers. RSS is not used,
 because on macOS it also counts freed memory that has not yet been reclaimed.
