@@ -86,7 +86,9 @@ def pack_colorbar_grid(count, block_height, base_x, top_y,
     then measured from that widest label to the next colorbar's border.
     ``label_widths`` gives each colorbar title's width (titles are left-aligned
     to the colorbar's left edge, so a title wider than the bar+tick labels
-    widens its column too).
+    widens its column too).  A block no taller than its title band leaves no
+    room for a bar and is a usage error (``OptionError``); a shorter block than
+    ``min_height`` plus the band still gets an upright, squashed bar.
 
     Returns ``(rects, total_width)`` where ``rects`` is one ``Rect`` per colorbar
     (the rectangle only, tick labels excluded) in input order, and
@@ -115,6 +117,12 @@ def pack_colorbar_grid(count, block_height, base_x, top_y,
     band = max(bands[:count]) if bands else 0.0
     box_cost = min_height + band + row_gap
     rows_max = max(1, int((block_height + row_gap) // box_cost))
+    if block_height <= band:
+        from deeptoolsr.prepare import OptionError
+        raise OptionError('the heatmap is too short for its colorbar and its '
+                          'title; raise --heatmapHeight',
+                          code='heatmap_too_short_for_colorbar',
+                          option='--heatmapHeight')
     columns = int(math.ceil(count / rows_max))
     rows = int(math.ceil(count / columns))
     box_height = (block_height - rows * band - row_gap * (rows - 1)) / rows
@@ -414,6 +422,9 @@ class Decoration:
     tick_label_width: float = 0.0
     below_entry: BelowColorbarEntry | None = None
     ordinal: int = 0
+    # A right colorbar serving one heatmap block: (cell, block); it sits
+    # beside that block instead of the whole stack.
+    block: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -443,6 +454,11 @@ class LabelRun:
     label_to_tick_gap: float | None = None
     block_index: int | None = None
     location: str = ''
+    # A nested header's level, 1 next to the labels it embraces.
+    level: int = 0
+    # A stack header's first and last block (0-based) in its region-label
+    # run, whose cells are ``panel_indices``.
+    block_span: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -452,6 +468,11 @@ class GridLayoutSpec:
     cells: tuple[CellLayout, ...]
     decorations: tuple[Decoration, ...] = ()
     runs: tuple[LabelRun, ...] = ()
+    # Nested headers (--nestedHeaders) over cell titles (axis 'header_x'),
+    # beside region labels ('header_stack') and beside row labels
+    # ('header_row', collecting every cell of its grid rows): apart from
+    # ``runs``, whose presence switches on axis-label layout.
+    headers: tuple[LabelRun, ...] = ()
     title: MeasuredLabelSpec | None = None
     x_decoration_height: float = 0.0
     geometry: GeometrySpec = DEFAULT_GEOMETRY
@@ -484,6 +505,34 @@ def label_role(kind, anchor, run=0, block=None):
 
 def row_label(row):
     return f'label/row/{row + 1}'
+
+
+def header_role(row, level, ordinal, group=None):
+    """The Nth (``ordinal``) header text of a level: over a grid row's
+    titles, or beside the region labels of the row's ``group``-th
+    region-label run."""
+    if group is None:
+        return label_role('header_x', row, level - 1, ordinal)
+    return f'label/header_stack/{row + 1}/{group + 1}/{level}/{ordinal + 1}'
+
+
+def header_rule_role(row, level, ordinal, group=None):
+    """The rule beside that header, spanning the cells or blocks it
+    collects."""
+    if group is None:
+        return f'rule/header_x/{row + 1}/{level}/{ordinal + 1}'
+    return f'rule/header_stack/{row + 1}/{group + 1}/{level}/{ordinal + 1}'
+
+
+def row_header_role(level, ordinal):
+    """The Nth (``ordinal``, top down) header text of a level beside the
+    row labels."""
+    return f'label/header_row/{level}/{ordinal + 1}'
+
+
+def row_header_rule_role(level, ordinal):
+    """The rule beside that header, spanning the grid rows it collects."""
+    return f'rule/header_row/{level}/{ordinal + 1}'
 
 
 def figure_title():
@@ -662,6 +711,8 @@ class _VerticalWidths:
     legend_gap: float
     padding: float
     stacks: tuple['_StackWidths', ...] = ()
+    # Per row header: (index in ``spec.headers``, selected candidate).
+    row_headers: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -686,6 +737,7 @@ class _Bands:
     run_candidates: tuple[LabelCandidate, ...]
     title_candidates: tuple[LabelCandidate, ...]
     bar_titles: tuple[LabelCandidate, ...] = ()
+    header_candidates: tuple[LabelCandidate, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -707,6 +759,9 @@ class _RowDecorations:
     axis_labels: tuple[tuple[int, Rect], ...]
     region_labels: tuple[tuple[int, int, Rect], ...] = ()
     heatmap_y_labels: tuple[tuple[int, int, Rect], ...] = ()
+    # Per header (X, stack, then row): its index in ``spec.headers``, text
+    # and rule rects.
+    headers: tuple[tuple[int, Rect, Rect], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -722,6 +777,7 @@ class _FigureDecorations:
 class _FigureBands:
     figure: _FigureDecorations
     title: Rect | None
+    title_candidate: LabelCandidate | None = None
 
 
 @dataclass(frozen=True)
@@ -735,6 +791,9 @@ class _StackWidths:
     summary_private: float
     summary_height: float
     region_groups: tuple = ()
+    # Per region-label run: its stack headers' (index in ``spec.headers``,
+    # selected candidate).
+    header_groups: tuple = ()
 
 
 def _profile_size(spec):
@@ -764,6 +823,103 @@ def _titles(spec):
          if cell.labels.title_order is not None and
          cell.labels.title_candidates),
         key=lambda pair: pair[1].labels.title_order))
+
+
+def _header_gaps(spec):
+    """Label to rule, rule width, and rule to header text."""
+    geometry = spec.geometry
+    return (geometry.header_rule_to_label_gap, geometry.header_rule_width,
+            geometry.header_text_to_rule_gap)
+
+
+def _x_headers(spec):
+    """Each X header's (index, row, level, ordinal), by row, level and
+    column; ``ordinal`` numbers the headers of one level in one row."""
+    keyed = sorted((spec.cells[run.panel_indices[0]].row, run.level,
+                    _span_extent(spec, run, 'column'), index)
+                   for index, run in enumerate(spec.headers)
+                   if run.axis == 'header_x')
+    result, counts = [], {}
+    for row, level, _, index in keyed:
+        ordinal = counts.get((row, level), 0)
+        counts[row, level] = ordinal + 1
+        result.append((index, row, level, ordinal))
+    return tuple(result)
+
+
+def _stack_headers(spec):
+    """Each stack header's (index, row, group, level, ordinal): ``group``
+    numbers the row's region-label runs (``stack_run_groups``), and
+    ``ordinal`` the headers of one level beside one run, top down."""
+    if not any(run.axis == 'header_stack' for run in spec.headers):
+        return ()
+    groups = {}
+    for row in range(spec.rows):
+        for group, (members, _) in enumerate(stack_run_groups(spec, row)):
+            groups[members] = (row, group)
+    keyed = sorted((*groups[run.panel_indices], run.level, run.block_span,
+                    index) for index, run in enumerate(spec.headers)
+                   if run.axis == 'header_stack')
+    result, counts = [], {}
+    for row, group, level, _, index in keyed:
+        ordinal = counts.get((row, group, level), 0)
+        counts[row, group, level] = ordinal + 1
+        result.append((index, row, group, level, ordinal))
+    return tuple(result)
+
+
+def _row_headers(spec):
+    """Each row header's (index, level, ordinal): ``ordinal`` numbers the
+    headers of one level top down."""
+    keyed = sorted((run.level, _span_extent(spec, run, 'row'), index)
+                   for index, run in enumerate(spec.headers)
+                   if run.axis == 'header_row')
+    result, counts = [], {}
+    for level, _, index in keyed:
+        ordinal = counts.get(level, 0)
+        counts[level] = ordinal + 1
+        result.append((index, level, ordinal))
+    return tuple(result)
+
+
+def header_roles(spec):
+    """Each header's index in ``spec.headers``, text role and rule role."""
+    return tuple((index, header_role(row, level, ordinal),
+                  header_rule_role(row, level, ordinal))
+                 for index, row, level, ordinal in _x_headers(spec)) + tuple(
+        (index, header_role(row, level, ordinal, group),
+         header_rule_role(row, level, ordinal, group))
+        for index, row, group, level, ordinal in _stack_headers(spec)) + tuple(
+        (index, row_header_role(level, ordinal),
+         row_header_rule_role(level, ordinal))
+        for index, level, ordinal in _row_headers(spec))
+
+
+def _header_stacks(spec, heights, titled_rows):
+    """Per grid row, the height its X headers add over its titles.
+
+    Each level adds its rule, the gap to its text and its tallest text;
+    a level sits ``header_rule_to_label_gap`` above what it embraces (the
+    titles, or the level inside it). Over a row without titles the first
+    level takes the titles' place.
+    """
+    to_label, rule, to_text = _header_gaps(spec)
+    tallest = {}
+    for index, row, level, _ in _x_headers(spec):
+        tallest[row, level] = max(tallest.get((row, level), 0.0),
+                                  heights[index])
+    stacks = [0.0] * spec.rows
+    for (row, _), height in sorted(tallest.items()):
+        inner = to_label if stacks[row] or row in titled_rows else 0.0
+        stacks[row] += inner + rule + to_text + height
+    return tuple(stacks)
+
+
+def _with_headers(spec, title_heights, header_heights):
+    """Each row's title height plus the X headers stacked over it."""
+    titled = {row for row, height in enumerate(title_heights) if height}
+    return tuple(height + stack for height, stack in zip(
+        title_heights, _header_stacks(spec, header_heights, titled)))
 
 
 def _facets(spec):
@@ -886,19 +1042,39 @@ def _vertical_band_specs(spec, widths, scale):
     if spec.label_layout.auto_facet_label_layout and facets:
         ordered = tuple(sorted(range(len(facets)),
                                key=lambda index: (facets[index].owner, index)))
-        bands.append(SharedGapBandSpec(
-            candidate_sets=tuple(facets[index].candidates for index in ordered),
-            spans=tuple((facets[index].owner, facets[index].owner)
-                        for index in ordered),
-            primary_dimension='height',
-            extra_row_penalty=spec.label_layout.panel_title_extra_row_penalty,
-            balance_weight=spec.label_layout.panel_title_balance_weight,
-            orphan_weight=spec.label_layout.panel_title_orphan_weight,
-            secondary_costs=tuple(tuple(candidate.width / scale
-                                        for candidate in facets[index].candidates)
-                                  for index in ordered)))
+        bands.append(_row_label_band(
+            spec, tuple(facets[index].candidates for index in ordered),
+            tuple((facets[index].owner, facets[index].owner)
+                  for index in ordered), scale))
         sources.append(('facet', ordered))
+    # Each level of row headers is one more band whose spans are the rows
+    # a header collects, so a long header may grow the row gap like a
+    # row label.
+    levels = {}
+    for index, level, _ in _row_headers(spec):
+        levels.setdefault(level, []).append(index)
+    if spec.label_layout.auto_facet_label_layout:
+        for indices in levels.values():
+            bands.append(_row_label_band(
+                spec, tuple(spec.headers[index].candidates
+                            for index in indices),
+                tuple(_span_extent(spec, spec.headers[index], 'row')
+                      for index in indices), scale))
+            sources.append(('header', tuple(indices)))
     return tuple(bands), tuple(sources)
+
+
+def _row_label_band(spec, candidate_sets, spans, scale):
+    """Row labels, or one level of row headers, beside the grid rows."""
+    return SharedGapBandSpec(
+        candidate_sets=candidate_sets, spans=spans,
+        primary_dimension='height',
+        extra_row_penalty=spec.label_layout.panel_title_extra_row_penalty,
+        balance_weight=spec.label_layout.panel_title_balance_weight,
+        orphan_weight=spec.label_layout.panel_title_orphan_weight,
+        secondary_costs=tuple(tuple(candidate.width / scale
+                                    for candidate in candidates)
+                              for candidates in candidate_sets))
 
 
 def _y_band(spec, widths, indices, scale):
@@ -924,7 +1100,9 @@ def _width_affecting_vertical(spec):
                    if any(cell.stack for cell in spec.cells if cell.row == row))
     automatic = bool(spec.label_layout.auto_axis_label_layout and spec.runs)
     facets = _facets(spec)
-    automatic_facets = bool(spec.label_layout.auto_facet_label_layout and facets)
+    row_headers = _row_headers(spec)
+    automatic_facets = bool(spec.label_layout.auto_facet_label_layout and
+                            (facets or row_headers))
     base_row_gap = spec.geometry.profile_row_gap
     row_gap = (min(base_row_gap, spec.label_layout.max_row_gap_points)
                if automatic or automatic_facets else base_row_gap)
@@ -932,7 +1110,9 @@ def _width_affecting_vertical(spec):
         size, tuple(run.candidates[0] for run in spec.runs),
         tuple(facet.candidates[0] for facet in facets), None, row_gap,
         _common_axis_gap(spec), _column_title_gap(spec),
-        _legend_gap(spec), _padding(spec), stacks)
+        _legend_gap(spec), _padding(spec), stacks,
+        tuple((index, spec.headers[index].candidates[0])
+              for index, _, _ in row_headers))
     if not (automatic or automatic_facets):
         return widths
     title_heights = [0.0] * spec.rows
@@ -943,7 +1123,8 @@ def _width_affecting_vertical(spec):
     base_gaps = _row_boundary_baseline(
         spec, widths, _reservations(spec, widths,
                                     _provisional_bands(spec, widths)),
-        title_heights)
+        _with_headers(spec, title_heights, tuple(
+            min(c.height for c in run.candidates) for run in spec.headers)))
     private = tuple(max(0.0, gap - row_gap) for gap in base_gaps)
     scale = max(spec.columns * size.width, 1.0)
     bands, sources = _vertical_band_specs(spec, widths, scale)
@@ -963,13 +1144,15 @@ def _width_affecting_vertical(spec):
         label_min_clearance=_label_clearance(spec))
     runs = list(widths.run_candidates)
     rows = list(widths.row_candidates)
+    headers = dict(widths.row_headers)
     for (kind, indices), band in zip(sources, selected.bands):
-        target = runs if kind == 'y' else rows
+        target = {'y': runs, 'facet': rows, 'header': headers}[kind]
         for index, candidate in zip(indices, band.candidates):
             target[index] = candidate
     return _VerticalWidths(size, tuple(runs), tuple(rows), selected,
                            row_gap, widths.label_gap, widths.title_gap,
-                           widths.legend_gap, widths.padding, stacks)
+                           widths.legend_gap, widths.padding, stacks,
+                           tuple(headers.items()))
 
 
 def _column_boundary(spec, widths, left, right, row, column, bar_owners,
@@ -1030,19 +1213,47 @@ def _stack_boundary_labels(spec, widths, left, right, row):
     left_index = spec.cells.index(left)
     right_index = spec.cells.index(right)
     reserved, right_labelled = 0.0, False
-    for (members, candidates), (_, runs) in zip(
-            selected.region_groups, stack_run_groups(spec, row)):
+    for (members, candidates), (_, runs), headers in zip(
+            selected.region_groups, stack_run_groups(spec, row),
+            selected.header_groups):
         location = runs[0].location
         if location == 'right':
             boundary = members[-1] == left_index and right_index not in members
         else:
             boundary = members[0] == right_index and left_index not in members
-        width = max((candidate.width for candidate in candidates),
-                    default=0.0)
+        width = _beside_labels(spec, candidates, headers,
+                               _stack_region_gap(spec))[0]
         if boundary and width:
-            reserved += width + _stack_region_gap(spec)
+            reserved += width
             right_labelled = right_labelled or location == 'left'
     return reserved, right_labelled
+
+
+def _beside_labels(spec, candidates, headers, gap):
+    """What rotated labels and the headers outside them take beside what
+    they label (a region-label run beside its stack, the row labels beside
+    the rows): the total width from its edge, the labels' width, and per
+    header level (inner first) its rule's and text's distance from the
+    labels' outer edge and the level's widest text.
+
+    The labels sit ``gap`` from what they label, and each level its rule
+    gap outside what it embraces; without labels the first level takes
+    their place.
+    """
+    label_width = max((candidate.width for candidate in candidates),
+                      default=0.0)
+    total = label_width + gap if label_width else 0.0
+    widest = {}
+    for index, candidate in headers:
+        level = spec.headers[index].level
+        widest[level] = max(widest.get(level, 0.0), candidate.width)
+    to_label, rule, to_text = _header_gaps(spec)
+    levels, outer = {}, 0.0
+    for level in sorted(widest):
+        start = outer + (to_label if label_width or levels else gap)
+        levels[level] = (start, start + rule + to_text, widest[level])
+        outer = start + rule + to_text + widest[level]
+    return total + outer, label_width, levels
 
 
 def _column_start_positions(spec, gaps, width):
@@ -1142,6 +1353,23 @@ def _horizontal_band_specs(spec):
                 balance_weight=spec.label_layout.panel_title_balance_weight,
                 orphan_weight=spec.label_layout.panel_title_orphan_weight))
             sources.append(('title', indices))
+    if spec.label_layout.auto_panel_title_column_gap:
+        # One band per level of a row's X headers, each spanning the
+        # columns it collects; titles and headers share the column gaps.
+        levels = {}
+        for index, row, level, _ in _x_headers(spec):
+            levels.setdefault((row, level), []).append(index)
+        for indices in levels.values():
+            bands.append(SharedGapBandSpec(
+                candidate_sets=tuple(spec.headers[i].candidates
+                                     for i in indices),
+                spans=tuple(_span_extent(spec, spec.headers[i], 'column')
+                            for i in indices),
+                primary_dimension='width',
+                extra_row_penalty=spec.label_layout.panel_title_extra_row_penalty,
+                balance_weight=spec.label_layout.panel_title_balance_weight,
+                orphan_weight=spec.label_layout.panel_title_orphan_weight))
+            sources.append(('header', tuple(indices)))
     if spec.label_layout.auto_axis_label_layout:
         for row in range(spec.rows):
             indices = tuple(index for index, run in enumerate(spec.runs)
@@ -1197,12 +1425,19 @@ def _horizontal_bands(spec, columns, widths):
                  if item.kind == 'colorbar')
     selected_bars = [item.candidates[0] if item.candidates else _EMPTY_LABEL
                      for item in bars]
+    selected = {'title': selected_titles, 'x': selected_runs,
+                'bar': selected_bars,
+                'header': [run.candidates[0] for run in spec.headers]}
+    # Stack headers were selected with their stacks, row headers with the
+    # row labels.
+    for index, candidate in widths.row_headers + tuple(
+            item for stack in widths.stacks
+            for group in stack.header_groups for item in group):
+        selected['header'][index] = candidate
     bands, sources = _horizontal_band_specs(spec)
     if bands:
-        columns, selected_titles, selected_runs, selected_bars = \
-            _solve_horizontal_bands(spec, columns, widths, bands, sources,
-                                    selected_titles, selected_runs,
-                                    selected_bars)
+        columns = _solve_horizontal_bands(spec, columns, widths, bands,
+                                          sources, selected)
     common = tuple(item for item in bars if item.scope == 'figure'
                    and item.location == 'below')
     if (common and all(item.below_entry is not None for item in common) and
@@ -1215,13 +1450,15 @@ def _horizontal_bands(spec, columns, widths):
             spec.label_layout,
             min(columns.common_gap, _below_common_cap(spec)), spec.geometry)
     return _Bands(columns, tuple(selected_runs), tuple(selected_titles),
-                  tuple(selected_bars))
+                  tuple(selected_bars), tuple(selected['header']))
 
 
 def _solve_horizontal_bands(spec, columns, widths, bands, sources,
-                            selected_titles, selected_runs, selected_bars):
+                            selected):
+    """Solve the bands, writing each chosen candidate into ``selected``
+    (lists by source kind); return the widened columns."""
     outer_y = max((
-        selected_runs[index].width + _run_gap(run, widths.label_gap)
+        selected['x'][index].width + _run_gap(run, widths.label_gap)
         for index, run in enumerate(spec.runs)
         if run.axis == 'y' and run.panel_indices and
         _span_extent(spec, run, 'column')[0] == 0), default=0.0)
@@ -1241,19 +1478,16 @@ def _solve_horizontal_bands(spec, columns, widths, bands, sources,
         hard_outer_containment=not stacked,
         label_min_clearance=_label_clearance(spec))
     for (kind, indices), band in zip(sources, layout.bands):
-        target = {'title': selected_titles, 'x': selected_runs,
-                  'bar': selected_bars}[kind]
         for index, candidate in zip(indices, band.candidates):
-            target[index] = candidate
+            selected[kind][index] = candidate
     gaps = tuple(max(gap, legend) for gap, legend in
                  zip(layout.boundary_gaps, columns.legend_gaps))
-    updated = _Columns(gaps, layout.common_gap, columns.private_gaps,
-                       columns.right_legend_gap, columns.axis_gap,
-                       columns.cell_bar_gap, columns.cell_bar_thickness,
-                       _column_start_positions(spec, gaps, widths.size.width),
-                       spec.columns * widths.size.width + sum(gaps),
-                       columns.legend_gaps)
-    return updated, selected_titles, selected_runs, selected_bars
+    return _Columns(gaps, layout.common_gap, columns.private_gaps,
+                    columns.right_legend_gap, columns.axis_gap,
+                    columns.cell_bar_gap, columns.cell_bar_thickness,
+                    _column_start_positions(spec, gaps, widths.size.width),
+                    spec.columns * widths.size.width + sum(gaps),
+                    columns.legend_gaps)
 
 
 def _x_label_stack_height(spec, widths, bands, row, column=None):
@@ -1281,6 +1515,13 @@ def _row_gaps(spec, widths, bands, reserves):
         heights[cell.row] = max(heights[cell.row], candidate.height)
         offsets[cell_index] = max(offsets[cell_index],
                                   widths.title_gap + candidate.height)
+    # Above legends clear the X headers as they clear titles.
+    stacked_titles = _with_headers(spec, heights, tuple(
+        candidate.height for candidate in bands.header_candidates))
+    for index, cell in enumerate(spec.cells):
+        if stacked_titles[cell.row] > heights[cell.row]:
+            offsets[index] = max(offsets[index], widths.title_gap +
+                                 stacked_titles[cell.row])
     automatic = bool(spec.label_layout.auto_axis_label_layout and spec.runs)
     x_indices = tuple(index for index, run in enumerate(spec.runs)
                       if run.axis == 'x') if automatic else ()
@@ -1297,8 +1538,8 @@ def _row_gaps(spec, widths, bands, reserves):
               if x_indices else widths.row_gap)
     if widths.vertical_layout is not None:
         common = max(common, widths.vertical_layout.common_gap)
-    baseline = _row_boundary_baseline(spec, widths, reserves, heights,
-                                      include_auto_x=False)
+    baseline = _row_boundary_baseline(spec, widths, reserves,
+                                      stacked_titles, include_auto_x=False)
     gaps = [common + max(0.0, value - widths.row_gap) for value in baseline]
     if x_indices:
         expansion = max(0.0, common - widths.row_gap)
@@ -1524,17 +1765,22 @@ def _axis_label_rect(spec, widths, bands, rows, index, run):
 
 
 def _stack_labels_for_row(spec, columns, widths, rows, row):
+    """Place a row's region labels, the stack headers outside them and
+    its heatmap Y labels."""
     stack = _stack_for_row(widths, row)
     if stack is None:
-        return (), ()
-    labels = _stack_label_runs(spec, row)
+        return (), (), ()
+    groups = stack_run_groups(spec, row)
     indicator = rows.indicators[row] if rows.indicators else None
-    on_left = bool(labels and labels[0].location == 'left')
+    on_left = bool(groups and groups[0][1][0].location == 'left')
     region_rects = []
+    header_rects = []
     # Left edge of the left-side labels of the run starting at each cell.
     left_edges = {}
-    for ordinal, (members, candidates) in enumerate(stack.region_groups):
-        label_width = max((item.width for item in candidates), default=0.0)
+    for ordinal, ((members, candidates), (_, runs), headers) in enumerate(
+            zip(stack.region_groups, groups, stack.header_groups)):
+        _, label_width, levels = _beside_labels(spec, candidates, headers,
+                                                _stack_region_gap(spec))
         gap = _stack_region_gap(spec) if label_width else 0.0
         if on_left:
             nearest = (indicator.x0 if ordinal == 0 and indicator else
@@ -1548,13 +1794,24 @@ def _stack_labels_for_row(spec, columns, widths, rows, row):
                         spec.cells[index].width for index in members)
             region_left = right + gap
         first = members[0]
-        for index, candidate in enumerate(candidates):
-            block = rows.blocks[first][index]
+        for run, candidate in zip(runs, candidates):
+            block = rows.blocks[first][run.block_index]
             x = region_left + label_width - candidate.width if on_left \
                 else region_left
-            region_rects.append((row, ordinal, index, Rect(
+            region_rects.append((row, ordinal, run.block_index, Rect(
                 x, block.y + (block.height - candidate.height) / 2,
                 candidate.width, candidate.height)))
+        # Headers stack outward from the labels' outer edge.
+        edge = region_left if on_left else region_left + label_width
+        blocks = rows.blocks[first]
+        placed = _place_beside(
+            spec, headers, levels, edge, on_left,
+            lambda run: (blocks[run.block_span[0]].y1,
+                         blocks[run.block_span[1]].y0))
+        header_rects.extend(placed)
+        if on_left and placed:
+            left_edges[members[0]] = min(
+                text.x0 for _, text, _ in placed)
     y_rects = []
     cells = tuple((index, cell) for index, cell in enumerate(spec.cells)
                   if cell.row == row)
@@ -1577,7 +1834,36 @@ def _stack_labels_for_row(spec, columns, widths, rows, row):
             x, rows.stack_bottoms[row] +
             (stack.stack_height - candidate.height) / 2,
             candidate.width, candidate.height)))
-    return tuple(region_rects), tuple(y_rects)
+    return tuple(region_rects), tuple(y_rects), tuple(header_rects)
+
+
+def _place_beside(spec, headers, levels, edge, on_left, span):
+    """Place headers outside rotated labels: a region-label run's stack
+    headers, or the row headers.
+
+    ``edge`` is the labels' outer edge; ``levels`` the distances of each
+    level's rule and text column from it (``_beside_labels``). A rule spans
+    the top to bottom (``span`` of a header's run) of the blocks or rows
+    its header collects, shortened by ``header_rule_inset`` at both ends;
+    its text is centred on it, next to the rule.
+    """
+    inset = spec.geometry.header_rule_inset
+    rule_width = spec.geometry.header_rule_width
+    sign = -1.0 if on_left else 1.0
+    placed = []
+    for index, candidate in headers:
+        run = spec.headers[index]
+        start, text_start, _ = levels[run.level]
+        top, bottom = span(run)
+        top, bottom = top - inset, bottom + inset
+        rule = Rect(edge + sign * start - (rule_width if on_left else 0.0),
+                    bottom, rule_width, max(0.0, top - bottom))
+        text = Rect(
+            edge + sign * text_start - (candidate.width if on_left else 0.0),
+            (top + bottom - candidate.height) / 2,
+            candidate.width, candidate.height)
+        placed.append((index, text, rule))
+    return placed
 
 
 def _row_extent(spec, rows, region, row, right_legends=()):
@@ -1618,56 +1904,159 @@ def _row_decorations(spec, columns, bands, widths, rows):
     row_label_gap = spec.geometry.profile_panel_to_row_header_gap
     region = []
     heatmap_y = []
+    stack_headers = []
     for row in range(spec.rows):
-        row_region, row_y = _stack_labels_for_row(
+        row_region, row_y, row_headers = _stack_labels_for_row(
             spec, columns, widths, rows, row)
         region.extend(row_region)
         heatmap_y.extend(row_y)
+        stack_headers.extend(row_headers)
     titles = []
     for index, (cell_index, cell) in enumerate(_titles(spec)):
         candidate = bands.title_candidates[index]
         if candidate is None:
             raise ValueError('panel title selection is incomplete')
-        # A title sits over the cell's top element: its profile, else stack.
-        top = (rows.panels[cell_index] if rows.panels[cell_index] is not None
-               else rows.blocks[cell_index][0])
+        top = _top_element(rows, cell_index)
         width = candidate.width if candidate.width > 0 else widths.size.width
-        # Titles also clear the right legends rising above the row's
-        # profiles, as the row gap reserves them over the top extents.
-        edge = max((rect.y1 for other, rect in zip(spec.cells,
-                                                   rows.cell_legends)
-                    if rect is not None and other.row == cell.row and
-                    other.legend.location == 'right'), default=top.y1)
         titles.append((cell_index, Rect(
             top.x + (widths.size.width - width) / 2,
-            max(top.y1, edge) + widths.title_gap, width, candidate.height)))
+            _title_baseline(spec, widths, rows, cell_index), width,
+            candidate.height)))
+    headers = _place_x_headers(spec, widths, bands, rows, titles)
     axes = tuple((index, _axis_label_rect(spec, widths, bands, rows,
                                           index, run))
                  for index, run in enumerate(spec.runs)
                  if run.axis in ('x', 'y') and run.panel_indices)
+    # Above grid legends clear the headers over their cells like titles.
+    over = titles + [(cell, text) for index, text, _ in headers
+                     for cell in spec.headers[index].panel_indices]
     grid_legends = tuple((legend, _place_grid_legend(
-        spec, widths, columns, rows, titles, axes, legend))
+        spec, widths, columns, rows, over, axes, legend))
         for legend in spec.decorations
         if legend.kind == 'legend' and legend.scope in ('row', 'column'))
     # Row labels clear the row, including right legends beside its profiles.
     right_legends = tuple(rect for legend, rect in grid_legends
                           if legend.location == 'right')
+    # Stack headers count with the region labels they stand beside.
+    beside = region + [(spec.cells[spec.headers[index].panel_indices[0]].row,
+                        None, None, rect) for index, text, rule in stack_headers
+                       for rect in (text, rule)]
     facets = tuple(
         (facet.owner, candidate,
-         _row_extent(spec, rows, region, facet.owner, right_legends))
+         _row_extent(spec, rows, beside, facet.owner, right_legends))
         for facet, candidate in zip(_facets(spec), widths.row_candidates)
         if any(cell.row == facet.owner for cell in spec.cells) and
         candidate.width > 0 and candidate.height > 0)
-    # Row labels share one line right of the widest row.
-    x = max((extent.x1 for _, _, extent in facets), default=0.0) + \
-        row_label_gap
+    # Row labels share one line right of the widest row, also clearing
+    # the rows only a row header names.
+    named = {row for index, _ in widths.row_headers
+             for row in _span_rows(spec, spec.headers[index])}
+    edge = max((*(extent.x1 for _, _, extent in facets),
+                *(_row_extent(spec, rows, beside, row, right_legends).x1
+                  for row in sorted(named - {owner for owner, _, _ in facets}))),
+               default=0.0)
+    x = edge + row_label_gap
     labels = [(owner, Rect(x, extent.y0 +
                            (extent.height - candidate.height) / 2,
                            candidate.width, candidate.height), candidate)
               for owner, candidate, extent in facets]
     return _RowDecorations(
         rows, tuple(labels), tuple(titles), grid_legends, axes,
-        tuple(region), tuple(heatmap_y))
+        tuple(region), tuple(heatmap_y),
+        headers + tuple(stack_headers) +
+        _place_row_headers(spec, widths, rows, labels, edge, row_label_gap))
+
+
+def _span_rows(spec, run):
+    first, last = _span_extent(spec, run, 'row')
+    return range(first, last + 1)
+
+
+def _place_row_headers(spec, widths, rows, labels, edge, gap):
+    """Stack the row headers outward right of the row labels, level 1
+    innermost: the labels sit ``gap`` right of ``edge``, the rows' right
+    edge they clear. A rule spans the data of the first to last row its
+    header collects."""
+    if not widths.row_headers:
+        return ()
+    _, label_width, levels = _beside_labels(
+        spec, tuple(candidate for _, _, candidate in labels),
+        widths.row_headers, gap)
+    if label_width:
+        edge = max(rect.x1 for _, rect, _ in labels)
+
+    def span(run):
+        first, last = _span_extent(spec, run, 'row')
+        data = {row: tuple(rect for index in run.panel_indices
+                           if spec.cells[index].row == row
+                           for rect in _data_rects(rows, index))
+                for row in (first, last)}
+        return (max(rect.y1 for rect in data[first]),
+                min(rect.y0 for rect in data[last]))
+
+    return tuple(_place_beside(spec, widths.row_headers, levels, edge,
+                               False, span))
+
+
+def _data_rects(rows, index):
+    """A cell's data: its profile and its heatmap blocks."""
+    panel = rows.panels[index]
+    return ((panel,) if panel is not None else ()) + tuple(rows.blocks[index])
+
+
+def _top_element(rows, index):
+    """A cell's top element: its profile, else the top of its stack."""
+    return (rows.panels[index] if rows.panels[index] is not None
+            else rows.blocks[index][0])
+
+
+def _title_baseline(spec, widths, rows, index):
+    """Where a cell's title starts: over its top element, also clearing
+    the right legends rising above the row's profiles, as the row gap
+    reserves them over the top extents."""
+    top = _top_element(rows, index)
+    row = spec.cells[index].row
+    edge = max((rect.y1 for other, rect in zip(spec.cells, rows.cell_legends)
+                if rect is not None and other.row == row and
+                other.legend.location == 'right'), default=top.y1)
+    return max(top.y1, edge) + widths.title_gap
+
+
+def _place_x_headers(spec, widths, bands, rows, titles):
+    """Stack each row's X headers over its titles, level 1 innermost.
+
+    All headers of one level in a row share one baseline: the level-1
+    rules sit ``header_rule_to_label_gap`` over the row's highest title
+    (or where a title would start in a row without titles), each further
+    level the same gap over the tallest text of the level inside it. A
+    rule spans the data of the cells it collects, shortened by
+    ``header_rule_inset`` at both ends; its text is centred on it.
+    """
+    to_label, rule_width, to_text = _header_gaps(spec)
+    inset = spec.geometry.header_rule_inset
+    tops = {}  # per row: the top of what its next level embraces
+    for index, rect in titles:
+        row = spec.cells[index].row
+        tops[row] = max(tops.get(row, rect.y1), rect.y1)
+    placed, bases = [], {}
+    for index, row, level, _ in _x_headers(spec):
+        run = spec.headers[index]
+        if row not in tops:
+            # Over a row without titles, level 1 takes the titles' place.
+            tops[row] = max(_title_baseline(spec, widths, rows, cell)
+                            for cell in range(len(spec.cells))
+                            if spec.cells[cell].row == row) - to_label
+        y = bases.setdefault((row, level), tops[row] + to_label)
+        data = tuple(_top_element(rows, cell) for cell in run.panel_indices)
+        x0 = min(rect.x0 for rect in data) + inset
+        x1 = max(rect.x1 for rect in data) - inset
+        rule = Rect(x0, y, max(0.0, x1 - x0), rule_width)
+        candidate = bands.header_candidates[index]
+        text = Rect((x0 + x1 - candidate.width) / 2, rule.y1 + to_text,
+                    candidate.width, candidate.height)
+        tops[row] = max(tops[row], text.y1)
+        placed.append((index, text, rule))
+    return tuple(placed)
 
 
 def _figure_body(spec, rows):
@@ -1686,6 +2075,7 @@ def _figure_body(spec, rows):
     body.extend(rect for _, rect, _ in rows.row_labels)
     body.extend(rect for _, rect in rows.axis_labels)
     body.extend(rect for _, rect in rows.panel_titles)
+    body.extend(rect for _, text, rule in rows.headers for rect in (text, rule))
     body.extend(rect for _, _, _, rect in rows.region_labels)
     body.extend(rect for _, _, rect in rows.heatmap_y_labels)
     body.extend(rect for rect in rows.rows.indicators if rect is not None)
@@ -1780,11 +2170,36 @@ def _figure_decorations(spec, columns, bands, widths, rows):
     return _FigureDecorations(rows, legend, body, top, tuple(bars))
 
 
+def _figure_title_candidate(spec, columns, figure):
+    """The title layout with the fewest lines that keeps the figure width.
+
+    The title centres on the columns, so it fits when it stays inside the
+    content on both sides of that centre. With no layout that fits, the
+    narrowest one is used.
+    """
+    candidates = spec.title.candidates
+    content = tuple(rect for rect in (*figure.body, figure.legend)
+                    if rect is not None and rect.width > 0)
+    centre = columns.width / 2
+    room = 2 * min(centre - min(rect.x0 for rect in content),
+                   max(rect.x1 for rect in content) - centre)
+    fitting = tuple(item for item in candidates if item.width <= room)
+    if not fitting:
+        return min(candidates, key=lambda item: item.width)
+    fewest = min(item.line_count for item in fitting)
+    layout = spec.label_layout
+    return min((item for item in fitting if item.line_count == fewest),
+               key=lambda item: (
+                   layout.panel_title_balance_weight * item.balance_penalty +
+                   layout.panel_title_orphan_weight * item.orphan_penalty +
+                   item.break_penalty))
+
+
 def _figure_bands(spec, columns, figure):
     """Place the figure title above the solved grid."""
-    title = None
+    title = candidate = None
     if spec.title is not None:
-        candidate = spec.title.candidates[0]
+        candidate = _figure_title_candidate(spec, columns, figure)
         width = candidate.width or columns.width
         top = (figure.legend.y1 if figure.legend is not None and
                next(iter(_legends(spec, 'figure')), None).location == 'above'
@@ -1792,7 +2207,7 @@ def _figure_bands(spec, columns, figure):
         title = Rect((columns.width - width) / 2,
                      top + _title_gap(spec),
                      width, candidate.height)
-    return _FigureBands(figure, title)
+    return _FigureBands(figure, title, candidate)
 
 
 def _selected_indices(spec, widths, bands, rows):
@@ -1801,6 +2216,9 @@ def _selected_indices(spec, widths, bands, rows):
         candidate = bands.title_candidates[index]
         selected[cell_title(cell.row, cell.column)] = _candidate_index(
             cell.labels.title_candidates, candidate)
+    for index, role, _ in header_roles(spec):
+        selected[role] = _candidate_index(spec.headers[index].candidates,
+                                          bands.header_candidates[index])
     for index, facet in enumerate(_facets(spec)):
         if any(owner == facet.owner for owner, _, _ in rows.row_labels):
             selected[row_label(facet.owner)] = _candidate_index(
@@ -1814,8 +2232,9 @@ def _selected_indices(spec, widths, bands, rows):
     for stack in widths.stacks:
         for ordinal, ((_, runs), (_, candidates)) in enumerate(zip(
                 stack_run_groups(spec, stack.row), stack.region_groups)):
-            for index, (run, chosen) in enumerate(zip(runs, candidates)):
-                selected[label_role('stack', stack.row, ordinal, index)] = \
+            for run, chosen in zip(runs, candidates):
+                selected[label_role('stack', stack.row, ordinal,
+                                    run.block_index)] = \
                     _candidate_index(run.candidates, chosen)
         for column, chosen in enumerate(stack.y_candidates):
             if chosen is None or not chosen.width:
@@ -1841,28 +2260,55 @@ def _candidate_index(candidates, chosen):
     raise ValueError('selected label candidate is absent from input')
 
 
-def _stack_region_selection(spec, heights, gap, row, max_gap, labels=None):
+def _stack_region_selection(spec, heights, gap, row, max_gap, labels=None,
+                            headers=()):
+    """Select a region-label run's labels and its stack ``headers`` (runs)
+    beside one stack, and the block gap they need.
+
+    The labels form one band, each over its own block (``block_index``;
+    a block without a label has none); each header level one more band
+    whose spans are the blocks it collects, so a header longer than its
+    blocks may grow the block gap like a label.
+    """
     if labels is None:
         labels = _stack_label_runs(spec, row)
     selected = tuple(item.candidates[0] for item in labels)
+    chosen_headers = tuple(run.candidates[0] for run in headers)
     if not labels or not spec.label_layout.auto_heatmap_region_label_layout:
-        return selected, gap
+        return selected, chosen_headers, gap
     extent = sum(heights) + gap * (len(heights) - 1)
     scale = max(spec.columns * spec.cells[0].width, 1.0)
+    last = len(heights) - 1
+    blocks = tuple(run.block_index for run in labels)
+    levels = {}
+    for index, run in enumerate(headers):
+        levels.setdefault(run.level, []).append(index)
+    # Bands run bottom up: block b is cell ``last - b``.
+    header_bands = tuple(
+        (tuple(reversed(indices)), tuple(
+            (last - headers[i].block_span[1], last - headers[i].block_span[0])
+            for i in reversed(indices)))
+        for indices in levels.values())
 
-    def solve(candidate_sets, gap_cap):
-        reversed_sets = tuple(reversed(candidate_sets))
-        band = SharedGapBandSpec(
-            candidate_sets=reversed_sets,
-            spans=tuple((index, index) for index in range(len(labels))),
+    def band(candidate_sets, spans):
+        return SharedGapBandSpec(
+            candidate_sets=candidate_sets, spans=spans,
             primary_dimension='height',
             extra_row_penalty=spec.label_layout.heatmap_region_label_extra_row_penalty,
             balance_weight=spec.label_layout.heatmap_region_label_balance_weight,
             orphan_weight=spec.label_layout.heatmap_region_label_orphan_weight,
             secondary_costs=tuple(tuple(c.width / scale for c in candidates)
-                                  for candidates in reversed_sets))
+                                  for candidates in candidate_sets))
+
+    def solve(candidate_sets, gap_cap):
+        bands = (band(tuple(reversed(candidate_sets)),
+                      tuple((last - block, last - block)
+                            for block in reversed(blocks))),
+                 ) + tuple(band(tuple(headers[i].candidates for i in indices),
+                                spans)
+                           for indices, spans in header_bands)
         return optimize_shared_gap_layout(
-            (band,), cell_extent=tuple(reversed(heights)),
+            bands, cell_extent=tuple(reversed(heights)),
             base_common_gap=gap,
             base_private_gaps=(0.0,) * max(0, len(heights) - 1),
             original_block_extent=extent,
@@ -1879,11 +2325,22 @@ def _stack_region_selection(spec, heights, gap, row, max_gap, labels=None):
         # Text may flow across a preferred break only when that needs no
         # wider stack gap than the best layout keeping every such break.
         cap = min(max_gap, chosen.common_gap)
-        flowing = _flowed_within_gap(all_sets, kept_sets, heights, cap,
-                                     _label_clearance(spec))
+
+        def by_block(sets):
+            placed = dict(zip(blocks, sets))
+            return tuple(placed.get(block, ()) for block in range(last + 1))
+
+        flowing = _flowed_within_gap(by_block(all_sets), by_block(kept_sets),
+                                     heights, cap, _label_clearance(spec))
+        flowing = tuple(flowing[block] for block in blocks)
         if flowing != kept_sets:
             chosen = solve(flowing, cap)
+    chosen_headers = list(chosen_headers)
+    for (indices, _), solved in zip(header_bands, chosen.bands[1:]):
+        for index, candidate in zip(indices, solved.candidates):
+            chosen_headers[index] = candidate
     return (tuple(reversed(chosen.bands[0].candidates)),
+            tuple(chosen_headers),
             chosen.common_gap if len(heights) > 1 else gap)
 
 
@@ -1893,9 +2350,10 @@ def _flowed_within_gap(all_sets, kept_sets, heights, gap, clearance):
     A label is centred on its stack; toward each neighbour it may reach at
     most across the gap and the part of the neighbour's stack its shortest
     label leaves free, less the clearance. Edge labels are free outward.
+    The sets are per block; a block without a label has none.
     """
     count = len(all_sets)
-    shortest = tuple(min(c.height for c in candidates)
+    shortest = tuple(min((c.height for c in candidates), default=0.0)
                      for candidates in kept_sets)
 
     def reach(index, neighbour):
@@ -1992,34 +2450,59 @@ def _stack_y_selection(spec, stack_height, block_gap, row, overhang=0.0):
 
 
 def _stack_widths_for_row(spec, row):
-    """Select stack labels and heatmap Y widths for one occupied row."""
+    """Select stack labels, stack headers and heatmap Y widths for one
+    occupied row."""
     cells = tuple(cell for cell in spec.cells if cell.row == row and cell.stack)
     gap = spec.geometry.heatmap_group_gap
     heights = cells[0].stack
     growth = spec.label_layout.heatmap_region_label_gap_growth
     cap = (spec.label_layout.max_heatmap_region_gap_points if growth else gap)
     groups = stack_run_groups(spec, row)
+    stack_headers = _stack_headers(spec)
     selected_groups = []
+    header_groups = []
     selected_gap = gap
-    for members, labels in groups:
-        selected, group_gap = _stack_region_selection(
-            spec, spec.cells[members[0]].stack, gap, row, cap, labels)
+    for group, (members, labels) in enumerate(groups):
+        indices = tuple(index for index, owner, number, _, _ in stack_headers
+                        if (owner, number) == (row, group))
+        selected, headers, group_gap = _stack_region_selection(
+            spec, spec.cells[members[0]].stack, gap, row, cap, labels,
+            tuple(spec.headers[index] for index in indices))
         selected_groups.append((members, selected))
+        header_groups.append(tuple(zip(indices, headers)))
         selected_gap = max(selected_gap, group_gap)
     region = tuple(candidate for _, selected in selected_groups
                    for candidate in selected)
     if growth:
         gap = selected_gap
     height = sum(heights) + gap * max(0, len(heights) - 1)
-    overhang = max((max(0.0, (selected[0].height -
+    # Only a label beside the top block rises above the stack.
+    overhang = max((max(0.0, (candidate.height -
                               spec.cells[members[0]].stack[0]) / 2)
-                    for members, selected in selected_groups if selected),
+                    for (members, selected), (_, labels) in zip(
+                        selected_groups, groups)
+                    for run, candidate in zip(labels, selected)
+                    if run.block_index == 0),
                    default=0.0)
+    # Headers over the top block rise above the stack like its label.
+    overhang = max((overhang, *(
+        (candidate.height - _block_span_extent(
+            spec.cells[members[0]].stack, gap,
+            spec.headers[index].block_span)) / 2
+        for (members, _), chosen in zip(selected_groups, header_groups)
+        for index, candidate in chosen
+        if spec.headers[index].block_span[0] == 0)))
     y, summary_gap, private, summary_height = \
         _stack_y_selection(spec, height, gap, row, overhang)
     return _StackWidths(row, gap, height, region, y,
                         summary_gap, private, summary_height,
-                        tuple(selected_groups))
+                        tuple(selected_groups), tuple(header_groups))
+
+
+def _block_span_extent(heights, gap, span):
+    """The height of blocks ``span`` (first, last) and the gaps between."""
+    first, last = span
+    return sum(heights[first:last + 1]) + gap * (last - first)
 
 
 def _provisional_bands(spec, widths):
@@ -2167,26 +2650,49 @@ def _place_row_bars(spec, stack, bands, bottom, reserve, row):
                      for item, rect, title in zip(figure_below, placed, titles))
     if not row_right:
         return ()
+    # Right bars clear the region labels and the stack headers outside.
     labels = _stack_label_runs(spec, row)
-    width = max((candidate.width for candidate in stack.region_candidates),
-                default=0.0)
-    region_right = (width + _stack_region_gap(spec)
-                    if labels and width and labels[0].location == 'right'
-                    else 0.0)
+    region_right = (max((_beside_labels(spec, candidates, headers,
+                                        _stack_region_gap(spec))[0]
+                         for (_, candidates), headers in zip(
+                             stack.region_groups, stack.header_groups)),
+                        default=0.0)
+                    if labels and labels[0].location == 'right' else 0.0)
     chosen = _bar_titles(spec, bands, row_right)
-    placed, _ = pack_colorbar_grid(
-        len(row_right), stack.stack_height,
-        bands.columns.width + region_right + _bar_gap(spec) +
-        row_right[0].insets.left,
-        bottom + stack.stack_height, thickness=thickness,
-        tick_label_widths=tuple(item.tick_label_width for item in row_right),
-        label_band_heights=tuple(title.height + title_gap if title.height
-                                 else 0.0 for title in chosen),
-        label_widths=tuple(title.width for title in chosen),
-        geometry=spec.geometry)
-    return tuple((item, rect, Rect(rect.x, rect.y1 + title_gap, title.width,
-                                   title.height) if title.height else None)
-                 for item, rect, title in zip(row_right, placed, chosen))
+    bands_of = {}
+    for index, item in enumerate(row_right):
+        bands_of.setdefault(_bar_band(spec, stack, bottom, item),
+                            []).append(index)
+    result = [None] * len(row_right)
+    for (top, height), members in bands_of.items():
+        items = tuple(row_right[index] for index in members)
+        titles = tuple(chosen[index] for index in members)
+        placed, _ = pack_colorbar_grid(
+            len(items), height,
+            bands.columns.width + region_right + _bar_gap(spec) +
+            row_right[0].insets.left,
+            top, thickness=thickness,
+            tick_label_widths=tuple(item.tick_label_width for item in items),
+            label_band_heights=tuple(title.height + title_gap if title.height
+                                     else 0.0 for title in titles),
+            label_widths=tuple(title.width for title in titles),
+            geometry=spec.geometry)
+        for index, item, rect, title in zip(members, items, placed, titles):
+            result[index] = (item, rect, Rect(
+                rect.x, rect.y1 + title_gap, title.width, title.height)
+                if title.height else None)
+    return tuple(result)
+
+
+def _bar_band(spec, stack, bottom, item):
+    """The (top, height) a right bar packs into: its block, or the stack."""
+    if item.block is None:
+        return bottom + stack.stack_height, stack.stack_height
+    cell, block = item.block
+    heights = spec.cells[cell].stack
+    top = (bottom + stack.stack_height - sum(heights[:block]) -
+           block * stack.block_gap)
+    return top, heights[block]
 
 
 def _emit_cell_rects(spec, placed, dx, dy):
@@ -2217,6 +2723,11 @@ def _emit_label_rects(spec, rows, dx, dy):
     for index, rect in rows.panel_titles:
         cell = spec.cells[index]
         rects[cell_title(cell.row, cell.column)] = _move(rect, dx, dy)
+    names = {index: roles for index, *roles in header_roles(spec)}
+    for index, text, rule in rows.headers:
+        text_role, rule_role = names[index]
+        rects[text_role] = _move(text, dx, dy)
+        rects[rule_role] = _move(rule, dx, dy)
     for row, run, block, rect in rows.region_labels:
         if rect.width and rect.height:
             rects[label_role('stack', row, run, block)] = _move(rect, dx, dy)
@@ -2257,7 +2768,11 @@ def _envelope(spec, widths, bands, figure):
     rects = _emit_cell_rects(spec, rows.rows, dx, dy)
     rects.update(_emit_label_rects(spec, rows, dx, dy))
     rects.update(_emit_decoration_rects(spec, decorated, figure, dx, dy))
-    return SolvedGrid(size, rects, _selected_indices(spec, widths, bands, rows))
+    selected = _selected_indices(spec, widths, bands, rows)
+    if figure.title_candidate is not None:
+        selected[figure_title()] = _candidate_index(
+            spec.title.candidates, figure.title_candidate)
+    return SolvedGrid(size, rects, selected)
 
 
 def solve(spec):

@@ -52,6 +52,7 @@ from deeptoolsr.plotting.geometry import Insets, Size
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.font_manager import FontProperties
 from deeptoolsr import plotHeatmap, plotProfile
+from deeptoolsr import plotMatrix as plot_matrix_module
 from deeptoolsr.plotting import text_layout
 from deeptoolsr.plotting.geometry import resolve_style
 from deeptoolsr.plotting.text_layout import TextMeasurer, measure_matplotlib_text
@@ -719,9 +720,10 @@ def test_rotated_region_label_is_not_double_counted_as_bottom_decoration(
     baseline_bottom = min(rect.y0 for rect in _block_rects(baseline))
     decorated_bottom = min(rect.y0 for rect in _block_rects(decorated))
     assert decorated_bottom == pytest.approx(baseline_bottom, abs=1)
-    assert [(rect.width, rect.height) for rect in _block_rects(decorated)] == \
-        pytest.approx([(rect.width, rect.height)
-                       for rect in _block_rects(baseline)])
+    assert [size for rect in _block_rects(decorated)
+            for size in (rect.width, rect.height)] == \
+        pytest.approx([size for rect in _block_rects(baseline)
+                       for size in (rect.width, rect.height)])
     figure.canvas.draw()
     renderer = figure.canvas.get_renderer()
     for axis in figure.axes:
@@ -1899,6 +1901,74 @@ def test_profile_data_export_escapes_control_characters_in_labels(tmp_path):
         plt.close(profile.figure)
 
 
+def _with_carriage_returns(token):
+    # Windows line end, lone carriage return, trailing carriage return.
+    return f'{token}1\r\n{token}2\r{token}3\r'
+
+
+@pytest.mark.parametrize('matrix_name,settings', [
+    pytest.param('master_multi.mat.gz', {'sample_labels': 'sample'},
+                 id='sample_title'),
+    pytest.param('master_multi.mat.gz', {'group_labels': 'group'},
+                 id='region_label_and_legend_entry'),
+    pytest.param('master_multi.mat.gz', {'plotTitle': 'title'},
+                 id='plot_title'),
+    pytest.param('master_multi.mat.gz', {'xAxisLabel': 'xlabel'},
+                 id='x_axis_label'),
+    pytest.param('master_multi.mat.gz', {'yAxisLabel': 'ylabel'},
+                 id='summary_y_axis_label'),
+    pytest.param('master_multi.mat.gz', {'heatmapYAxisLabel': 'hlabel'},
+                 id='heatmap_y_axis_label'),
+    pytest.param('master_multi.mat.gz', {'refPointLabel': 'point'},
+                 id='reference_point_label'),
+    pytest.param('master_scale_reg.mat.gz',
+                 {'startLabel': 'start', 'endLabel': 'end'},
+                 id='start_and_end_labels'),
+    pytest.param('master_multi.mat.gz', {'colorbarLabels': 'scale'},
+                 id='colorbar_title'),
+    pytest.param('master_multi.mat.gz',
+                 {'arrangeSamples': ['1,2', '3,4'], 'sampleSetLabels': 'set'},
+                 id='sample_set_label'),
+])
+def test_drawn_labels_drop_carriage_returns_and_keep_line_breaks(
+        matrix_name, settings):
+    # OWNER RULING: matplotlib on Windows cannot lay out text containing
+    # '\r', so every drawn label loses its '\r' while '\n' still breaks the
+    # line. Exports keep their escapes (see the profile data export test).
+    matrix = Matrix.load(str(HEATMAP_SLOT_DATA / matrix_name), threads=1)
+    data_labels, render_settings = {}, {}
+    for name, token in settings.items():
+        if name == 'sample_labels':
+            data_labels[name] = [_with_carriage_returns(token)] + [
+                'other'] * (len(matrix.header.sample_labels) - 1)
+        elif name == 'group_labels':
+            data_labels[name] = [_with_carriage_returns(token)] + [
+                'other'] * (len(matrix.header.group_labels) - 1)
+        elif name in ('colorbarLabels', 'sampleSetLabels'):
+            render_settings[name] = [_with_carriage_returns(token), 'other']
+        elif name == 'arrangeSamples':
+            render_settings[name] = token
+        else:
+            render_settings[name] = _with_carriage_returns(token)
+    tokens = [token for name, token in settings.items()
+              if name != 'arrangeSamples']
+    figure, _ = render_heatmap(plot_data(matrix, **data_labels),
+                               **render_settings)
+    try:
+        figure.canvas.draw()
+        drawn = [text.get_text()
+                 for text in figure.findobj(matplotlib.text.Text)
+                 if text.get_visible() and text.get_text()]
+        assert not [text for text in drawn if '\r' in text]
+        for token in tokens:
+            showing = [text for text in drawn if f'{token}1' in text]
+            assert showing, (token, drawn)
+            assert all(f'{token}1\n{token}2{token}3' in text
+                       for text in showing), showing
+    finally:
+        plt.close(figure)
+
+
 def test_profile_cli_matrix_export_is_full_plain_matrix_not_panel_expansion(
         tmp_path):
     model = _plot_matrix(groups=('genes',), samples=('s1', 's2'))
@@ -2913,5 +2983,516 @@ def test_programmatic_heatmap_also_omits_empty_groups(tmp_path, per_group):
         assert data.layout.group_bounds == (0, 2)
         assert data.labels.groups == ('group1',)
         assert matrix.header.group_boundaries == (0, 0, 2)
+    finally:
+        plt.close('all')
+
+
+# Outer-merged X labels across columns with different ranges, and title wrap.
+
+def _two_range_matrix(path, ref_points=('TSS', 'TSS')):
+    """Two reference-point samples: 0 to +3 kb and -1.5 kb to 0."""
+    values = np.arange(2 * 6, dtype=np.float32).reshape(2, 6)
+    regions = [['chr1', [(i * 10, i * 10 + 5)], 'GENE{}'.format(i + 1), 0,
+                '+', '0'] for i in range(2)]
+    parameters = {
+        'upstream': [0, 1500], 'downstream': [3000, 0], 'body': [0, 0],
+        'unscaled 5 prime': [0, 0], 'unscaled 3 prime': [0, 0],
+        'ref point': list(ref_points), 'bin size': [1000, 500],
+        'sort regions': 'keep', 'sort using': 'mean',
+        'min threshold': None, 'max threshold': None,
+        'sample_labels': ['Sample A', 'Sample B'], 'group_labels': ['genes'],
+        'sample_boundaries': [0, 3, 6], 'group_boundaries': [0, 2]}
+    OwnedMatrix.from_compute(parameters, values, regions).save(
+        str(path), compressed=True, threads=1)
+
+
+def _cli_figure(monkeypatch, tmp_path, tool, *args):
+    """Run one plot command and return the figure it saved."""
+    built = []
+    original_build = plot_matrix_module.build_matrix_figure
+
+    def keep_figure(*call_args, **kwargs):
+        result = original_build(*call_args, **kwargs)
+        built.append(result[0])
+        return result
+
+    monkeypatch.setattr(plot_matrix_module, 'build_matrix_figure', keep_figure)
+    tool.main(['-m', str(tmp_path / 'ranges.gz'),
+               '-o', str(tmp_path / 'plot.png'), *args])
+    assert len(built) == 1
+    return built[0]
+
+
+def _drawn_x_labels(figure):
+    """Every X-axis label drawn: structural slots plus axis labels."""
+    slots = [axis.texts[0].get_text() for axis in figure.axes
+             if (axis.get_gid() or '').startswith('label/x/') and axis.texts]
+    own = [axis.get_xlabel() for axis in figure.axes
+           if axis.xaxis.get_visible() and axis.get_xlabel()]
+    return slots + own
+
+
+def _drawn_tick_labels(figure):
+    return {tuple(label.get_text() for label in axis.get_xticklabels()
+                  if label.get_text())
+            for axis in figure.axes
+            if axis.xaxis.get_visible() and
+            not (axis.get_gid() or '').startswith(('label/', 'colorbar/'))}
+
+
+_PLOT_MATRIX_BOTH = ('--heatmap', '--profile')
+
+
+@pytest.mark.parametrize('tool,extra', [
+    pytest.param(plotHeatmap, ('--showSummaryPlot', 'on'),
+                 id='heatmap-summary-on'),
+    pytest.param(plotHeatmap, ('--showSummaryPlot', 'off'),
+                 id='heatmap-summary-off'),
+    pytest.param(plotProfile, ('--arrangeSamples', '1', '2'),
+                 id='profile'),
+    pytest.param(plot_matrix_module, _PLOT_MATRIX_BOTH, id='matrix'),
+])
+def test_outer_merged_x_label_spans_columns_with_different_ranges(
+        tmp_path, monkeypatch, tool, extra):
+    """Same label text shares one label; each column keeps its ticks."""
+    _two_range_matrix(tmp_path / 'ranges.gz')
+    try:
+        figure = _cli_figure(
+            monkeypatch, tmp_path, tool, *extra,
+            '--xAxisVisibility', 'outer_merged', '--dpi', '70')
+        labels = _drawn_x_labels(figure)
+        assert len(labels) == 1, labels
+        ticks = _drawn_tick_labels(figure)
+        assert ('TSS', '3 kb') in ticks and ('-1.5 kb', 'TSS') in ticks
+    finally:
+        plt.close('all')
+
+
+@pytest.mark.parametrize('tool', [plotHeatmap, plotProfile],
+                         ids=['heatmap', 'profile'])
+def test_outer_merged_x_labels_with_different_text_stay_separate(
+        tmp_path, monkeypatch, tool):
+    _two_range_matrix(tmp_path / 'ranges.gz', ref_points=('TSS', 'TES'))
+    try:
+        figure = _cli_figure(
+            monkeypatch, tmp_path, tool,
+            '--xAxisVisibility', 'outer_merged', '--dpi', '70')
+        labels = _drawn_x_labels(figure)
+        assert len(labels) == 2 and len(set(labels)) == 2, labels
+    finally:
+        plt.close('all')
+
+
+def _drawn_title(figure):
+    return next(axis.texts[0].get_text() for axis in figure.axes
+                if axis.get_gid() == grid.figure_title())
+
+
+@pytest.mark.parametrize('tool,extra', [
+    pytest.param(plotHeatmap, (), id='heatmap'),
+    pytest.param(plotProfile, ('--arrangeSamples', '1', '2'), id='profile'),
+    pytest.param(plot_matrix_module, _PLOT_MATRIX_BOTH, id='matrix'),
+])
+def test_plot_title_wraps_to_plot_width(tmp_path, monkeypatch, tool, extra):
+    """A long title wraps; short and explicit-newline titles are kept."""
+    _two_range_matrix(tmp_path / 'ranges.gz')
+    long_title = ' '.join(['a deliberately long figure title'] * 6)
+    widths, titles = {}, {}
+    try:
+        for name, title in (('short', 'Sample A'), ('long', long_title),
+                            ('explicit', 'first line\nsecond line')):
+            figure = _cli_figure(monkeypatch, tmp_path, tool, *extra,
+                                 '--plotTitle', title, '--dpi', '70')
+            widths[name] = figure.get_size_inches()[0]
+            titles[name] = _drawn_title(figure)
+            plt.close(figure)
+        assert titles['short'] == 'Sample A'
+        assert titles['explicit'] == 'first line\nsecond line'
+        assert '\n' in titles['long']
+        assert titles['long'].split() == long_title.split()
+        assert widths['long'] <= widths['short'] + 1e-6
+    finally:
+        plt.close('all')
+
+
+# Nested X headers over cell titles (--nestedHeaders).
+
+def _four_sample_matrix(path):
+    """Four reference-point samples over two region groups."""
+    values = np.arange(4 * 16, dtype=np.float32).reshape(4, 16)
+    regions = [['chr1', [(i * 10, i * 10 + 5)], 'GENE{}'.format(i + 1), 0,
+                '+', '0'] for i in range(4)]
+    parameters = {
+        'upstream': [1000] * 4, 'downstream': [1000] * 4, 'body': [0] * 4,
+        'unscaled 5 prime': [0] * 4, 'unscaled 3 prime': [0] * 4,
+        'ref point': ['TSS'] * 4, 'bin size': [500] * 4,
+        'sort regions': 'keep', 'sort using': 'mean',
+        'min threshold': None, 'max threshold': None,
+        'sample_labels': ['Sample A', 'Sample B', 'Sample C', 'Sample D'],
+        'group_labels': ['genes', 'enhancers'],
+        'sample_boundaries': [0, 4, 8, 12, 16], 'group_boundaries': [0, 2, 4]}
+    OwnedMatrix.from_compute(parameters, values, regions).save(
+        str(path), compressed=True, threads=1)
+
+
+def _slot_rects(figure):
+    """Every slot's rectangle in points, by role."""
+    width, height = figure.get_size_inches() * 72
+    return {axis.get_gid(): grid.Rect(*(value * scale for value, scale in zip(
+        axis.get_position().bounds, (width, height, width, height))))
+        for axis in figure.axes if axis.get_gid()}
+
+
+@pytest.mark.parametrize('tool,name,extra,titles,headers', [
+    pytest.param(plot_matrix_module, 'plotMatrixR', _PLOT_MATRIX_BOTH,
+                 ['antisense', 'sense', 'antisense', 'sense'],
+                 [(1, 'Untreated', [1, 2]), (1, 'Treated', [3, 4])],
+                 id='matrix-one-level'),
+    pytest.param(plotHeatmap, 'plotHeatmapR', (),
+                 ['antisense', 'sense', 'antisense', 'sense'],
+                 [(1, 'Untreated', [1, 2]), (1, 'Treated', [3, 4])],
+                 id='heatmap-one-level'),
+    pytest.param(plotProfile, 'plotProfileR', (
+                 '--samplesLabel', 'Untreated|rep 1|antisense',
+                 'Untreated|rep 1|sense', 'Untreated|rep 2|antisense',
+                 'Treated|rep 1|sense'),
+                 ['antisense', 'sense', 'antisense', 'sense'],
+                 [(1, 'rep 1', [1, 2]), (1, 'rep 2', [3]), (1, 'rep 1', [4]),
+                  (2, 'Untreated', [1, 2, 3]), (2, 'Treated', [4])],
+                 id='profile-two-levels'),
+    pytest.param(plotProfile, 'plotProfileR', (
+                 '--plotType', 'heatmap', '--perGroup',
+                 '--regionsLabel', 'Set|genes', 'Set|enhancers'),
+                 ['genes', 'enhancers'],
+                 [(1, 'Set', [1]), (1, 'Set', [2])],
+                 id='profile-heatmap-per-group-one-cell-per-row'),
+])
+def test_nested_x_headers_draw_inner_titles_and_rules_over_runs(
+        tmp_path, monkeypatch, tool, name, extra, titles, headers):
+    from deeptoolsr.describe import describe
+    _four_sample_matrix(tmp_path / 'ranges.gz')
+    argv = ('--nestedHeaders', '--samplesLabel', 'Untreated|antisense',
+            'Untreated|sense', 'Treated|antisense', 'Treated|sense', *extra)
+    record = describe(name, ['-m', str(tmp_path / 'ranges.gz'), *argv])
+    try:
+        figure = _cli_figure(monkeypatch, tmp_path, tool, *argv, '--dpi', '72')
+        rects = _slot_rects(figure)
+        texts = {axis.get_gid(): axis.texts[0].get_text()
+                 for axis in figure.axes if axis.texts}
+        cells = {cell['index']: (cell['row'] - 1, cell['column'] - 1)
+                 for cell in record['cells']}
+        # Titles draw the innermost level, as describe reports them.
+        assert [texts[grid.cell_title(*cells[index])]
+                for index in sorted(cells)] == titles == [
+                    cell['title'] for cell in record['cells']]
+        x_headers = [item for item in record['headers'] if item['axis'] == 'x']
+        assert [(item['level'], item['text'], item['cells'])
+                for item in x_headers] == headers
+        geometry = DEFAULT_GEOMETRY
+        ordinals, text_tops, drawn = {}, {}, set()
+        for item in x_headers:
+            row, level = item['row'] - 1, item['level']
+            ordinal = ordinals.get((row, level), 0)
+            ordinals[row, level] = ordinal + 1
+            role = grid.header_role(row, level, ordinal)
+            drawn.add(role)
+            rule = rects[grid.header_rule_role(row, level, ordinal)]
+            data = [rects[grid.cell_profile(*cells[index])]
+                    if grid.cell_profile(*cells[index]) in rects else
+                    rects[grid.cell_block(*cells[index], 0)]
+                    for index in item['cells']]
+            assert texts[role] == item['text']
+            assert rule.x0 == pytest.approx(
+                data[0].x0 + geometry.header_rule_inset)
+            assert rule.x1 == pytest.approx(
+                data[-1].x1 - geometry.header_rule_inset)
+            inner = text_tops.get((row, level - 1), max(
+                rects[grid.cell_title(*cell)].y1
+                for cell in cells.values() if cell[0] == row))
+            assert rule.y0 == pytest.approx(
+                inner + geometry.header_rule_to_label_gap)
+            assert rects[role].y0 == pytest.approx(
+                rule.y1 + geometry.header_text_to_rule_gap)
+            text_tops[row, level] = max(text_tops.get((row, level), 0.0),
+                                        rects[role].y1)
+        # Every drawn header is one describe reports, and no other.
+        assert {role for role in rects
+                if role.startswith('label/header_x/')} == drawn
+        _assert_structural_slots_inside(figure)
+    finally:
+        plt.close('all')
+
+
+_STACKED_SAMPLES = ('--heatmap', '--arrangeSamples', '1,3', '--samplesLabel',
+                    '1=Sample A', '3=Sample B')
+_SPLIT_SAMPLES = ('--samplesLabel', 'Untreated|antisense', 'Untreated|sense',
+                  'Treated|antisense', 'Treated|sense')
+
+
+@pytest.mark.parametrize('tool,name,argv,labels,headers', [
+    pytest.param(plot_matrix_module, 'plotMatrixR',
+                 (*_STACKED_SAMPLES, '--showRegionCounts'),
+                 ['genes [n = 2]', 'enhancers [n = 2]'] * 2,
+                 [(1, 'Sample A', [1, 2]), (1, 'Sample B', [3, 4])],
+                 id='matrix-one-cell-right-with-counts'),
+    pytest.param(plot_matrix_module, 'plotMatrixR',
+                 (*_STACKED_SAMPLES, '--regionLabelLocation', 'left'),
+                 ['genes', 'enhancers'] * 2,
+                 [(1, 'Sample A', [1, 2]), (1, 'Sample B', [3, 4])],
+                 id='matrix-one-cell-left'),
+    pytest.param(plotHeatmap, 'plotHeatmapR', ('--perGroup', *_SPLIT_SAMPLES),
+                 ['antisense', 'sense'] * 2,
+                 [(1, 'Untreated', [1, 2]), (1, 'Treated', [3, 4])],
+                 id='heatmap-per-group'),
+    pytest.param(plot_matrix_module, 'plotMatrixR',
+                 (*_STACKED_SAMPLES, '--regionLabelLocation', 'none'),
+                 ['genes', 'enhancers'] * 2, [], id='matrix-labels-none'),
+])
+def test_nested_stack_headers_draw_inner_region_labels_and_rules_beside_runs(
+        tmp_path, monkeypatch, tool, name, argv, labels, headers):
+    from deeptoolsr.describe import describe
+    _four_sample_matrix(tmp_path / 'ranges.gz')
+    argv = ('--nestedHeaders', *argv)
+    record = describe(name, ['-m', str(tmp_path / 'ranges.gz'), *argv])
+    try:
+        figure = _cli_figure(monkeypatch, tmp_path, tool, *argv, '--dpi', '72')
+        rects = _slot_rects(figure)
+        texts = {axis.get_gid(): axis.texts[0].get_text()
+                 for axis in figure.axes if axis.texts}
+        geometry = DEFAULT_GEOMETRY
+        # describe reports the drawn innermost levels; a region count stays
+        # on them.
+        assert all(cell['stack_labels'] == labels
+                   for cell in record['cells'])
+        stack = [item for item in record['headers'] if item['axis'] == 'stack']
+        assert [(item['level'], item['text'], item['blocks'])
+                for item in stack] == headers
+        assert not any('[n = ' in item['text'] for item in stack)
+        location = ('none' if 'none' in argv else
+                    'left' if 'left' in argv else 'right')
+        if location == 'none':
+            assert not [role for role in rects
+                        if role.startswith(('label/stack/', 'label/header_'))]
+        groups, ordinals, drawn = {}, {}, set()
+        for item in stack:
+            row = item['row'] - 1
+            group = groups.setdefault((row, tuple(item['cells'])), len(
+                [key for key in groups if key[0] == row]))
+            cell = next(cell for cell in record['cells']
+                        if cell['index'] == item['cells'][0])
+            blocks = [rects[grid.cell_block(row, cell['column'] - 1, block)]
+                      for block in range(len(labels))]
+            region = [rects[grid.label_role('stack', row, group, block)]
+                      for block in range(len(labels))]
+            # The region labels beside the run draw its inner levels.
+            assert [texts[grid.label_role('stack', row, group, block)]
+                    for block in range(len(labels))] == labels
+            key = (row, group, item['level'])
+            ordinal = ordinals[key] = ordinals.get(key, -1) + 1
+            role = grid.header_role(row, item['level'], ordinal, group)
+            rule = rects[grid.header_rule_role(row, item['level'], ordinal,
+                                               group)]
+            drawn.add(role)
+            assert texts[role] == item['text']
+            first, last = item['blocks'][0] - 1, item['blocks'][-1] - 1
+            assert rule.y1 == pytest.approx(
+                blocks[first].y1 - geometry.header_rule_inset)
+            assert rule.y0 == pytest.approx(
+                blocks[last].y0 + geometry.header_rule_inset)
+            if location == 'right':
+                assert rule.x0 == pytest.approx(
+                    max(rect.x1 for rect in region) +
+                    geometry.header_rule_to_label_gap)
+                assert rects[role].x0 == pytest.approx(
+                    rule.x1 + geometry.header_text_to_rule_gap)
+            else:
+                assert rule.x1 == pytest.approx(
+                    min(rect.x0 for rect in region) -
+                    geometry.header_rule_to_label_gap)
+                assert rects[role].x1 == pytest.approx(
+                    rule.x0 - geometry.header_text_to_rule_gap)
+        # Every drawn header is one describe reports, and no other; colour
+        # bars beside the stacks stand outside them.
+        assert {role for role in rects
+                if role.startswith('label/header_stack/')} == drawn
+        if location == 'right':
+            outer = max(rects[role].x1 for role in drawn)
+            bars = [rect for role, rect in rects.items()
+                    if role.startswith('colorbar/')]
+            assert bars and all(rect.x0 > outer for rect in bars)
+        _assert_structural_slots_inside(figure)
+    finally:
+        plt.close('all')
+
+
+_SPLIT_REGIONS = ('--regionsLabel', 'Set|genes', 'Set|enhancers')
+
+
+@pytest.mark.parametrize('tool,name,argv,labels,headers,others', [
+    pytest.param(plotProfile, 'plotProfileR', (
+                 '--sampleSetGroupArrangement', 'by_row', '--samplesLabel',
+                 'Exp|Untreated|rep 1', 'Exp|Untreated|rep 2',
+                 'Exp|Treated|rep 3', 'Exp|Untreated|rep 4'),
+                 ['rep 1', 'rep 2', 'rep 3', 'rep 4'],
+                 [(1, 'Untreated', [1, 2]), (1, 'Treated', [3]),
+                  (1, 'Untreated', [4]), (2, 'Exp', [1, 2, 3, 4])], set(),
+                 id='profile-by-row-two-levels'),
+    pytest.param(plot_matrix_module, 'plotMatrixR', (
+                 '--profile', '--sampleSetGroupArrangement', 'by_column',
+                 *_SPLIT_REGIONS),
+                 ['genes', 'enhancers'], [(1, 'Set', [1, 2])], set(),
+                 id='matrix-by-column'),
+    pytest.param(plotHeatmap, 'plotHeatmapR', (
+                 '--sampleSetGroupArrangement', 'by_row', *_SPLIT_REGIONS,
+                 '--samplesLabel', 'Untreated|rep 1', 'Untreated|rep 2',
+                 'Treated|rep 1', 'Treated|rep 2'),
+                 ['rep 1', 'rep 2', 'rep 1', 'rep 2'],
+                 [(1, 'Untreated', [1, 2]), (1, 'Treated', [3, 4])],
+                 {'x', 'stack'}, id='heatmap-by-row-with-x-and-stack-headers'),
+])
+def test_nested_row_headers_draw_inner_row_labels_and_rules_beside_rows(
+        tmp_path, monkeypatch, tool, name, argv, labels, headers, others):
+    from deeptoolsr.describe import describe
+    _four_sample_matrix(tmp_path / 'ranges.gz')
+    argv = ('--nestedHeaders', *argv)
+    record = describe(name, ['-m', str(tmp_path / 'ranges.gz'), *argv])
+    try:
+        figure = _cli_figure(monkeypatch, tmp_path, tool, *argv, '--dpi', '72')
+        rects = _slot_rects(figure)
+        texts = {axis.get_gid(): axis.texts[0].get_text()
+                 for axis in figure.axes if axis.texts}
+        geometry = DEFAULT_GEOMETRY
+        # Row labels draw the innermost level, as describe reports them.
+        assert record['row_labels'] == labels == [
+            texts[grid.row_label(row)] for row in range(len(labels))]
+        rows = [item for item in record['headers'] if item['axis'] == 'row']
+        assert [(item['level'], item['text'], item['rows'])
+                for item in rows] == headers
+
+        def data(row):
+            return [rect for role, rect in rects.items()
+                    if role.startswith('cell/{}/'.format(row + 1)) and
+                    (role.endswith('/profile') or '/block/' in role)]
+
+        # Level 1 stands the rule gap right of the row labels; each further
+        # level the same gap right of the widest text of the level inside.
+        inner = {0: max(rects[grid.row_label(row)].x1
+                        for row in range(len(labels)))}
+        drawn = set()
+        for level in sorted({item['level'] for item in rows}):
+            ordered = sorted((item for item in rows
+                              if item['level'] == level),
+                             key=lambda item: item['rows'])
+            for ordinal, item in enumerate(ordered):
+                role = grid.row_header_role(level, ordinal)
+                rule = rects[grid.row_header_rule_role(level, ordinal)]
+                drawn.add(role)
+                assert texts[role] == item['text']
+                first, last = item['rows'][0] - 1, item['rows'][-1] - 1
+                assert rule.y1 == pytest.approx(
+                    max(rect.y1 for rect in data(first)) -
+                    geometry.header_rule_inset)
+                assert rule.y0 == pytest.approx(
+                    min(rect.y0 for rect in data(last)) +
+                    geometry.header_rule_inset)
+                assert rule.x0 == pytest.approx(
+                    inner[level - 1] + geometry.header_rule_to_label_gap)
+                assert rects[role].x0 == pytest.approx(
+                    rule.x1 + geometry.header_text_to_rule_gap)
+                assert rects[role].y0 + rects[role].height / 2 == \
+                    pytest.approx(rule.y0 + rule.height / 2)
+            inner[level] = max(rects[grid.row_header_role(level, ordinal)].x1
+                               for ordinal in range(len(ordered)))
+        # Every drawn row header is one describe reports, and no other;
+        # colour bars and legends stand inside the row labels. X and stack
+        # headers are drawn with them.
+        assert {role for role in rects
+                if role.startswith('label/header_row/')} == drawn
+        beside = [rect for role, rect in rects.items()
+                  if role.startswith(('colorbar', 'legend/'))]
+        assert all(rect.x1 < inner[0] for rect in beside)
+        assert {item['axis'] for item in record['headers']} - {'row'} == \
+            others
+        for axis in others:
+            assert any(role.startswith('label/header_{}/'.format(axis))
+                       for role in rects)
+        _assert_structural_slots_inside(figure)
+    finally:
+        plt.close('all')
+
+
+@pytest.mark.parametrize('tool,argv,blocks', [
+    pytest.param(plotHeatmap, ('--regionsLabel', '', 'enhancers'),
+                 ['', 'enhancers'], id='heatmap-first-empty'),
+    pytest.param(plotHeatmap, ('--regionsLabel', 'genes', ''),
+                 ['genes', ''], id='heatmap-last-empty'),
+    pytest.param(plotHeatmap, ('--regionsLabel', 'genes', 'enhancers'),
+                 ['genes', 'enhancers'], id='heatmap-all-labelled'),
+    pytest.param(plotHeatmap, ('--perGroup', '--samplesLabel', 'Sample A',
+                               '', 'Sample C', 'Sample D'),
+                 ['Sample A', '', 'Sample C', 'Sample D'],
+                 id='heatmap-per-group-middle-empty'),
+    pytest.param(plotHeatmap, ('--perGroup', '--samplesLabel', '',
+                               'Sample B', 'Sample C', ''),
+                 ['', 'Sample B', 'Sample C', ''],
+                 id='heatmap-per-group-ends-empty'),
+    pytest.param(plot_matrix_module, (*_STACKED_SAMPLES, '--regionsLabel',
+                                      'genes', 'enhancers',
+                                      '--regionLabelLocation', 'left'),
+                 ['Sample A\ngenes', 'Sample A\nenhancers',
+                  'Sample B\ngenes', 'Sample B\nenhancers'],
+                 id='matrix-all-labelled-left'),
+])
+def test_region_labels_sit_beside_the_block_they_name(
+        tmp_path, monkeypatch, tool, argv, blocks):
+    # Without --nestedHeaders an empty region label draws nothing; the
+    # others stay beside their own blocks, numbered by them.
+    _four_sample_matrix(tmp_path / 'ranges.gz')
+    try:
+        figure = _cli_figure(monkeypatch, tmp_path, tool, *argv, '--dpi', '72')
+        rects = _slot_rects(figure)
+        texts = {axis.get_gid(): axis.texts[0].get_text()
+                 for axis in figure.axes if axis.texts}
+        roles = [role for role in rects if role.startswith('label/stack/')]
+        assert roles
+        named = set()
+        for role in roles:
+            row, block = role.split('/')[2], int(role.split('/')[-1])
+            named.add(block)
+            assert texts[role] == blocks[block - 1], role
+            cells = [rect for key, rect in rects.items()
+                     if key.startswith('cell/{}/'.format(row))
+                     and key.endswith('/block/{}'.format(block))]
+            centre = (rects[role].y0 + rects[role].y1) / 2
+            assert any(cell.y0 <= centre <= cell.y1 for cell in cells), role
+        assert named == {index + 1 for index, text in enumerate(blocks)
+                         if text}
+    finally:
+        plt.close('all')
+
+
+@pytest.mark.parametrize('extra', [
+    pytest.param((), id='plain'),
+    pytest.param(('--sampleSetGroupArrangement', 'by_row'), id='by_row'),
+])
+def test_describe_cell_positions_match_the_drawn_grid_for_per_group_heatmaps(
+        tmp_path, monkeypatch, extra):
+    from deeptoolsr.describe import describe
+    _four_sample_matrix(tmp_path / 'ranges.gz')
+    argv = ('--plotType', 'heatmap', '--perGroup', *extra)
+    record = describe('plotProfileR',
+                      ['-m', str(tmp_path / 'ranges.gz'), *argv])
+    try:
+        figure = _cli_figure(monkeypatch, tmp_path, plotProfile, *argv,
+                             '--dpi', '72')
+        drawn = sorted(axis.get_gid() for axis in figure.axes
+                       if (axis.get_gid() or '').endswith('/profile'))
+        assert drawn == sorted(grid.cell_profile(cell['row'] - 1,
+                                                 cell['column'] - 1)
+                               for cell in record['cells'])
+        # Each region group's cell is drawn in its own grid row, and no
+        # row label is reported where none is drawn.
+        assert [cell['row'] for cell in record['cells']] == [1, 2]
+        assert record['row_labels'] == []
     finally:
         plt.close('all')

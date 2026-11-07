@@ -195,8 +195,18 @@ class GroupOrigin:
 
 @dataclass(frozen=True)
 class SortState:
+    """The rows' sort, as a re-saved header records it.
+
+    ``from_source`` marks a sort read from the source matrix's header: the
+    rows keep it, but this request did not make it, so the figure does not
+    show it (``RowLayout.drawn_sort``). Both header fields are optional, so
+    a source sort may lack ``using`` (computeMatrixOperationsR sort records
+    only ``keep``).
+    """
+
     method: str
-    using: str
+    using: str | None
+    from_source: bool = False
 
     def reordered(self):
         """The state after rows are reordered by something other than sort."""
@@ -261,6 +271,8 @@ class RowLayout:
     sort: SortState | None = None
     cluster_columns: np.ndarray | None = None
     silhouette: np.ndarray | None = None
+    # Set by ``sort``: True for each source row whose sort key is missing.
+    missing_keys: np.ndarray | None = None
     _digests: dict = field(default_factory=dict, init=False, compare=False,
                            repr=False)
 
@@ -280,16 +292,18 @@ class RowLayout:
                 self.origins == other.origins and self.sort == other.sort and
                 same(self.rows, other.rows) and
                 same(self.cluster_columns, other.cluster_columns) and
-                same(self.silhouette, other.silhouette))
+                same(self.silhouette, other.silhouette) and
+                same(self.missing_keys, other.missing_keys))
 
     def __post_init__(self):
         object.__setattr__(self, 'rows', _readonly_indices(self.rows))
         object.__setattr__(self, 'cluster_columns',
                            _readonly_indices(self.cluster_columns))
-        if self.silhouette is not None:
-            values = np.asarray(self.silhouette)
-            values.flags.writeable = False
-            object.__setattr__(self, 'silhouette', values)
+        for name in ('silhouette', 'missing_keys'):
+            if getattr(self, name) is not None:
+                values = np.asarray(getattr(self, name))
+                values.flags.writeable = False
+                object.__setattr__(self, name, values)
         if len(self.group_bounds) != len(self.origins) + 1:
             raise ValueError('group bounds and origins disagree')
 
@@ -303,10 +317,23 @@ class RowLayout:
         sort_state = None
         if 'sort regions' in header.parameters:
             sort_state = SortState(header.parameters['sort regions'],
-                                   header.parameters['sort using'])
+                                   header.parameters.get('sort using'),
+                                   from_source=True)
         return cls(None, header.group_boundaries, header.group_labels,
                    tuple(GroupOrigin(i) for i in range(len(header.group_labels))),
                    sort_state)
+
+    @property
+    def drawn_sort(self):
+        """The ascend/descend sort this request made, else None.
+
+        The figure shows only such a sort: the bottom-up heatmap rows, the
+        sort wedge and the region-end line.
+        """
+        if (self.sort is None or self.sort.from_source or
+                self.sort.method not in ('ascend', 'descend')):
+            return None
+        return self.sort
 
     @property
     def nrows(self):
@@ -317,21 +344,47 @@ class RowLayout:
             return np.arange(self.nrows, dtype=np.int64)
         return self.rows
 
-    def block(self, matrix, group, sample):
+    def _group_rows(self, group):
+        """The group's slice of ``rows`` (a view), or None for identity."""
+        start, stop = self.group_bounds[group:group + 2]
+        return None if self.rows is None else self.rows[start:stop]
+
+    def drawn_rows(self, group):
+        """The group's rows as a heatmap draws them, top row first.
+
+        A heatmap reads a sorted group from the bottom: its sorted rows run
+        bottom-up, with the rows whose sort key is missing kept at the
+        bottom. Unsorted groups draw top-down. Returns ``None`` for an
+        identity group (the block's row range) or an index vector; the
+        matrix values are never copied.
+        """
+        rows = self._group_rows(group)
+        if (rows is None or self.missing_keys is None or
+                self.drawn_sort is None):
+            return rows
+        missing = self.missing_keys[rows]
+        return _readonly_indices(
+            rows[::-1] if not missing.any() else
+            np.concatenate((rows[~missing][::-1], rows[missing])))
+
+    def block(self, matrix, group, sample, *, drawn=False):
+        """One group x sample block; ``drawn`` takes the heatmap row order."""
         row_start, row_stop = self.group_bounds[group:group + 2]
         col_start, col_stop = matrix.header.sample_boundaries[sample:sample + 2]
-        rows = None if self.rows is None else self.rows[row_start:row_stop]
+        rows = self.drawn_rows(group) if drawn else self._group_rows(group)
         return Block(matrix.values, rows, (row_start, row_stop), None,
                      (col_start, col_stop))
 
-    def group_digest(self, group):
-        if group not in self._digests:
+    def group_digest(self, group, *, drawn=False):
+        if (group, drawn) not in self._digests:
             start, stop = self.group_bounds[group:group + 2]
-            indices = (np.arange(start, stop, dtype='<i8') if self.rows is None
-                       else np.asarray(self.rows[start:stop], dtype='<i8'))
-            self._digests[group] = blake2b(indices.tobytes(),
-                                           digest_size=32).digest()
-        return self._digests[group]
+            rows = (self.drawn_rows(group) if drawn else
+                    self._group_rows(group))
+            indices = (np.arange(start, stop, dtype='<i8') if rows is None
+                       else np.asarray(rows, dtype='<i8'))
+            self._digests[group, drawn] = blake2b(indices.tobytes(),
+                                                  digest_size=32).digest()
+        return self._digests[group, drawn]
 
     def digest(self):
         digest = blake2b(digest_size=32)
@@ -456,13 +509,22 @@ def sort(matrix, layout, *, using='mean', method='no', cols=None,
                 direction * local_keys[valid_order], kind='stable')]
             order = np.concatenate([valid_order, np.flatnonzero(~local_valid)])
         else:
-            order = keys[start:stop].argsort()
+            local_keys = keys[start:stop]
+            # Stable in both directions; NaN last for ascend, first for descend.
             if method == 'descend':
-                order = order[::-1]
+                order = np.argsort(-local_keys, kind='stable')
+                nan = np.isnan(local_keys[order])
+                order = np.concatenate([order[nan], order[~nan]])
+            else:
+                order = np.argsort(local_keys, kind='stable')
         parts.append(current[start:stop][order])
     rows = np.concatenate(parts) if parts else np.empty(0, dtype=np.int64)
+    missing = None
+    if method != 'keep':
+        missing = np.zeros(len(matrix.regions), dtype=bool)
+        missing[current] = ~valid if using == 'score' else np.isnan(keys)
     return replace(quantiled, rows=rows, sort=SortState(method, using),
-                   silhouette=None)
+                   silhouette=None, missing_keys=missing)
 
 
 def cluster_names(count):
@@ -554,6 +616,27 @@ def serialize_header(parameters):
     return json.dumps(header, separators=(',', ':'))
 
 
+def subset_samples(parameters, samples):
+    """Header parameters keeping the 0-based ``samples`` in that order,
+    and the value columns they take.
+
+    Sample labels, boundaries and every per-sample geometry list follow.
+    """
+    bounds = [int(bound) for bound in parameters['sample_boundaries']]
+    parameters = dict(parameters)
+    parameters['sample_labels'] = [parameters['sample_labels'][sample]
+                                   for sample in samples]
+    parameters['sample_boundaries'] = np.cumsum(
+        [0] + [bounds[sample + 1] - bounds[sample]
+               for sample in samples]).tolist()
+    for name in SPECIAL_PARAMS:
+        value = parameters.get(name)
+        if isinstance(value, list):
+            parameters[name] = [value[sample] for sample in samples]
+    return parameters, [column for sample in samples
+                        for column in range(bounds[sample], bounds[sample + 1])]
+
+
 def _plot_parameters(matrix, layout, labels):
     parameters = dict(matrix.header.parameters)
     parameters['sample_labels'] = list(labels.samples)
@@ -566,7 +649,8 @@ def _plot_parameters(matrix, layout, labels):
         parameters.pop('sort using', None)
     else:
         parameters['sort regions'] = layout.sort.method
-        parameters['sort using'] = layout.sort.using
+        if layout.sort.using is not None:
+            parameters['sort using'] = layout.sort.using
     return parameters
 
 
@@ -580,10 +664,15 @@ def _write_matrix(matrix, path, parameters, compressed, threads,
             threads, 6, 0, row_order, column_order, bool(compressed))
 
 
-def save(matrix, layout, labels, path, *, compressed, threads):
-    """Write selected rows through the native writer, atomically."""
-    _write_matrix(matrix, path, _plot_parameters(matrix, layout, labels),
-                  compressed, threads, layout.rows)
+def save(matrix, layout, labels, path, *, compressed, threads, samples=None):
+    """Write selected rows, and only the 0-based ``samples`` if given,
+    through the native writer, atomically."""
+    parameters, columns = _plot_parameters(matrix, layout, labels), None
+    if samples is not None:
+        parameters, columns = subset_samples(parameters, samples)
+        columns = np.asarray(columns, dtype=np.int64)
+    _write_matrix(matrix, path, parameters, compressed, threads, layout.rows,
+                  columns)
 
 
 def tabular_text(value):

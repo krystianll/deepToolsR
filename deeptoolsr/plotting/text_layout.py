@@ -709,11 +709,22 @@ def _normalise_hard_line(line):
             tuple(source_offsets))
 
 
+def drawn_text(value):
+    """A label (or a tuple or list of labels) as figures draw it: without
+    carriage returns, so ``\\r\\n`` becomes ``\\n`` and a lone ``\\r`` is
+    dropped. Matplotlib on Windows cannot lay out ``\\r``; exported tables
+    keep the original text."""
+    if isinstance(value, str):
+        return value.replace("\r", "")
+    if isinstance(value, (tuple, list)):
+        return type(value)(drawn_text(item) for item in value)
+    return value
+
+
 def _normalise_text(text):
     """Normalize soft whitespace while retaining every explicit hard break."""
-    canonical = text.replace("\r\n", "\n").replace("\r", "\n")
     return tuple(_normalise_hard_line(line)
-                 for line in canonical.split("\n"))
+                 for line in drawn_text(text).split("\n"))
 
 
 def _is_numeric_expression(value):
@@ -1058,7 +1069,7 @@ def generate_label_candidates(
         # A truly empty (or whitespace-only) single line has no drawable
         # geometry. Explicit newlines, however, represent mandatory blank
         # lines and Matplotlib assigns those lines vertical extent.
-        if "\n" in text.replace("\r\n", "\n").replace("\r", "\n"):
+        if "\n" in text:
             rendered = _coerce_size(measure("\n".join(blank_lines)))
             return (LabelCandidate(
                 lines=blank_lines, width=rendered.width,

@@ -2565,11 +2565,23 @@ bool bam_coverage_bigwig(const std::string &bam_path,
             std::size_t chunk = SIZE_MAX;
         };
         std::vector<Counter> counters(workers);
-        if (count_reads && filtered)
+        // Counting fragments, the library denominator pairs mates exactly as
+        // the numerator does (a mate whose partner is absent is one fragment),
+        // through the same bounded streaming lookup, but every primary mapped
+        // record is eligible: no read filter applies to the whole library.
+        CovParams library = P;
+        library.include.clear();
+        library.exclude = SAM_SECONDARY | SAM_SUPPLEMENTARY;
+        library.min_mapq = 0;
+        library.min_frag = library.max_frag = 0;
+        library.sfilter = StrandFilter::None;
+        library.overlap_filter = false;
+        const bool paired = filtered || P.fragments;
+        if (count_reads && paired)
             for (auto &counter : counters)
                 counter.mates = std::make_unique<MateLookup>(
-                    bam_path, P, mate_budget, blacklist_by_tid, whitelist_by_tid, nonprimary_touch,
-                    P.fragments, containers.get());
+                    bam_path, filtered ? P : library, mate_budget, blacklist_by_tid,
+                    whitelist_by_tid, nonprimary_touch, P.fragments, containers.get());
         // Both tasks inspect the same records. Keep their distinct eligibility
         // rules, but perform the BAM decode only once when both are requested.
         fetch_bounds = prepare_coverage(bam_path, P, lengths, chunks, workers,
@@ -2580,7 +2592,7 @@ bool bam_coverage_bigwig(const std::string &bam_path,
             auto count = [&](int, int, const std::vector<std::pair<int64_t, int64_t>> &) {
                 counter.count += 1;
             };
-            if (filtered) {
+            if (paired) {
                 // Unmapped records are mate evidence too.
                 if (chunk != counter.chunk) {
                     counter.mates->finish(count);
@@ -2594,14 +2606,9 @@ bool bam_coverage_bigwig(const std::string &bam_path,
                 if (decision == MateLookup::Decision::Keep) count(0, 1, {});
                 else if (decision == MateLookup::Decision::Defer)
                     counter.mates->defer(record, own, 0, 1, {}, count);
-            } else if (!(record->core.flag & SAM_READ_UNMAPPED)) {
-                // Counting fragments, a proper pair with both mates mapped
-                // counts once, at its first mate.
-                const uint16_t flag = record->core.flag;
-                const uint16_t pair = SAM_READ_PAIRED | SAM_PROPER_PAIR | SAM_SECOND_IN_PAIR;
-                if (!(flag & (SAM_SECONDARY | SAM_SUPPLEMENTARY)) &&
-                    !(P.fragments && (flag & pair) == pair && !(flag & SAM_MATE_UNMAPPED)))
-                    counter.count += 1;
+            } else if (!(record->core.flag &
+                         (SAM_READ_UNMAPPED | SAM_SECONDARY | SAM_SUPPLEMENTARY))) {
+                counter.count += 1;
             }
         });
         for (auto &counter : counters) {

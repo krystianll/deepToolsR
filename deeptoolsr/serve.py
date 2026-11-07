@@ -11,8 +11,6 @@ import sys
 import threading
 import traceback
 
-from deeptoolsr.cli_errors import use_utf8_stdio
-
 
 PLOT_TOOLS = ('plotMatrixR', 'plotHeatmapR', 'plotProfileR')
 TOOLS = (*PLOT_TOOLS, 'computeMatrixOperationsR')
@@ -298,8 +296,6 @@ def serve_main(*, config=None, threads=None, cache_bytes=None,
     """Write hello before loading plotting code, then serve until close/EOF."""
     from importlib.metadata import version
 
-    if stdin is None or stdout is None:
-        use_utf8_stdio()
     input_stream = sys.stdin.buffer if stdin is None else stdin
     error_stream = sys.stderr if stderr is None else stderr
     writer = _Writer(sys.stdout if stdout is None else stdout)

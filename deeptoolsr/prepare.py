@@ -182,6 +182,11 @@ def parse_command(tool, argv=None, mode='cli', emit=None):
     raw = list(sys.argv[1:] if argv is None else argv)
     _configure_parse_mode(parser, mode)
     args = parser.parse_args(raw)
+    if args.matrixFile is None:
+        # Not ``required`` in argparse, so the pinned parser contract keeps
+        # its shape; the usage error is argparse's own.
+        parser.error('the following arguments are required: '
+                     '--matrixFile/-m')
     invoked = {}
     for token in raw:
         spelling = token.split('=', 1)[0]
@@ -219,8 +224,11 @@ class DataSpec:
     silhouette: bool
     sort_method: str
     sort_using: str
-    sort_columns: tuple[int, ...] | None
     sort_samples: tuple[int, ...] | None
+    # The 0-based samples --arrangeSamples draws, in matrix order, or None
+    # when it draws them all. Sorting, clustering and --filterNans use
+    # only these unless their own sample list names others.
+    drawn_samples: tuple[int, ...] | None
     quantiles: int
     row_order_consumed: bool
     merge_keys: tuple[str, ...] | None
@@ -257,6 +265,48 @@ class PlotData:
     distance_unit_location: str = 'ticks'
 
 
+def _columns(samples, header):
+    """The value columns of the 0-based ``samples``; None stands for all."""
+    if samples is None:
+        return None
+    boundaries = header.sample_boundaries
+    return tuple(column for sample in samples for column in
+                 range(boundaries[sample], boundaries[sample + 1]))
+
+
+def listed_samples(tokens, sample_labels, option):
+    """The 1-based samples a sample-list option names, or None.
+
+    Numbers, ``a-b`` ranges and displayed sample names resolve as
+    --arrangeSamples resolves them (a range is checked by its ends);
+    ``_sample_columns`` checks single numbers against the sample count.
+    """
+    from deeptoolsr.plotting.series import sample_numbers
+    if tokens is None:
+        return None
+    try:
+        return tuple(number for value in tokens
+                     for token in str(value).split(',')
+                     for number in sample_numbers(token.strip(),
+                                                  sample_labels))
+    except ValueError as error:
+        raise DataError(f'{option}: {error}') from error
+
+
+def _drawn_samples(arrange_samples, sample_labels):
+    """The samples --arrangeSamples draws, or None when it draws them all."""
+    from deeptoolsr.plotting.series import parse_sample_sets
+    if not arrange_samples:
+        return None
+    try:
+        sets = parse_sample_sets(sample_labels, arrange_samples)
+    except ValueError:
+        # The plan reports the invalid set where it always did.
+        return None
+    drawn = tuple(sorted({sample for samples in sets for sample in samples}))
+    return None if len(drawn) == len(sample_labels) else drawn
+
+
 def _sample_columns(samples, header, option):
     if samples is None:
         return None
@@ -268,15 +318,19 @@ def _sample_columns(samples, header, option):
         raise DataError(
             f'The value {list(samples)} for --sortUsingSamples is not valid. '
             f'Only values from 1 to {count} are allowed.')
-    boundaries = header.sample_boundaries
-    return tuple(column for index in samples for column in
-                 range(boundaries[index - 1], boundaries[index]))
+    return _columns([index - 1 for index in samples], header)
 
 
-def _cluster_selection(args, header):
+def _cluster_selection(args, header, sample_labels, drawn):
+    """Clustering's k, method and columns: the listed samples, else the
+    drawn ones."""
     # The old mains checked a supplied index even if clustering was disabled.
-    columns = _sample_columns(args.clusterUsingSamples, header,
-                              '--clusterUsingSamples')
+    columns = _sample_columns(
+        listed_samples(args.clusterUsingSamples, sample_labels,
+                       '--clusterUsingSamples'),
+        header, '--clusterUsingSamples')
+    if columns is None:
+        columns = _columns(drawn, header)
     if args.kmeans is not None:
         return args.kmeans, 'kmeans', columns
     if args.hclust is not None:
@@ -402,19 +456,28 @@ def _group_order(args, header, k, selection):
 
 
 def _common_spec(args, header):
-    k, method, cluster_columns = _cluster_selection(args, header)
+    # Sample names resolve against the displayed labels (--samplesLabel).
+    sample_labels = (
+        display_sample_labels(args.samplesLabel, header)
+        if (args.arrangeSamples or args.sortUsingSamples or
+            args.clusterUsingSamples) else header.sample_labels)
+    drawn = _drawn_samples(args.arrangeSamples, sample_labels)
+    sort_samples = listed_samples(args.sortUsingSamples, sample_labels,
+                                  '--sortUsingSamples')
+    k, method, cluster_columns = _cluster_selection(
+        args, header, sample_labels, drawn)
     selection = _group_selection(args, header, k)
     # No/keep preserves input order, so both panel kinds share a DataSpec.
     # Keep the heatmap sample-index check that the old consumed path ran.
+    # Exported rows are sorted within each group or cluster, as drawn.
     consumed = (args.sortRegions not in ('no', 'keep') and (
-        args.show_heatmap or
-        (k is None and (args.quantileSortedRegions > 1 or
-                        args.outFileSortedRegions is not None or
-                        args.outFileSortedRegionsPerGroup is not None or
-                        args.outFileNameMatrix is not None))))
+        args.show_heatmap or args.quantileSortedRegions > 1 or
+        args.outFileSortedRegions is not None or
+        args.outFileSortedRegionsPerGroup is not None or
+        args.outFileNameMatrix is not None))
     if (args.show_heatmap and args.sortRegions == 'keep' and
-            args.sortUsingSamples is not None):
-        _sample_columns(args.sortUsingSamples, header, '--sortUsingSamples')
+            sort_samples is not None):
+        _sample_columns(sort_samples, header, '--sortUsingSamples')
     order = _group_order(args, header, k, selection)
     merge_keys = None
     if args.sameGroupLabels == 'merge':
@@ -433,10 +496,9 @@ def _common_spec(args, header):
             2 << 30),
         silhouette=getattr(args, 'silhouette', False),
         sort_method=args.sortRegions, sort_using=args.sortUsing,
-        sort_columns=None,
-        sort_samples=(tuple(args.sortUsingSamples)
-                      if consumed and args.sortRegions != 'no' and
-                      args.sortUsingSamples is not None else None),
+        sort_samples=(sort_samples if consumed and args.sortRegions != 'no'
+                      else None),
+        drawn_samples=drawn,
         quantiles=args.quantileSortedRegions,
         row_order_consumed=consumed, merge_keys=merge_keys,
         group_order=order,
@@ -462,9 +524,21 @@ def profile_spec(args, header):
     return _common_spec(args, header)
 
 
+def _check_clusters(layout, spec):
+    """Refuse more clusters than rows before anything is allocated."""
+    if not 1 <= spec.cluster_k <= layout.nrows:
+        option = ('--kmeans' if spec.cluster_method == 'kmeans'
+                  else '--hclust')
+        raise OptionError(
+            f'{option} {spec.cluster_k}: the number of clusters must be '
+            f'between 1 and the number of regions ({layout.nrows})',
+            option=option)
+
+
 def _cluster_prepared(matrix, layout, spec, threads, warnings):
     if spec.cluster_k is None:
         return layout
+    _check_clusters(layout, spec)
     if spec.cluster_method == 'hierarchical':
         distance_bytes = layout.nrows * (layout.nrows - 1) // 2 * 8
         if distance_bytes > spec.ward_distance_budget_bytes:
@@ -501,7 +575,8 @@ def _sorted(matrix, layout, spec, threads, warnings):
     try:
         columns = (_sample_columns(spec.sort_samples, matrix.header,
                                    '--sortUsingSamples')
-                   if spec.sort_samples is not None else spec.sort_columns)
+                   if spec.sort_samples is not None else
+                   _columns(spec.drawn_samples, matrix.header))
         return sort(matrix, layout, using=spec.sort_using,
                     method=spec.sort_method, cols=columns,
                     quantiles=spec.quantiles, threads=threads)
@@ -530,7 +605,10 @@ def prepare(matrix, spec, threads):
     warnings = []
     if spec.nan_mode != 'keep':
         layout = filter_values(matrix, layout, None, None,
-                               nan_mode=spec.nan_mode, threads=threads)
+                               nan_mode=spec.nan_mode,
+                               cols=_columns(spec.drawn_samples,
+                                             matrix.header),
+                               threads=threads)
     layout = _selected(layout, spec)
     _check_rows(layout)
     layout = _cluster_prepared(matrix, layout, spec, threads, warnings)
@@ -562,6 +640,7 @@ def predict_layout(header, spec):
     warnings = []
     _check_rows(layout)
     if spec.cluster_k is not None:
+        _check_clusters(layout, spec)
         rows, k = layout.nrows, spec.cluster_k
         layout = RowLayout(
             None, tuple(int(i * rows / k) for i in range(k + 1)),
@@ -743,29 +822,40 @@ def resolve_labels(layout, *, regions_label=None, samples_label=None,
     A --regionsLabel count that differs from the region groups raises, or
     describe collects it and the groups keep their own names.
     """
-    from deeptoolsr.plotting.series import (
-        has_explicit_assignment, resolve_recyclable)
     names = (region_names(regions_label, layout.base_names,
                           regions_label_option) or layout.base_names)
-    explicit_samples = has_explicit_assignment(samples_label)
-    if (samples_label and not explicit_samples and _label_count_collected(
-            samples_label, len(header.sample_labels), samples_label_option,
-            'sample')):
-        samples_label = None
     keys = tuple(names[origin.source] for origin in layout.origins)
     if counts is None:
         counts = np.diff(layout.group_bounds).tolist()
     groups = tuple(
         f'{key} [n = {counts[index]:,}]' if show_counts and key else key
         for index, key in enumerate(keys))
-    samples = (tuple(resolve_recyclable(
-        samples_label, len(header.sample_labels),
-        default=lambda index: header.sample_labels[index],
-        option=samples_label_option, domain='sample', text=True))
-        if explicit_samples else
-        tuple(decode_text_escapes(value) for value in samples_label)
-        if samples_label else header.sample_labels)
-    return Labels(keys, groups, samples)
+    return Labels(keys, groups, _sample_labels(samples_label, header,
+                                               samples_label_option))
+
+
+def _sample_labels(samples_label, header, option):
+    """The displayed sample labels; a --samplesLabel count that differs
+    raises, or describe collects it and the samples keep their names."""
+    from deeptoolsr.plotting.series import (
+        has_explicit_assignment, resolve_recyclable)
+    explicit = has_explicit_assignment(samples_label)
+    if (samples_label and not explicit and _label_count_collected(
+            samples_label, len(header.sample_labels), option, 'sample')):
+        samples_label = None
+    if explicit:
+        return tuple(resolve_recyclable(
+            samples_label, len(header.sample_labels),
+            default=lambda index: header.sample_labels[index],
+            option=option, domain='sample', text=True))
+    return (tuple(decode_text_escapes(value) for value in samples_label)
+            if samples_label else header.sample_labels)
+
+
+def display_sample_labels(samples_label, header):
+    """The displayed sample labels, before the label step checks them."""
+    with collecting_problems():
+        return _sample_labels(samples_label, header, '--samplesLabel')
 
 
 def resolve_prepared_labels(layout, spec, *, regions_label=None,
@@ -901,6 +991,9 @@ def _plot_rules(args, supplied, spellings, *, heatmap):
         (lambda ns, _: ns.plotType == 'heatmap' and present('yScale'),
          f'{name("yScale")} is unused with {name("plotType")} heatmap',
          'warning'),
+        (lambda ns, _: ns.plotType == 'heatmap' and ns.linesAsSteps,
+         f'{name("linesAsSteps")} is unused with {name("plotType")} heatmap',
+         'warning'),
     ))
     show_profile = args.show_profile
     rules.extend((
@@ -1027,7 +1120,7 @@ def validate_plot(args, supplied, spellings, *, heatmap, tool=None):
     _normalise_y_limits(args, warnings, spellings)
     if args.show_heatmap:
         _validate_heatmap_values(args, supplied, warnings, spellings)
-    if not heatmap or args.show_profile:
+    if args.show_profile:
         _validate_profile_values(args, warnings, spellings)
     if args.axisVisibility is not None:
         args.xAxisVisibility = args.axisVisibility

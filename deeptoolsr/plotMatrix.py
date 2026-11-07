@@ -10,13 +10,14 @@ from deeptoolsr.matrix_file import matrix_output_is_compressed
 from deeptoolsr.path_validation import OutputSet, portable_file_name
 from deeptoolsr.prepare import (
     DataError, OptionError, PlotData, _common_spec, command_labels,
-    option_error, parse_command, warning_text)
+    listed_samples, option_error, parse_command, warning_text)
 from deeptoolsr.plotting.cli_io import check_plot_outputs
 from deeptoolsr.plotting.matrix_plan import resolve_matrix_plan
 from deeptoolsr.plotting.matrix_spec import project_matrix_spec
 from deeptoolsr.plotting.matrix_figure import build_matrix_figure
 from deeptoolsr.plotting.prepared import prepare_matrix
 from deeptoolsr.plotting.profile import write_profile_table
+from deeptoolsr.plotting.series import flat_label
 from deeptoolsr.plotting.rendering import (
     resolve_figure_format, save_figure_atomic)
 from deeptoolsr.session import StagedNumeric
@@ -32,21 +33,23 @@ def _prepare_data(session, args, emit):
              'Please note that it might be very slow for large datasets.\n\n')
     layout, warnings = session.layout(spec, threads)
     labels = command_labels(args, layout, spec, matrix.header)
+    ordering = ('Samples used for ordering within each group:  {}\n'.format(
+        [number - 1 for number in listed_samples(
+            args.sortUsingSamples, labels.samples, '--sortUsingSamples')])
+        if args.sortUsingSamples is not None else None)
     for warning in warnings:
         if not args.show_heatmap or not warning.kind.startswith('silhouette_'):
             emit('stderr', warning_text(
                 warning, layout, regions_label=args.regionsLabel))
     if args.show_heatmap:
-        if args.sortRegions != 'no' and args.sortUsingSamples is not None:
-            emit('stdout', 'Samples used for ordering within each group:  '
-                 '{}\n'.format([index - 1 for index in args.sortUsingSamples]))
+        if args.sortRegions != 'no' and ordering is not None:
+            emit('stdout', ordering)
         for warning in warnings:
             if warning.kind.startswith('silhouette_'):
                 emit('stderr', warning_text(warning, layout))
     elif (spec.row_order_consumed and spec.sort_method not in ('no', 'keep')
-          and spec.cluster_k is None and args.sortUsingSamples is not None):
-        emit('stdout', 'Samples used for ordering within each group:  '
-             '{}\n'.format([index - 1 for index in args.sortUsingSamples]))
+          and spec.cluster_k is None and ordering is not None):
+        emit('stdout', ordering)
     return (PlotData(matrix, layout, labels, threads,
                      args.distanceUnit, args.distanceUnitLocation), spec)
 
@@ -87,7 +90,7 @@ def _group_region_paths(args, labels):
         prefix = prefix[:-len('.bed')]
     paths, seen = [], {}
     for label in labels.group_keys:
-        name = portable_file_name(label)
+        name = portable_file_name(flat_label(label, args.nestedHeaders))
         if not name:
             raise option_error(ValueError(
                 f"--outFileSortedRegionsPerGroup: region group '{label}' "
@@ -113,14 +116,14 @@ def _stage_outputs(outputs, args, group_paths):
                   for path in group_paths))
 
 
-def _write_outputs(paths, args, data, plan, spec, prepared):
+def _write_outputs(paths, args, data, plan, spec, prepared, samples):
     table, matrix, regions, group_regions = paths
     if table:
         write_profile_table(table, plan, prepared, spec)
     if matrix:
         save(data.matrix, data.layout, data.labels, matrix,
              compressed=matrix_output_is_compressed(args.outFileNameMatrix),
-             threads=args.run_options.threads)
+             threads=args.run_options.threads, samples=samples)
     if regions:
         with open(regions, 'w', newline='', encoding='utf-8') as handle:
             save_bed(data.matrix, data.layout, data.labels, handle)
@@ -211,7 +214,8 @@ def run_session_request(session, args, run_options, *, cancelled, progress,
                 figure, plot_path, dpi=figure_spec.dpi,
                 image_format=resolve_figure_format(
                     args.outFileName, args.plotFileFormat))
-            _write_outputs(paths, args, data, plan, figure_spec, prepared)
+            _write_outputs(paths, args, data, plan, figure_spec, prepared,
+                           data_spec.drawn_samples)
         except ValueError as error:
             if isinstance(error, (DataError, OptionError)):
                 raise

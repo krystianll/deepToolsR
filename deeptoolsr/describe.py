@@ -5,7 +5,6 @@ import math
 import sys
 
 from deeptoolsr import options as run_options
-from deeptoolsr.cli_errors import use_utf8_stdio
 from deeptoolsr.matrix import (
     SourceKey, read_header)
 from deeptoolsr.parserCommon import per_target_options
@@ -16,7 +15,8 @@ from deeptoolsr.plotting.matrix_spec import project_matrix_spec
 from deeptoolsr.plotting.matrix_plan import (
     resolve_matrix_plan, tool_option_spellings)
 from deeptoolsr.plotting.series import (
-    SAMPLE_SET_TEXTS, UNKNOWN_COUNT, y_limit_keys)
+    SAMPLE_SET_TEXTS, UNKNOWN_COUNT, drawn_row_labels, drawn_stack_labels,
+    drawn_title, header_runs, y_limit_keys)
 from deeptoolsr.plotting.sizes import SIZE_OPTIONS, size_defaults
 from deeptoolsr.prepare import (
     DataError, OptionError, PlotData, _common_spec, collecting_problems,
@@ -58,7 +58,6 @@ def _sample_set(plan, y_scale):
 
 def _colorbar(index, bar, position, limits):
     scale = bar.scale
-    set_index = bar.sample_sets[0]
     return {
         'index': index + 1, 'position': position,
         'row': None if bar.row is None else bar.row + 1,
@@ -69,11 +68,11 @@ def _colorbar(index, bar, position, limits):
                                  else list(scale.color_list)),
                   'z_min': scale.z_min, 'z_max': scale.z_max,
                   'z_mid': scale.z_mid},
-        'z_range': (None if limits is None else {
-            'auto': list(limits[0]),
-            'value': [limits[1][set_index % len(limits[1])],
-                      limits[2][set_index % len(limits[2])]]}),
-        'title': {'auto': None, 'value': bar.title,
+        'z_range': (None if limits is None else
+                    dict(zip(('auto', 'value'),
+                             limits[bar.cells[0]][bar.block or 0]))),
+        'title': {'auto': None if bar.block is None else bar.auto_title,
+                  'value': bar.title,
                   'auto_text': bar.auto_title}}
 
 
@@ -206,6 +205,45 @@ def _drawn_y_limits(plan, sample_plans, spec, scales, statistics):
     return (*numbers, [tuple(axis.dataLim.intervaly) for axis in axes])
 
 
+def _header(run):
+    """One header (--nestedHeaders), numbered 1-based like the cells."""
+    record = {'axis': run.axis, 'level': run.level, 'text': run.text}
+    if run.axis == 'row':
+        return {**record, 'rows': [row + 1 for row in run.rows]}
+    record.update(row=run.row + 1, cells=list(run.cells))
+    if run.axis == 'stack':
+        record['blocks'] = [block + 1 for block in run.blocks]
+    return record
+
+
+def _with_levels(record, spec, plan):
+    """Add the label levels and the headers they make (--nestedHeaders).
+
+    A cell's and its panel's ``title``, its ``stack_labels`` and the
+    ``row_labels`` become the drawn innermost levels; without the option
+    the record is unchanged.
+    """
+    if not spec.nested_headers:
+        return record
+    drawn = {cell.index: drawn_title(cell, True) for cell in plan.cells}
+    for panel in record['panels']:
+        panel['title'] = drawn.get(panel['index'], panel['title'])
+    for cell, item in zip(plan.cells, record['cells']):
+        item['title'] = drawn[cell.index]
+        item['stack_labels'] = list(drawn_stack_labels(cell, True))
+        item['title_levels'] = list(cell.title_levels)
+        item['stack_label_levels'] = [list(levels) for levels
+                                      in cell.stack_label_levels]
+    record['row_labels'] = list(drawn_row_labels(plan, True))
+    record['row_label_levels'] = [list(levels)
+                                  for levels in plan.row_label_levels]
+    axes = ('x', 'row') if spec.region_label_location == 'none' else (
+        'x', 'stack', 'row')
+    record['headers'] = [_header(run) for axis in axes
+                         for run in header_runs(plan, axis)]
+    return record
+
+
 def _pseudocount(spec, statistics, automatic, key):
     """A geometric series' automatic and effective pseudocount."""
     if statistics is None or spec.average_type != 'geom_mean':
@@ -224,7 +262,7 @@ def _record(tool, layout, numbers, labels, plan, sample_plans, y_scales,
     series_labels = {item.key: item.label for item in plan.series}
     series_default = _series_defaults(plan)
     spec, statistics, automatic, y_limits = profile
-    return {
+    return _with_levels({
         'protocol': 2,
         'tool': tool,
         'values_read': limits is not False,
@@ -282,7 +320,7 @@ def _record(tool, layout, numbers, labels, plan, sample_plans, y_scales,
              'target': None, 'slot': None, 'samples': None,
              'message': message}
             for code, message in warnings],
-    }
+    }, spec, plan)
 
 
 def describe(tool, argv, *, force_load=False):
@@ -313,8 +351,6 @@ def describe_session(session, command, *, force_load=False,
         emit=lambda stream, message: (
             stream == 'stderr' and
             warnings.append(('warning', message.rstrip('\n')))))
-    if args.matrixFile is None:
-        raise OptionError('the following arguments are required: --matrixFile/-m')
     session.apply_run_defaults(args, argv)
     path = run_options.config_path(args.config)
     raw = run_options.read_config_bytes(path)
@@ -366,7 +402,7 @@ def describe_session(session, command, *, force_load=False,
     if force_load:
         data = PlotData(matrix, layout, labels, threads)
         limits = (None if colorbars is None else _z_limits(
-            session, data, figure_spec, scales, cancelled, progress))
+            session, data, figure_spec, plan, scales, cancelled, progress))
         if figure_spec.show_profile:
             profile = _profile_numbers(session, data, figure_spec, plan,
                                        sample_plans, scales)
@@ -402,20 +438,25 @@ def _profile_numbers(session, data, spec, plan, sample_plans, scales):
     return spec, statistics, automatic, y_limits
 
 
-def _z_limits(session, data, spec, scales, cancelled, progress):
-    """The plot's automatic and effective heatmap limits, from one cached scan.
+def _z_limits(session, data, spec, plan, scales, cancelled, progress):
+    """Each heatmap block's automatic and effective limits, cached scans.
 
-    Returns ``((auto low, auto high), lows, highs)``; lows and highs are
-    indexed by sample set as the heatmap cells index them.
+    Returns per cell and block ``([auto low, auto high], [low, high])``;
+    the automatic limits are those of the block's limit slot
+    (--zAxisLimits).
     """
+    from deeptoolsr.plotting.colorbars import limit_slots
     from deeptoolsr.plotting.heatmap import _limits, heatmap_scales
     from deeptoolsr.session import StagedNumeric
 
     numeric = StagedNumeric(session, cancelled, progress)
-    _, (low,), (high,), _ = _limits(
-        data, {'zMin': None, 'zMax': None, 'zMid': None}, numeric)
-    _, _, lows, highs, _ = heatmap_scales(data, spec, scales, numeric)
-    return (low, high), lows, highs
+    cell_slots, slots = limit_slots(
+        spec, plan, len(data.matrix.header.sample_labels))
+    _, auto_lows, auto_highs, _ = _limits(
+        data, {'zMin': None, 'zMax': None, 'zMid': None}, slots, numeric)
+    _, _, lows, highs, _ = heatmap_scales(data, spec, plan, scales, numeric)
+    return [[([auto_lows[slot], auto_highs[slot]], [lows[slot], highs[slot]])
+             for slot in blocks] for blocks in cell_slots]
 
 
 def _check_colours(spec, plan, scales, warnings):
@@ -468,5 +509,4 @@ def describe_cli(tool, argv):
         print(f'{tool} failed: an argument is not valid UTF-8 text',
               file=sys.stderr)
         raise SystemExit(1) from error
-    use_utf8_stdio()
     print(text)

@@ -75,6 +75,27 @@ def test_published_outputs_get_the_default_file_mode(tmp_path):
     assert destination.stat().st_mode & 0o777 == 0o666 & ~_umask()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX umask")
+def test_new_outputs_follow_the_umask_current_at_write_time(tmp_path):
+    # A fresh interpreter controls the umask the package is imported under:
+    # importing leaves the umask alone, and a later umask, tighter or looser,
+    # decides the mode of each new output.
+    code = ("import os, sys\n"
+            "os.umask(0o022)\n"
+            "from deeptoolsr.config import save_options\n"
+            "print(oct(os.umask(0o077)))\n"
+            "for mask, name in ((0o077, 'tight.txt'), (0o002, 'loose.txt')):\n"
+            "    os.umask(mask)\n"
+            "    path = save_options({}, os.path.join(sys.argv[1], name))\n"
+            "    print(oct(os.stat(path).st_mode & 0o777))\n")
+    result = subprocess.run([sys.executable, "-c", code, str(tmp_path)],
+                            cwd=ROOT, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    umask_after_import, tight, loose = result.stdout.split()
+    assert umask_after_import == oct(0o022)
+    assert (tight, loose) == (oct(0o600), oct(0o664))
+
+
 def test_failed_replacement_restores_every_previous_output(tmp_path, monkeypatch):
     first, second = tmp_path / "out.plus.bedgraph", tmp_path / "out.minus.bedgraph"
     first.write_text("old plus")
@@ -116,11 +137,117 @@ def test_interrupt_during_publication_restores_previous_outputs(tmp_path, monkey
     assert len(list(tmp_path.iterdir())) == 3
 
 
-def test_long_output_basenames_fit_their_temporaries(tmp_path):
+def _windows_long_paths_off():
+    from deeptoolsr.native_path import long_paths_enabled
+    return sys.platform == "win32" and not long_paths_enabled()
+
+
+def _refused_as_too_long(capsys, argv, main=None):
+    with pytest.raises(SystemExit) as stop:
+        (main or bamCoverage.main)(argv)
+    assert "Windows long paths are off" in (
+        str(stop.value.code) + capsys.readouterr().err)
+
+
+def test_long_output_basenames_fit_their_temporaries(tmp_path, capsys):
     name = "a" * 240 + ".bw"
-    bamCoverage.main(["-b", str(DATA / "test1.bam"), "-o", str(tmp_path / name),
-                      "--binSize", "10"])
+    argv = ["-b", str(DATA / "test1.bam"), "-o", str(tmp_path / name),
+            "--binSize", "10"]
+    if _windows_long_paths_off() and len(os.path.abspath(tmp_path / name)) > 259:
+        # Windows with long paths off: refused up front, nothing written.
+        _refused_as_too_long(capsys, argv)
+        assert list(tmp_path.iterdir()) == []
+        return
+    bamCoverage.main(argv)
     assert [path.name for path in tmp_path.iterdir()] == [name]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows MAX_PATH")
+@pytest.mark.parametrize("side", ["input", "output"])
+def test_long_paths_off_is_a_clear_error_before_any_work(
+        tmp_path, monkeypatch, capsys, side):
+    from deeptoolsr import native_path as native
+    monkeypatch.setattr(native, "long_paths_enabled", lambda: False)
+    deep = tmp_path.joinpath("d" * 100, "e" * 100, "f" * 100)
+    _extended(deep).mkdir(parents=True)
+    bam = DATA / "test1.bam"
+    if side == "input":
+        for name in ("test1.bam", "test1.bam.bai"):
+            _extended(deep / name).write_bytes((DATA / name).read_bytes())
+        bam, output = deep / "test1.bam", tmp_path / "out.bw"
+    else:
+        output = deep / "out.bw"
+    with pytest.raises(SystemExit) as stop:
+        bamCoverage.main(["-b", str(bam), "-o", str(output), "--binSize", "10"])
+    message = str(stop.value.code) + capsys.readouterr().err
+    assert "Windows long paths are off" in message
+    assert not _extended(output).exists()
+
+
+def _extended(path):
+    # The test's own file operations reach a path longer than MAX_PATH on
+    # Windows through the extended-length form; deepToolsR gets plain paths.
+    if sys.platform == "win32":
+        return Path("\\\\?\\" + os.path.abspath(path).replace("/", "\\"))
+    return Path(path)
+
+
+def test_paths_longer_than_260_characters_work_for_every_file_kind(tmp_path, capsys):
+    import bz2
+    from deeptoolsr import deeptoolsr_list_tools, plotHeatmap, plotProfile
+    deep = tmp_path.joinpath("d" * 100, "e" * 100, "f" * 100)
+    _extended(deep).mkdir(parents=True)
+    for name in ("test1.bam", "test1.bam.bai", "test1.cram", "test1.cram.crai",
+                 "test1.fa", "test1.fa.fai"):
+        _extended(deep / name).write_bytes((DATA / name).read_bytes())
+    bed = b"3R\t100\t200\tr1\t0\t+\n3R\t400\t600\tr2\t0\t-\n"
+    gtf = (DATA / "test.gtf").read_bytes()
+    _extended(deep / "regions.bed").write_bytes(bed)
+    _extended(deep / "regions.bed.gz").write_bytes(gzip.compress(bed))
+    _extended(deep / "regions.gtf").write_bytes(gtf)
+    _extended(deep / "regions.gtf.bz2").write_bytes(bz2.compress(gtf))
+    _extended(deep / "blacklist.bed").write_bytes(b"3R\t1400\t1450\n")
+
+    def at(name):
+        return str(deep / name)
+
+    assert len(at("regions.bed")) > 260
+    if _windows_long_paths_off():
+        # Windows with long paths off: refused up front, nothing written.
+        _refused_as_too_long(capsys, ["-b", at("test1.bam"), "-o", at("bam.bw")])
+        assert not _extended(deep / "bam.bw").exists()
+        return
+    deeptoolsr_list_tools.main(["options", "--config", at("options.txt")])
+    bamCoverage.main(["-b", at("test1.bam"), "-o", at("bam.bw"), "--binSize", "10",
+                      "--blackListFileName", at("blacklist.bed")])
+    bamCoverage.main(["-b", at("test1.cram"), "--referenceFasta", at("test1.fa"),
+                      "-o", at("cram.bedgraph"), "--outFileFormat", "bedgraph"])
+    bigWigOperations.main(["scale", "--bigwig", at("bam.bw"),
+                           "-o", at("scaled.bw"), "--scaleFactor", "2"])
+    bigWigOperations.main(["merge", "--bigwig", at("bam.bw"), at("scaled.bw"),
+                           "-o", at("merged.bedgraph"), "-of", "bedgraph"])
+    bigWigOperations.main(["info", at("scaled.bw"), "--chromSizes", at("chrom.sizes")])
+    computeMatrix.main([
+        "reference-point", "-S", at("bam.bw"), at("scaled.bw"),
+        "-R", at("regions.bed"), at("regions.bed.gz"), at("regions.gtf"),
+        at("regions.gtf.bz2"), "-bl", at("blacklist.bed"), "-a", "100", "-b", "100",
+        "--config", at("options.txt"), "-o", at("matrix.gz"),
+        "--outFileNameMatrix", at("matrix.tab"),
+        "--outFileSortedRegions", at("sorted.bed")])
+    computeMatrixOperations.main(["subset", "-m", at("matrix.gz"),
+                                  "-o", at("subset.mat.gz"), "--samples", "bam"])
+    for plot, figure, extra in (
+            (plotHeatmap, "heatmap.png", ["--outFileNameMatrix", at("heatmap.tab"),
+                                          "--outFileSortedRegions", at("heatmap.bed")]),
+            (plotHeatmap, "heatmap.svg", []),
+            (plotProfile, "profile.pdf", ["--outFileNameData", at("profile.tab")])):
+        plot.main(["-m", at("subset.mat.gz"), "-o", at(figure),
+                   "--config", at("options.txt"), *extra])
+    for name in ("options.txt", "bam.bw", "cram.bedgraph", "scaled.bw",
+                 "merged.bedgraph", "chrom.sizes", "matrix.gz", "matrix.tab",
+                 "sorted.bed", "subset.mat.gz", "heatmap.png", "heatmap.tab",
+                 "heatmap.bed", "heatmap.svg", "profile.pdf", "profile.tab"):
+        assert _extended(deep / name).stat().st_size > 0, name
 
 
 def _truncated_bam(tmp_path):

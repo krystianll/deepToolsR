@@ -88,6 +88,20 @@ PROFILE_DECORATION_GAP_POINTS = ADJACENT_DECORATION_CLEARANCE_POINTS  # to maybe
 # Separation between the last data panel in a row and its rotated facet label.
 PROFILE_PANEL_TO_ROW_LABEL_GAP_POINTS = ADJACENT_DECORATION_CLEARANCE_POINTS
 
+# Nested headers (--nestedHeaders; drawn over cell titles and beside region
+# and row labels). Each copies the look of the labels a
+# header embraces: the rule sits as far from those
+# labels, and the header text as far from its rule, as a label sits from
+# what it labels (cell title to panel, region label to stack, row label to
+# panel, all ADJACENT_DECORATION_CLEARANCE_POINTS). Neighbouring rules are
+# shortened by half the clearance kept between neighbouring labels, so two
+# rules meeting in one gap keep that clearance. The rule is as wide as
+# Matplotlib's axis spines (axes.linewidth, 0.8 pt).
+HEADER_RULE_TO_LABEL_GAP_POINTS = ADJACENT_DECORATION_CLEARANCE_POINTS
+HEADER_TEXT_TO_RULE_GAP_POINTS = ADJACENT_DECORATION_CLEARANCE_POINTS
+HEADER_RULE_INSET_POINTS = LABEL_MIN_CLEARANCE_POINTS / 2
+HEADER_RULE_WIDTH_POINTS = 0.8
+
 # Distance between a tick mark and its text label. Centralising it lets the
 # drivers set it explicitly and identically for major/minor X and Y ticks and
 # horizontal/vertical colorbars. The default matches Matplotlib's historical
@@ -200,13 +214,19 @@ class TypographySpec:
     ``panel_title_text`` covers every panel-level title: profile and heatmap
     panel titles, the heatmap sample/sample-set column labels, and the row
     headers (including rotated right-side profile facet labels). Heatmap side
-    region labels use their own ``region_label_text`` role.
+    region labels use their own ``region_label_text`` role. The outer
+    headers (--nestedHeaders) over cell titles, beside region labels and
+    beside row labels have the ``*_header_text`` roles, reserved for them
+    and defaulting to the role of the labels each embraces.
     ``axis_label_text`` is shared by the X and Y axis labels.
     """
 
     figure_title_text: FontSpec
     panel_title_text: FontSpec
     region_label_text: FontSpec
+    panel_title_header_text: FontSpec
+    region_label_header_text: FontSpec
+    row_label_header_text: FontSpec
     axis_label_text: FontSpec
     x_tick_label_text: FontSpec
     y_tick_label_text: FontSpec
@@ -254,9 +274,13 @@ class GeometrySpec:
     legend_handle_to_text_gap: float = LEGEND_HANDLE_TO_TEXT_GAP_POINTS
     legend_entry_row_gap: float = LEGEND_ENTRY_ROW_GAP_POINTS
     legend_column_gap: float = LEGEND_COLUMN_GAP_POINTS
+    header_rule_to_label_gap: float = HEADER_RULE_TO_LABEL_GAP_POINTS
+    header_text_to_rule_gap: float = HEADER_TEXT_TO_RULE_GAP_POINTS
+    header_rule_inset: float = HEADER_RULE_INSET_POINTS
     # Dimensions that participate in layout but are not gaps:
     heatmap_colorbar_thickness: float = HEATMAP_COLORBAR_THICKNESS_POINTS
     colorbar_min_height: float = COLORBAR_MIN_HEIGHT_POINTS
+    header_rule_width: float = HEADER_RULE_WIDTH_POINTS
 
 
 @dataclass(frozen=True)
@@ -353,6 +377,12 @@ _DEFAULT_TYPOGRAPHY = {
     "colorbar_tick_label_text": FontSpec(8.0, "normal"),
     "legend_label_text": FontSpec(8.0, "normal"),
 }
+# Nested headers copy the look of the labels they embrace: cell titles,
+# region labels, and row labels (drawn in the panel-title role).
+_DEFAULT_TYPOGRAPHY.update(
+    panel_title_header_text=_DEFAULT_TYPOGRAPHY["panel_title_text"],
+    region_label_header_text=_DEFAULT_TYPOGRAPHY["region_label_text"],
+    row_label_header_text=_DEFAULT_TYPOGRAPHY["panel_title_text"])
 
 ROLE_NAMES = tuple(_DEFAULT_TYPOGRAPHY)
 
@@ -378,7 +408,8 @@ _GEOMETRY_FIELD_NAMES = tuple(field.name for field in fields(GeometrySpec))
 # positive; all other geometry keys are gaps and may be zero (a gap can be
 # meaningfully disabled).
 _POSITIVE_GEOMETRY_FIELDS = frozenset(
-    {"heatmap_colorbar_thickness", "colorbar_min_height"})
+    {"heatmap_colorbar_thickness", "colorbar_min_height",
+     "header_rule_width"})
 
 _ALLOWED_WEIGHTS = frozenset({
     "ultralight", "light", "normal", "regular", "book", "medium", "roman",

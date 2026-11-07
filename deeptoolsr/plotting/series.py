@@ -8,7 +8,7 @@ matrix geometry, axis ownership, and grouped Y limits before rendering.
 import math
 import re
 from dataclasses import dataclass, field, replace
-from typing import Callable
+from typing import Callable, NamedTuple
 
 from deeptoolsr.numeric_validation import (
     assignment_parts, decode_text_escapes, recycled_min_max_error)
@@ -70,6 +70,10 @@ class Cell:
     # Per block: the line after which the label's newline is only preferred
     # (between sample name and group), or None when every newline is hard.
     stack_label_breaks: tuple[int | None, ...] = ()
+    # The levels of the title and of each block label, outermost first
+    # (one level unless --nestedHeaders splits them; none for no title).
+    title_levels: tuple[str, ...] = ()
+    stack_label_levels: tuple[tuple[str, ...], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -79,6 +83,7 @@ class SeriesPlan:
     series: tuple[DataSeries, ...]
     color_domains: tuple[ColorDomain, ...]
     cells: tuple[Cell, ...]
+    row_label_levels: tuple[tuple[str, ...], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -97,6 +102,7 @@ class CellOptions:
     profile_style: str = 'lines'
     color_option: str = '--colorMap'
     colors_option: str = '--colorsPerSample'
+    nested_headers: bool = False
 
 
 @dataclass(frozen=True)
@@ -112,6 +118,118 @@ class CellRun:
 class LabelKind:
     edge: str
     vector: Callable[[Cell], object]
+
+
+class LevelledText(NamedTuple):
+    """A label as drawn today and its levels, outermost first."""
+
+    text: str
+    levels: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class HeaderRun:
+    """Neighbouring labels sharing one outer level (--nestedHeaders).
+
+    ``axis`` is 'x' (over cell titles), 'stack' (beside region labels) or
+    'row' (beside row labels); ``level`` 1 is next to the label. ``cells``
+    are the titled cells ('x') or the region-label run's cells ('stack');
+    ``blocks`` and ``rows`` are the 0-based blocks and grid rows collected.
+    """
+
+    axis: str
+    level: int
+    text: str
+    row: int | None
+    cells: tuple[int, ...] = ()
+    blocks: tuple[int, ...] = ()
+    rows: tuple[int, ...] = ()
+
+
+_LEVEL_SEPARATOR = re.compile(r'(?<!\\)\|')
+
+
+def label_levels(text, headers=True):
+    """Split a label at unescaped ``|`` into levels, outermost first.
+
+    ``\\|`` is a literal bar. Without headers a label is one level.
+    """
+    if not headers:
+        return (text,)
+    return tuple(level.replace('\\|', '|')
+                 for level in _LEVEL_SEPARATOR.split(text))
+
+
+def flat_label(text, headers=True):
+    """A label where no header can be drawn: its levels joined by spaces."""
+    if not headers:
+        return text
+    return ' '.join(level for level in label_levels(text) if level)
+
+
+def drawn_title(cell, headers):
+    """The title drawn over a cell: with headers its innermost level (the
+    outer ones are drawn as headers over it), else the whole title."""
+    if not headers:
+        return cell.title
+    return cell.title_levels[-1] if cell.title_levels else ''
+
+
+def drawn_stack_labels(cell, headers):
+    """The region labels drawn beside a cell's blocks: with headers each
+    block's innermost level (the outer ones are drawn as headers beside
+    it), else the whole labels."""
+    if not headers:
+        return cell.stack_labels
+    return tuple(levels[-1] for levels in cell.stack_label_levels)
+
+
+def drawn_row_labels(plan, headers):
+    """The labels drawn beside the grid rows: with headers each row's
+    innermost level (the outer ones are drawn as headers beside it), else
+    the whole labels."""
+    if not headers:
+        return plan.row_labels
+    return tuple(levels[-1] if levels else ''
+                 for levels in plan.row_label_levels)
+
+
+def _levelled(text, headers):
+    return LevelledText(text, label_levels(text, headers))
+
+
+def _depth(texts, headers):
+    """The most levels any of ``texts`` has."""
+    return max((len(label_levels(text, headers)) for text in texts),
+               default=1)
+
+
+def _inside(outer, inner, depth):
+    """``outer``'s levels outside ``inner``'s, the inner ones padded with
+    empty outer slots to ``depth`` so every outer level aligns."""
+    return outer + ('',) * (depth - len(inner)) + inner
+
+
+def _joined_levels(levels):
+    """Several labels' levels joined level by level, aligned from the
+    inside: a level equal for all is kept once, others are joined with
+    ', '. Outer levels some labels lack are folded into their outermost
+    shared level, so no header claims a label without it."""
+    depth = min(len(item) for item in levels)
+    folded = [(' '.join(level for level in item[:len(item) - depth + 1]
+                        if level),) + item[len(item) - depth + 1:]
+              for item in levels]
+    return tuple(column[0] if len(set(column)) == 1 else ', '.join(column)
+                 for column in zip(*folded))
+
+
+def _set_title(names, headers):
+    """The default title of a sample set: its sample labels joined."""
+    text = ', '.join(names)
+    if not headers:
+        return LevelledText(text, (text,))
+    return LevelledText(text, _joined_levels(
+        [label_levels(name) for name in names]))
 
 
 def effective_per_group(spec):
@@ -145,7 +263,8 @@ def cell_options(spec, *, colors_option=None):
         spec.same_sample_labels, spec.arrange_samples is not None,
         per_group_titles(spec), spec.grid_columns, spec.grid_rows, spec.show_profile,
         spec.show_heatmap, spec.plot_type,
-        '--colorList' if spec.color_list else '--colorMap', colors_option)
+        '--colorList' if spec.color_list else '--colorMap', colors_option,
+        spec.nested_headers)
 
 
 def _key(group, sample):
@@ -196,7 +315,8 @@ def _profile_entries(selected_groups, selected_samples, index, sid, labels,
                 else:
                     label = '{}: {}'.format(group_keys[group],
                                             labels.samples[sample])
-                series.setdefault(key, DataSeries(key, group, sample, label))
+                series.setdefault(key, DataSeries(
+                    key, group, sample, flat_label(label, opts.nested_headers)))
                 keys.append(key)
                 groups_merged = opts.same_group_labels in ('together', 'merge')
                 samples_merged = opts.same_sample_labels == 'together'
@@ -263,18 +383,28 @@ def panel_order(set_count, group_sets, placement):
                  for sid in range(set_count))
 
 
-def _split_title(sample_label, group_label, opts):
-    """Title of a split group panel outside by_row/by_column."""
+def _group_text(groups, labels, sizes, opts):
+    return _levelled(group_title(groups, labels, sizes), opts.nested_headers)
+
+
+def _split_title(sample_label, group_label, labels, opts):
+    """Title of a split group panel outside by_row/by_column: the sample
+    set's levels outside the group's."""
     if opts.per_group_titles:
         return group_label
-    return '{} — {}'.format(sample_label, group_label)
+    text = '{} — {}'.format(sample_label.text, group_label.text)
+    if not opts.nested_headers:
+        return LevelledText(text, (text,))
+    return LevelledText(text, _inside(sample_label.levels, group_label.levels,
+                                      _depth(labels.groups, True)))
 
 
 def promote_group_panels(sample_sets, labels, sizes, opts):
     """Make every split group panel its own sample set (--groupsAsSampleSets).
 
     Returns the panels' samples, region groups and default labels (the
-    titles the panels have without promotion), in drawing order.
+    titles the panels have without promotion, as ``LevelledText``), in
+    drawing order.
     """
     group_sets = region_group_sets(labels, opts)
     order = panel_order(len(sample_sets), group_sets, opts.placement)
@@ -282,9 +412,10 @@ def promote_group_panels(sample_sets, labels, sizes, opts):
     groups = tuple(selected[0] for _, selected in order)
     if len(group_sets) == 1:
         return sets, groups, None
-    titles = tuple(_split_title(', '.join(labels.samples[s] for s in samples),
-                                group_title(members, labels, sizes), opts)
-                   for samples, members in zip(sets, groups))
+    titles = tuple(_split_title(
+        _set_title([labels.samples[s] for s in samples], opts.nested_headers),
+        _group_text(members, labels, sizes, opts), labels, opts)
+        for samples, members in zip(sets, groups))
     return sets, groups, titles
 
 
@@ -328,9 +459,11 @@ def _profile_projection(sizes, samples, labels, opts):
     their own labels; their export and row labels name their samples.
     """
     promoted = opts.groups_as_sample_sets
-    base_labels = tuple(', '.join(labels.samples[s] for s in plan.samples)
-                        if promoted else plan.subplot_label
-                        for plan in samples)
+    headers = opts.nested_headers
+    base_labels = tuple(
+        _set_title([labels.samples[s] for s in plan.samples], headers)
+        if promoted else LevelledText(plan.subplot_label, plan.subplot_levels)
+        for plan in samples)
     group_sets = region_group_sets(labels, opts)
     # Series are named by region group alone unless a panel mixes samples;
     # explicit one-sample sets (--arrangeSamples 1 2 3) match the default.
@@ -341,42 +474,52 @@ def _profile_projection(sizes, samples, labels, opts):
     descriptors, columns, row_labels = _profile_grid(
         samples, group_sets, opts, base_labels)
     if opts.placement == 'by_column':
-        row_labels = tuple(group_title(groups, labels, sizes)
+        row_labels = tuple(_group_text(groups, labels, sizes, opts)
                            for groups in group_sets)
+    # Per-group series heatmaps are drawn one cell per grid row, whatever
+    # the placement, and no row label names a drawn row; titles still
+    # follow the placement's columns.
+    drawn_columns = columns
+    if (opts.profile_style == 'heatmap' and opts.per_group and
+            opts.grid_columns is None and opts.grid_rows is None):
+        drawn_columns, row_labels = 1, ()
 
     panels = []
     series = {}
     colors = {}
     assignments = []
+    titles = []
     for index, (sid, selected_samples, selected_groups) in enumerate(descriptors):
         sample_label = base_labels[sid]
-        group_label = group_title(selected_groups[0], labels, sizes)
+        group_label = _group_text(selected_groups[0], labels, sizes, opts)
         multiple = len(group_sets) > 1 and opts.placement != 'overlay'
         title = sample_label
         if promoted:
-            title = samples[sid].subplot_label
+            title = LevelledText(samples[sid].subplot_label,
+                                 samples[sid].subplot_levels)
         elif opts.placement == 'by_row':
             title = group_label
         elif multiple:
             title = (sample_label if opts.placement == 'by_column' and
                      not opts.per_group_titles else
-                     _split_title(sample_label, group_label, opts))
-        parts = [sample_label]
+                     _split_title(sample_label, group_label, labels, opts))
+        parts = [sample_label.text]
         if len(selected_groups) == 1 and not default_group_series:
-            parts.append(group_label)
+            parts.append(group_label.text)
         parts = [part for i, part in enumerate(parts)
                  if part and part not in parts[:i]]
-        export_label = ' — '.join(parts) or title
+        export_label = flat_label(' — '.join(parts) or title.text, headers)
         if (not promoted and opts.placement in ('by_row', 'by_column') and
                 index // columns > 0):
-            title = ''
+            title = LevelledText('', ())
+        titles.append(title.levels if title.text else ())
         keys = _profile_entries(
             selected_groups, selected_samples, index, sid, labels, opts,
             default_group_series, series, colors, assignments)
         panels.append(Panel(index + 1,
                             'heatmap' if opts.profile_style == 'heatmap' else 'profile',
-                            title, export_label, index // columns,
-                            index % columns, keys))
+                            title.text, export_label, index // drawn_columns,
+                            index % drawn_columns, keys))
     if opts.profile_style == 'heatmap':
         domain = ColorDomain(opts.colors_option, 'colormap',
                              _slots((index + 1, key, index + 1)
@@ -384,15 +527,20 @@ def _profile_projection(sizes, samples, labels, opts):
                                     for key in panel.series))
     else:
         domain = ColorDomain(opts.colors_option, 'series', _slots(assignments))
-    return (SeriesPlan(tuple(panels), tuple(row_labels),
-                       tuple(series.values()), (domain,), ()), descriptors)
+    return (SeriesPlan(tuple(panels), tuple(item.text for item in row_labels),
+                       tuple(series.values()), (domain,), (),
+                       tuple(item.levels if item.text else ()
+                             for item in row_labels)),
+            descriptors, tuple(titles))
 
 
-def _block_labels(blocks, labels):
+def _block_labels(blocks, labels, opts):
     """Name each block by what distinguishes it from the cell's other blocks.
 
-    Returns the texts and, per block, the line index of the preferred break
-    between sample name and group (None when only one of them is shown).
+    Returns the texts, per block the line index of the preferred break
+    between sample name and group (None when only one of them is shown),
+    and the levels: the sample's and the group's, the one varying slower
+    down the stack outside.
     """
     samples = len({block.sample for block in blocks}) > 1
     groups = len({block.group for block in blocks}) > 1 or not samples
@@ -402,16 +550,30 @@ def _block_labels(blocks, labels):
         for block in blocks)
     breaks = tuple(labels.samples[block.sample].count('\n')
                    if samples and groups else None for block in blocks)
-    return texts, breaks
+    if not opts.nested_headers:
+        return texts, breaks, tuple((text,) for text in texts)
+    if not (samples and groups):
+        return texts, breaks, tuple(map(label_levels, texts))
+    sample_depth, group_depth = (_depth(labels.samples, True),
+                                 _depth(labels.groups, True))
+    levels = []
+    for block in blocks:
+        sample = label_levels(labels.samples[block.sample])
+        group = label_levels(labels.groups[block.group])
+        levels.append(_inside(group, sample, sample_depth) if opts.per_group
+                      else _inside(sample, group, group_depth))
+    return texts, breaks, tuple(levels)
 
 
-def _cells_from_profile(plan, descriptors, labels, opts):
+def _cells_from_profile(plan, descriptors, titles, labels, opts):
     """Build cells; a cell's colour map and limits follow its sample set."""
     cells = []
-    for panel, (sid, samples, group_sets) in zip(plan.panels, descriptors):
+    for panel, (sid, samples, group_sets), title_levels in zip(
+            plan.panels, descriptors, titles):
         groups = tuple(g for members in group_sets for g in members)
         blocks = _stack_blocks(groups, samples, opts.per_group) if opts.show_heatmap else ()
-        stack_labels, stack_label_breaks = _block_labels(blocks, labels)
+        stack_labels, stack_label_breaks, stack_label_levels = _block_labels(
+            blocks, labels, opts)
         profile = panel if opts.show_profile else None
         if profile is not None and profile.kind == 'heatmap':
             profile = Panel(profile.index, 'series_heatmap', profile.title,
@@ -420,7 +582,8 @@ def _cells_from_profile(plan, descriptors, labels, opts):
         cells.append(Cell(panel.index, panel.row, panel.column,
                           tuple(samples), groups, panel.title,
                           panel.export_label, profile, blocks, stack_labels,
-                          sid, stack_label_breaks))
+                          sid, stack_label_breaks, title_levels,
+                          stack_label_levels))
     return tuple(cells)
 
 
@@ -441,9 +604,10 @@ def _stack_color_domain(cells, opts):
 
 def resolve_cells(sizes, samples, labels, opts: CellOptions) -> SeriesPlan:
     """Resolve physical cells, series identities and colour domains."""
-    profile_plan, descriptors = _profile_projection(
+    profile_plan, descriptors, titles = _profile_projection(
         sizes, samples, labels, opts)
-    cells = _cells_from_profile(profile_plan, descriptors, labels, opts)
+    cells = _cells_from_profile(profile_plan, descriptors, titles, labels,
+                                opts)
     if opts.show_heatmap:
         # Profiles are the profile plan's, unchanged, so a profile looks the
         # same with or without a heatmap stack under it.
@@ -451,12 +615,14 @@ def resolve_cells(sizes, samples, labels, opts: CellOptions) -> SeriesPlan:
             (), profile_plan.row_labels, (), (), ())
         return SeriesPlan(profiles.panels, profile_plan.row_labels,
                           profiles.series, profiles.color_domains +
-                          (_stack_color_domain(cells, opts),), cells)
+                          (_stack_color_domain(cells, opts),), cells,
+                          profile_plan.row_label_levels)
     panels = tuple(replace(cell.profile, kind='heatmap') if
                    cell.profile.kind == 'series_heatmap' else cell.profile
                    for cell in cells)
     return SeriesPlan(panels, profile_plan.row_labels,
-                      profile_plan.series, profile_plan.color_domains, cells)
+                      profile_plan.series, profile_plan.color_domains, cells,
+                      profile_plan.row_label_levels)
 
 
 class AssignmentIndexError(ValueError):
@@ -626,6 +792,8 @@ class SampleSetPlan:
     # True when its samples' X geometries differ (describe only; plotting
     # raises instead).  ``geometry`` is then its first sample's.
     geometry_clash: bool = False
+    # The title's levels, outermost first (one unless --nestedHeaders).
+    subplot_levels: tuple[str, ...] = ()
 
 
 # The per-sample-set texts, keyed as describe reports them.
@@ -673,6 +841,31 @@ def geometry_for_sample(sample_boundaries, parameters, sample):
         reference_point=reference)
 
 
+def sample_numbers(token, sample_labels):
+    """The 1-based samples one sample token names.
+
+    A token is a number, an ``a-b`` range (both numeric; names may contain
+    hyphens) or a displayed sample label. --arrangeSamples,
+    --sortUsingSamples and --clusterUsingSamples all resolve tokens here.
+    A range is checked by its ends before it is expanded; a single number
+    is left for the caller to check against the count.
+    """
+    range_match = re.match(r'^(\d+)\s*-\s*(\d+)$', token)
+    if range_match:
+        start, end = map(int, range_match.groups())
+        count = len(sample_labels)
+        if not (1 <= start <= count and 1 <= end <= count):
+            raise ValueError("Sample range '{}' is outside 1..{}".format(
+                token, count))
+        step = 1 if end >= start else -1
+        return list(range(start, end + step, step))
+    if token.isdigit():
+        return [int(token)]
+    if token not in sample_labels:
+        raise ValueError("Unknown sample '{}'".format(token))
+    return [list(sample_labels).index(token) + 1]
+
+
 def parse_sample_sets(sample_labels, specifications=None, per_group=False):
     """Resolve 1-based indices/names while preserving displayed order."""
     labels = list(sample_labels)
@@ -687,23 +880,11 @@ def parse_sample_sets(sample_labels, specifications=None, per_group=False):
         samples = []
         for token in specification.split(','):
             token = token.strip()
-            # ``a-b`` (both numeric) expands to an inclusive 1-based range;
-            # names may themselves contain hyphens, so only all-digit endpoints
-            # are treated as a range.
-            range_match = re.match(r'^(\d+)\s*-\s*(\d+)$', token)
-            if range_match:
-                expanded = parse_index_spec(token, len(labels))
-            elif token.isdigit():
-                sample = int(token) - 1
-                if sample < 0 or sample >= len(labels):
+            for number in sample_numbers(token, labels):
+                if not 1 <= number <= len(labels):
                     raise ValueError('Sample {} is outside 1..{}'.format(
                         token, len(labels)))
-                expanded = [sample]
-            else:
-                if token not in labels:
-                    raise ValueError("Unknown sample '{}'".format(token))
-                expanded = [labels.index(token)]
-            for sample in expanded:
+                sample = number - 1
                 if sample in used:
                     raise ValueError("Sample '{}' occurs in more than one "
                                      'sample set'.format(labels[sample]))
@@ -788,12 +969,15 @@ def build_sample_set_plans(sample_labels, sample_boundaries, parameters, sample_
                            start_labels=None, end_labels=None,
                            heatmap_y_axis_labels=None, *,
                            groups=None, default_labels=None,
-                           option_spellings=None, context=None):
+                           option_spellings=None, context=None,
+                           headers=False):
     """Resolve recycled labels and validate geometry within each sample set.
 
     ``groups`` gives promoted sample sets their region groups, and
-    ``default_labels`` their default --sampleSetLabels.  Each plan also
-    keeps the automatic value of every text (``SampleSetPlan.automatic``).
+    ``default_labels`` their default --sampleSetLabels (``LevelledText``).
+    Each plan also keeps the automatic value of every text
+    (``SampleSetPlan.automatic``). ``headers`` (--nestedHeaders) splits
+    titles into levels; a default title joins its samples' levels.
     """
     from deeptoolsr.prepare import OptionError, collected
 
@@ -829,12 +1013,16 @@ def build_sample_set_plans(sample_labels, sample_boundaries, parameters, sample_
     def option(dest):
         return spellings.get(dest, '--' + dest)
 
-    default_subplots = default_labels or tuple(
-        ', '.join(sample_labels[sample] for sample in samples)
+    default_labels = default_labels or tuple(
+        _set_title([sample_labels[sample] for sample in samples], headers)
         for samples in sample_sets)
+    default_subplots = tuple(item.text for item in default_labels)
     resolved_subplots = recycle(
         subplot_labels, count, default_subplots,
         option=option('sampleSetLabels'), context=context, text=True)
+    subplot_levels = tuple(
+        default.levels if text == default.text else label_levels(text, headers)
+        for text, default in zip(resolved_subplots, default_labels))
     resolved_y = recycle(
         y_axis_labels, count, option=option('yAxisLabel'),
         context=context, text=True)
@@ -892,7 +1080,8 @@ def build_sample_set_plans(sample_labels, sample_boundaries, parameters, sample_
                                     if reference else None),
                 'start_label': None if reference else 'TSS',
                 'end_label': None if reference else 'TES'},
-            geometry_clash=index in clashes))
+            geometry_clash=index in clashes,
+            subplot_levels=subplot_levels[index]))
     return tuple(plans)
 
 
@@ -1036,3 +1225,71 @@ def label_runs(cells, kind):
         result.extend(CellRun(axis, value, tuple(item.index for item in run))
                       for value, run in contiguous_runs(contiguous, labels))
     return tuple(result)
+
+
+def _level_runs(line):
+    """(level, text, members) of each header over ``line``.
+
+    ``line`` lists neighbours in order as (member, levels); None separates
+    items that are not neighbours. A header at level k collects a maximal
+    run whose levels agree from level k outwards; a missing or empty
+    level k ends the run.
+    """
+    depth = max((len(item[1]) for item in line if item), default=0)
+    result = []
+    for level in range(1, depth):
+        def chain(item):
+            if item is None or len(item[1]) <= level or \
+                    not item[1][-1 - level]:
+                return None
+            return item[1][:len(item[1]) - level]
+        result.extend((level, value[-1], tuple(member for member, _ in run))
+                      for value, run in contiguous_runs(line, chain)
+                      if value is not None)
+    return result
+
+
+def _neighbours(items):
+    """(position, member, levels) to a line with gaps marked by None."""
+    line, last = [], None
+    for position, member, levels in sorted(items):
+        if last is not None and position != last + 1:
+            line.append(None)
+        line.append((member, levels))
+        last = position
+    return line
+
+
+def header_runs(plan, axis):
+    """The headers of one axis ('x', 'stack' or 'row'), in grid order.
+
+    Equal neighbouring outer levels share one header; equal ones that are
+    not neighbours never do, and an inner header never crosses a change
+    of an outer one. X headers join consecutive columns of one grid row
+    (a header over a whole row stays above it); stack headers join
+    consecutive blocks of one region-label run; row headers consecutive
+    grid rows.
+    """
+    if axis == 'x':
+        return tuple(
+            HeaderRun('x', level, text, row, cells=members)
+            for row in sorted({cell.row for cell in plan.cells})
+            for level, text, members in _level_runs(_neighbours(
+                (cell.column, cell.index, cell.title_levels)
+                for cell in plan.cells if cell.row == row)))
+    if axis == 'stack':
+        cells = {cell.index: cell for cell in plan.cells}
+        return tuple(
+            HeaderRun('stack', level, text, run.axis, cells=run.cells,
+                      blocks=members)
+            for run in label_runs(plan.cells, 'stack')
+            for level, text, members in _level_runs(_neighbours(
+                (block, block, levels) for block, levels in
+                enumerate(cells[run.cells[0]].stack_label_levels))))
+    if axis == 'row':
+        return tuple(
+            HeaderRun('row', level, text, None, rows=members)
+            for level, text, members in _level_runs(_neighbours(
+                (row, row, levels)
+                for row, levels in enumerate(plan.row_label_levels))))
+    raise ValueError('unknown header axis: {}'.format(axis))

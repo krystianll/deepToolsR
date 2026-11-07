@@ -1,10 +1,12 @@
 """Build every matrix figure (profiles, heatmaps or both) on the unified grid."""
 
+import math
 from dataclasses import dataclass, field, replace
 
 from matplotlib.colors import to_rgba
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 import numpy as np
 
 from deeptoolsr.prepare import PlotData
@@ -15,7 +17,6 @@ from . import fonts, grid
 from .geometry import (CM_PER_INCH, POINTS_PER_INCH, Insets, Size,
                        cm_to_points,
                        COLORBAR_LABEL_MIN_CLEARANCE_POINTS,
-                       HEATMAP_SMALL_GROUP_MAX_ROWS,
                        )
 from .heatmap import (
     make_colormaps,
@@ -34,13 +35,14 @@ from .rendering import draw_without_rendering
 from .scene import (MatplotlibMeasureContext, measure_axis,
                     ProvisionalPass, SceneInputs, axis_insets, finish_scene,
                     label_candidates, legend_slot, move_axis,
-                    text_slot,
+                    slot_axis, text_slot,
                     visible_tick_inset)
 from .series import (apply_grouped_y_limits, contiguous_runs,
-                     effective_per_group,
-                     geometry_for_sample, has_explicit_assignment, label_runs,
+                     drawn_row_labels, drawn_stack_labels, drawn_title,
+                     geometry_for_sample,
+                     has_explicit_assignment, header_runs, label_runs,
                      series_slot)
-from .text_layout import (TextMeasurer, literal_label_candidate,
+from .text_layout import (TextMeasurer, drawn_text, literal_label_candidate,
                           measure_label_candidates)
 
 
@@ -71,8 +73,13 @@ class _MeasuredDecorations:
 
 def _measure_decorations(context, *, row_texts, panel_entries,
                          positions, legend_scope, common_legend,
-                         legend_location, font, width, geometry, extra=()):
-    """Build row labels and shared external legends for every figure."""
+                         legend_location, font, width, geometry, extra=(),
+                         common_row=None):
+    """Build row labels and shared external legends for every figure.
+
+    A shared legend is figure-level, or hangs under profile row
+    ``common_row`` (centred across every column) when one is given.
+    """
     decorations = list(extra)
     row_styles = {}
     style = context.style
@@ -92,7 +99,8 @@ def _measure_decorations(context, *, row_texts, panel_entries,
     legends = []
     if legend_location in ('above', 'below', 'right') and panel_entries:
         if common_legend:
-            owners = (('figure', 0, tuple(panel_entries)),)
+            owners = ((('figure', 0) if common_row is None else
+                       ('row', common_row)) + (tuple(panel_entries),),)
         elif legend_scope in ('row', 'column'):
             count = max(position[0 if legend_scope == 'row' else 1]
                         for position in positions) + 1
@@ -145,11 +153,13 @@ class _GridState:
     cell_labels: dict = field(default_factory=dict)
     title_order: list = field(default_factory=list)
     title_styles: dict = field(default_factory=dict)
+    headers: list = field(default_factory=list)
     row_labels: list = field(default_factory=list)
     row_styles: dict = field(default_factory=dict)
     runs: list = field(default_factory=list)
     run_styles: list = field(default_factory=list)
     common_entries: tuple = ()
+    common_role: str = grid.legend_role('figure', 0)
     legend_records: list = field(default_factory=list)
     cells: list = field(default_factory=list)
     legend_measured: dict = field(default_factory=dict)
@@ -242,18 +252,30 @@ def _collect_structural_labels(canvas, state, context):
     auto_titles = style.label_layout.auto_panel_title_column_gap
     auto_axis = style.label_layout.auto_axis_label_layout
     for cell, owner in zip(canvas.plan.cells, canvas.positions):
-        if not cell.title:
+        title = drawn_title(cell, canvas.spec.nested_headers)
+        if not title:
             continue
         font = fonts.role_font(style, 'panel_title_text')
         candidates = label_candidates(
-            cell.title, font, 0.0,
+            title, font, 0.0,
             style.label_layout.panel_title_max_lines, context,
             auto=auto_titles)
         state.cell_labels[owner] = grid.CellLabels(
-            title_text=cell.title, title_candidates=candidates,
+            title_text=title, title_candidates=candidates,
             title_order=len(state.title_order))
         state.title_order.append(owner)
         state.title_styles[owner] = _LabelStyle(font, None, 0.0)
+    # Outer title levels are headers over the cells sharing them; they
+    # wrap like titles and are drawn in their own role.
+    font = fonts.role_font(style, 'panel_title_header_text')
+    state.headers = [
+        grid.LabelRun('header_x', tuple(index - 1 for index in run.cells),
+                      label_candidates(
+                          run.text, font, 0.0,
+                          style.label_layout.panel_title_max_lines, context,
+                          auto=auto_titles), level=run.level)
+        for run in (header_runs(canvas.plan, 'x')
+                    if canvas.spec.nested_headers else ())]
     for axis in context.data_axes:
         axis.set_title('')
     if auto_axis:
@@ -484,11 +506,13 @@ def _measure_grid(canvas, state, context):
     _measure_cells(canvas, state, context)
     title_height, title_width = _measure_labels(canvas, state, context)
     x_decoration = 0.0
+    stack_headers = ()
     if canvas.spec.show_heatmap:
         for run, style in heatmap_runs:
             state.runs.append(run)
             state.run_styles.append(style)
         state.runs.extend(_stack_runs(canvas, context))
+        stack_headers = _stack_headers(canvas, context)
         x_decoration = max((measure_axis(axis, context.renderer).bottom *
                             context.scale for axis in canvas.heatmap_axes
                             if axis.xaxis.get_visible()), default=0.0)
@@ -508,26 +532,55 @@ def _measure_grid(canvas, state, context):
         legend_location=state.legend_location,
         font=canvas.legend_font, width=state.width,
         geometry=canvas.run.style.geometry,
-        extra=bars + _stack_decorations(canvas, context))
+        extra=bars + _stack_decorations(canvas, context),
+        common_row=_shared_legend_row(canvas, state))
     state.row_labels = [item for item in measured.decorations
                         if item.kind == 'row_label']
     state.row_styles = measured.row_styles
-    state.legend_records = [record for record in measured.legends
-                            if record[0] != 'figure']
-    common = next(((entries, value) for scope, _, entries, value
-                   in measured.legends if scope == 'figure'), None)
-    state.common_entries, state.common_measured = (
-        common if common is not None else ((), None))
-    title = (grid.MeasuredLabelSpec((literal_label_candidate(
-        canvas.spec.plot_title, Size(title_width, title_height)),))
+    shared = canvas.common_legend and measured.legends
+    state.legend_records = [] if shared else list(measured.legends)
+    if shared:
+        scope, owner, state.common_entries, state.common_measured = \
+            measured.legends[0]
+        state.common_role = grid.legend_role(scope, owner)
+    title = (grid.MeasuredLabelSpec(_title_candidates(
+        canvas, state, context, Size(title_width, title_height)))
         if canvas.spec.plot_title else None)
     state.grid_spec = grid.GridLayoutSpec(
         canvas.grid_rows, canvas.grid_cols, tuple(state.cells),
-        measured.decorations, tuple(state.runs), title=title,
+        measured.decorations, tuple(state.runs),
+        headers=(tuple(state.headers) + stack_headers +
+                 _row_headers(canvas, context)), title=title,
         x_decoration_height=x_decoration,
         geometry=canvas.run.style.geometry,
         label_layout=canvas.run.style.label_layout)
     return state
+
+
+def _title_candidates(canvas, state, context, size):
+    """The title as drawn, then its wraps for a plot narrower than it.
+
+    The data alone are at least as wide as the columns' panels, so no fit
+    needs more lines than the title spans across them.
+    """
+    text = canvas.spec.plot_title
+    literal = literal_label_candidate(text, size)
+    panels = max(1.0, canvas.grid_cols * state.width)
+    wraps = label_candidates(
+        text, state.title_font, 0, literal.line_count +
+        math.ceil(size.width / panels), context, auto=True)
+    return (literal, *(item for item in wraps
+                       if item.line_count > literal.line_count))
+
+
+def _shared_legend_row(canvas, state):
+    """The first profile row, when a shared legend hangs under it instead
+    of under the heatmaps; None keeps it figure-level."""
+    if not (canvas.spec.shared_legend_under_profiles and
+            any(cell.blocks for cell in state.cells)):
+        return None
+    return min((cell.row for cell in state.cells
+                if cell.profile is not None), default=None)
 
 
 def _solve_grid(canvas, state, context):
@@ -555,7 +608,8 @@ def _solve_grid(canvas, state, context):
             state.grid_spec, decorations=tuple(
                 replace(item, size=state.common_measured.size,
                         ncols=state.common_measured.ncols)
-                if item.kind == 'legend' and item.scope == 'figure'
+                if item.kind == 'legend' and
+                grid.legend_role(item.scope, item.owner) == state.common_role
                 else item for item in state.grid_spec.decorations))
         solution = grid.solve(state.grid_spec)
     return solution
@@ -587,6 +641,35 @@ def _place_cell_titles(canvas, state, context, solution):
                   rotation=style.rotation,
                   multialignment='center',
                   fontproperties=style.font_properties, color=style.color)
+
+
+_HEADER_FONTS = {'header_x': 'panel_title_header_text',
+                 'header_stack': 'region_label_header_text',
+                 'header_row': 'row_label_header_text'}
+
+
+def _place_headers(canvas, state, context, solution):
+    """Draw each header's text and the plain rule beside it: under an X
+    header, beside a stack or row header (rotated like the region or row
+    labels it stands beside)."""
+    style = canvas.run.style
+    for index, role, rule in grid.header_roles(state.grid_spec):
+        run = state.grid_spec.headers[index]
+        text = run.candidates[solution.selections.get(role, 0)].text
+        beside = run.axis != 'header_x'
+        axis = text_slot(
+            context.figure, solution.rects[role], solution.figure_size, text,
+            gid=role, multialignment='center',
+            rotation=(-90 if run.location == 'right' else 90) if beside
+            else 0,
+            fontproperties=fonts.role_font(style, _HEADER_FONTS[run.axis]))
+        line = slot_axis(context.figure, solution.rects[rule],
+                         solution.figure_size, gid=rule)
+        ends = ((0, 1), (.5, .5))
+        line.add_line(Line2D(
+            *(ends[::-1] if beside else ends), transform=line.transAxes,
+            clip_on=False, linewidth=style.geometry.header_rule_width,
+            color=axis.texts[0].get_color(), solid_capstyle='butt'))
 
 
 def _place_shared_slots(canvas, state, context, solution):
@@ -626,7 +709,7 @@ def _place_shared_slots(canvas, state, context, solution):
 
 
 def _place_figure_slots(canvas, state, context, solution):
-    common_role = grid.legend_role('figure', 0)
+    common_role = state.common_role
     if (canvas.common_legend and state.external and
             state.common_entries and common_role in solution.rects):
         legend_slot(
@@ -638,7 +721,8 @@ def _place_figure_slots(canvas, state, context, solution):
         canvas.main_title.remove()
     if grid.figure_title() in solution.rects:
         text_slot(context.figure, solution.rects[grid.figure_title()],
-                  solution.figure_size, canvas.spec.plot_title,
+                  solution.figure_size, state.grid_spec.title.candidates[
+                      solution.selections[grid.figure_title()]].text,
                   gid=grid.figure_title(), fontproperties=state.title_font)
 
 
@@ -647,6 +731,7 @@ def _place_slots(canvas, state, context, solution):
         role = grid.colorbar_role('cell', index)
         move_axis(axis, solution.rects[role], solution.figure_size)
     _place_cell_titles(canvas, state, context, solution)
+    _place_headers(canvas, state, context, solution)
     _place_shared_slots(canvas, state, context, solution)
     if canvas.spec.show_heatmap:
         _place_stack_text(canvas, context, state.grid_spec, solution)
@@ -696,6 +781,7 @@ class _MatrixCanvas:
 
     def __init__(self, matrix, layout, labels, plan, spec, prepared, run,
                  extents, raster_renderer=None):
+        plan, spec, prepared = _drawn_texts(plan, spec, prepared)
         self.data = PlotData(matrix, layout, labels, run.threads,
                              spec.distance_unit, spec.distance_unit_location)
         self.plan, self.spec, self.prepared = plan, spec, prepared
@@ -711,18 +797,9 @@ class _MatrixCanvas:
                 spec.grid_columns is None and spec.grid_rows is not None):
             rows = min(spec.grid_rows, self.panel_count)
         self.provisional_rows, self.provisional_cols = rows, cols
-        if (spec.plot_type == 'heatmap' and effective_per_group(spec)
-                and spec.grid_columns is None and spec.grid_rows is None):
-            # Each group owns a vertical series-heatmap cell, so the plan's
-            # row labels name no drawn row.
-            self.grid_rows, self.grid_cols = self.panel_count, 1
-            self.positions = tuple((index, 0)
-                                   for index in range(self.panel_count))
-            self.row_labels = ()
-        else:
-            self.grid_rows, self.grid_cols = self.cell_rows, self.cell_columns
-            self.positions = tuple((cell.row, cell.column) for cell in cells)
-            self.row_labels = tuple(plan.row_labels)
+        self.grid_rows, self.grid_cols = self.cell_rows, self.cell_columns
+        self.positions = tuple((cell.row, cell.column) for cell in cells)
+        self.row_labels = tuple(drawn_row_labels(plan, spec.nested_headers))
         self.legend_font = fonts.role_font(
             run.style, 'legend_label_text')
         # A by_column right legend would span the stacks between its rows;
@@ -732,10 +809,11 @@ class _MatrixCanvas:
             'column' if spec.placement == 'by_column' and not (
                 spec.show_heatmap and spec.legend_location == 'right')
             else None)
-        self.sort_method = layout.sort.method if layout.sort else None
+        drawn_sort = layout.drawn_sort
+        self.sort_method = drawn_sort.method if drawn_sort else None
         self.show_indicator = (
             spec.show_heatmap and spec.sort_indicator == 'auto' and
-            self.sort_method in ('ascend', 'descend'))
+            drawn_sort is not None)
         self.group_sizes = tuple(np.diff(layout.group_bounds))
         self.profile_axes = {}
         self.series_colorbar_axes = {}
@@ -909,15 +987,15 @@ def _apply_subplot_axes(state, axes, y_labels, y_scales):
                                 'panels': tuple(run),
                                 'label_to_tick_gap':
                                 state.run.style.geometry.common_axis_label_to_tick_labels_gap})
+            merged = state.spec.x_axis_visibility == 'outer_merged'
             for index in run:
                 axis = axes[index]
-                if state.spec.x_axis_visibility == 'outer_merged':
-                    axis.set_xlabel('')
-                elif state.spec.x_axis_visibility == 'show_all' or index == owner:
-                    axis.set_xlabel(
-                        _profile_panel_distance_axis_label(state, index))
-                else:
-                    axis.set_xlabel('')
+                shown = (state.spec.x_axis_visibility == 'show_all' or
+                         index == owner)
+                axis.set_xlabel(
+                    _profile_panel_distance_axis_label(state, index)
+                    if shown and not merged else '')
+                if not shown:
                     axis.tick_params(axis='x', labelbottom=False)
 
     return (_merge_parallel_spans(state, y_spans, 'y') +
@@ -1018,7 +1096,8 @@ def _draw_profile(state, plot, provisional):
             _panel_series(state, panel),
             line_width=state.run.style.drawing.profile_line_width,
             y_scale=state.prepared.y_scale[_profile_panel_plan(state, plot).index],
-            sigma=state.spec.y_pseudolog_sigma)
+            sigma=state.spec.y_pseudolog_sigma,
+            steps=state.spec.lines_as_steps)
     total_width = state.data.layout.block(
         state.data.matrix, *_profile_panel_series(state, plot)[-1][:2]
     ).shape[1]
@@ -1140,6 +1219,35 @@ def _draw_series_image(state, plot, axis, bar_rect):
     axis.set_ylim([ymin, ymax])
 
 
+def _drawn_texts(plan, spec, prepared):
+    """The canvas's plan, spec and preparation with every text it draws as
+    ``drawn_text`` (labels measured as candidates follow the same rule).
+    Exports read the caller's originals."""
+    plan = replace(
+        plan, row_labels=drawn_text(plan.row_labels),
+        row_label_levels=drawn_text(plan.row_label_levels),
+        series=tuple(replace(item, label=drawn_text(item.label))
+                     for item in plan.series),
+        cells=tuple(replace(
+            cell, title=drawn_text(cell.title),
+            title_levels=drawn_text(cell.title_levels),
+            stack_labels=drawn_text(cell.stack_labels),
+            stack_label_levels=drawn_text(cell.stack_label_levels),
+            profile=cell.profile and replace(
+                cell.profile, title=drawn_text(cell.profile.title)))
+            for cell in plan.cells))
+    prepared = replace(prepared, sample_set_plans=tuple(
+        replace(sample_set, **{name: drawn_text(getattr(sample_set, name))
+                               for name in _SAMPLE_SET_DRAWN_TEXTS})
+        for sample_set in prepared.sample_set_plans))
+    return plan, replace(spec, plot_title=drawn_text(spec.plot_title)), prepared
+
+
+_SAMPLE_SET_DRAWN_TEXTS = (
+    'subplot_label', 'x_axis_label', 'y_axis_label', 'heatmap_y_axis_label',
+    'reference_label', 'start_label', 'end_label')
+
+
 def build_matrix_figure(matrix, layout, labels, plan, spec, prepared, run,
                         extents, raster_renderer=None):
     """Build any matrix figure on the role-keyed grid."""
@@ -1249,7 +1357,8 @@ def _draw_cell_block(state, cell, rank, owners):
     spec, prepared = state.spec, state.prepared
     block_id = cell.blocks[rank]
     group, sample = block_id.group, block_id.sample
-    block = state.data.layout.block(state.data.matrix, group, sample)
+    block = state.data.layout.block(state.data.matrix, group, sample,
+                                    drawn=True)
     axis = state.figure.add_axes(
         _cell_provisional(state, cell, 'block', rank))
     axis.set_gid(grid.cell_block(cell.row, cell.column, rank))
@@ -1257,25 +1366,17 @@ def _draw_cell_block(state, cell, rank, owners):
         for side in ('top', 'right', 'bottom', 'left'):
             axis.spines[side].set_visible(False)
     rows, columns = block.shape
-    interpolation = (('bilinear' if rows >= HEATMAP_SMALL_GROUP_MAX_ROWS
-                      else 'nearest') if spec.interpolation_method == 'auto'
-                     else spec.interpolation_method)
-    color = cell.sample_set % len(state.cmap)
-    lower = cell.sample_set % len(prepared.z_min)
-    upper = cell.sample_set % len(prepared.z_max)
-    middle = (None if prepared.z_mid is None else
-              cell.sample_set % len(prepared.z_mid))
-    image_cmap = state.cmap[color]
-    if middle is not None and prepared.z_mid[middle] is not None:
-        image_cmap = shift_cmap_midpoint(
-            image_cmap, prepared.z_min[lower], prepared.z_mid[middle],
-            prepared.z_max[upper])
+    low, high, mid = _cell_scale(state, cell, rank)
+    image_cmap = state.cmap[cell.sample_set % len(state.cmap)]
+    if mid is not None:
+        image_cmap = shift_cmap_midpoint(image_cmap, low, mid, high)
     image = draw_heatmap_image(
-        axis, block, image_cmap, prepared.z_min[lower],
-        prepared.z_max[upper], spec.alpha, interpolation, rows, columns,
-        spec.dpi, deferred=state.deferred_rasters,
+        axis, block, image_cmap, low, high, spec.alpha,
+        spec.interpolation_method,
+        rows, columns, spec.dpi, deferred=state.deferred_rasters,
         raster=state.run.raster, threads=state.run.threads,
-        group_digest=state.data.layout.group_digest(group), sample=sample)
+        group_digest=state.data.layout.group_digest(group, drawn=True),
+        sample=sample)
     if prepared.regions_length_in_bins[sample] is not None:
         x_lim, y_lim = axis.get_xlim(), axis.get_ylim()
         positions = prepared.regions_length_in_bins[sample][group]
@@ -1337,15 +1438,12 @@ def _draw_cell_blocks(state):
             state.heatmap_axes.append(axis)
 
 
-def _cell_scale(state, cell):
-    """Return a cell's resolved colour limits and midpoint."""
-    index = cell.sample_set
+def _cell_scale(state, cell, block):
+    """Return a cell block's resolved colour limits and midpoint."""
     prepared = state.prepared
-    low = prepared.z_min[index % len(prepared.z_min)]
-    high = prepared.z_max[index % len(prepared.z_max)]
-    mid = (None if prepared.z_mid is None else
-           prepared.z_mid[index % len(prepared.z_mid)])
-    return low, high, mid
+    slot = prepared.z_slots[cell.index - 1][block]
+    return (prepared.z_min[slot], prepared.z_max[slot],
+            None if prepared.z_mid is None else prepared.z_mid[slot])
 
 
 def _draw_cell_colorbars(state):
@@ -1358,7 +1456,7 @@ def _draw_cell_colorbars(state):
     for index, bar in enumerate(state.prepared.colorbars.bars):
         start = bar.cells[0]
         cell = state.plan.cells[start]
-        low, high, mid = _cell_scale(state, cell)
+        low, high, mid = _cell_scale(state, cell, bar.block or 0)
         color = cell.sample_set % len(state.cmap)
         below = state.colorbar_position not in ('side', 'side_common')
         kind = 'bar' if below else 'figure_bar'
@@ -1455,11 +1553,11 @@ def _heatmap_x_runs(state, context):
     if not (automatic or merged):
         return []
     runs = []
-    last_key = None
+    last_text = None
     for column in range(state.cell_columns):
         # Only the previous column's run may continue: a column without one
         # breaks the shared bottom boundary.
-        previous_key, last_key = last_key, None
+        previous_text, last_text = last_text, None
         cells = sorted((cell for cell in state.plan.cells
                         if cell.column == column and cell.blocks),
                        key=lambda item: item.row)
@@ -1469,13 +1567,15 @@ def _heatmap_x_runs(state, context):
             text = source.get_xlabel()
             if not text:
                 continue
-            last_key = state.x_signatures[members[0].index - 1]
+            last_text = text
             indices = tuple(item.index - 1 for item in members)
             for member in members:
                 state.block_axes[member.index - 1,
                                  len(member.blocks) - 1].set_xlabel('')
-            if merged and state.cell_rows == 1 and previous_key == last_key:
-                # One row shares a bottom boundary across columns.
+            if merged and state.cell_rows == 1 and previous_text == text:
+                # One row shares a bottom boundary across columns; like
+                # merged profile labels, equal text suffices and each
+                # column keeps its own ticks.
                 previous, style = runs[-1]
                 runs[-1] = (replace(previous, panel_indices=(
                     *previous.panel_indices, *indices)), style)
@@ -1496,24 +1596,72 @@ def _heatmap_x_runs(state, context):
 
 
 def _stack_runs(state, context):
-    """Region labels beside the stacks; equal neighbours share one label."""
+    """Region labels beside the stacks; equal neighbours share one label.
+
+    With nested headers each block draws its innermost level, and a block
+    whose innermost level is empty keeps its (empty) label, so the blocks
+    of a run stay numbered as drawn.
+    """
     runs = []
     if state.spec.region_label_location == 'none':
         return runs
+    nested = state.spec.nested_headers
     cells = {cell.index: cell for cell in state.plan.cells}
     for run in label_runs(state.plan.cells, 'stack'):
-        breaks = cells[run.cells[0]].stack_label_breaks
-        for block, text in enumerate(run.labels):
-            if text:
+        cell = cells[run.cells[0]]
+        breaks = ((None,) * len(cell.blocks) if nested
+                  else cell.stack_label_breaks)
+        for block, text in enumerate(drawn_stack_labels(cell, nested)):
+            if text or nested:
                 runs.append(grid.LabelRun(
                     'stack', tuple(index - 1 for index in run.cells),
                     _cell_label_candidates(
                         text, 'region_label_text', context,
                         state.run.style.label_layout.heatmap_region_label_max_lines,
-                        -90 if state.spec.region_label_location == 'right'
-                        else 90, breaks[block]), block_index=block,
+                        _region_rotation(state), breaks[block]),
+                    block_index=block,
                     location=state.spec.region_label_location))
     return runs
+
+
+def _region_rotation(state):
+    return -90 if state.spec.region_label_location == 'right' else 90
+
+
+def _stack_headers(state, context):
+    """Outer region-label levels as headers beside the blocks sharing them,
+    outside the region labels; they wrap like region labels."""
+    if not state.spec.nested_headers or \
+            state.spec.region_label_location == 'none':
+        return ()
+    return tuple(
+        grid.LabelRun('header_stack', tuple(index - 1 for index in run.cells),
+                      _cell_label_candidates(
+                          run.text, 'region_label_header_text', context,
+                          state.run.style.label_layout.heatmap_region_label_max_lines,
+                          _region_rotation(state)),
+                      location=state.spec.region_label_location,
+                      level=run.level,
+                      block_span=(run.blocks[0], run.blocks[-1]))
+        for run in header_runs(state.plan, 'stack'))
+
+
+def _row_headers(state, context):
+    """Outer row-label levels as headers beside the grid rows sharing them,
+    outside the row labels; they wrap like row labels. A header collects
+    every cell of its rows."""
+    if not state.spec.nested_headers:
+        return ()
+    layout = state.run.style.label_layout
+    font = fonts.role_font(state.run.style, 'row_label_header_text')
+    return tuple(
+        grid.LabelRun('header_row', tuple(
+            cell.index - 1 for cell in state.plan.cells
+            if cell.row in run.rows), label_candidates(
+                run.text, font, -90.0, layout.panel_title_max_lines, context,
+                auto=layout.auto_facet_label_layout),
+            location='right', level=run.level)
+        for run in header_runs(state.plan, 'row'))
 
 
 def _cell_colorbar_decorations(state, context):
@@ -1540,7 +1688,8 @@ def _cell_colorbar_decorations(state, context):
             covered_cells=((bar.cells[0], bar.cells[-1]) if scope == 'cell'
                            else None),
             insets=insets, tick_label_width=insets.right,
-            below_entry=entry, ordinal=ordinal))
+            below_entry=entry, ordinal=ordinal,
+            block=None if bar.block is None else (bar.cells[0], bar.block)))
     return tuple(result)
 
 
@@ -1555,7 +1704,9 @@ def _place_stack_axes(state, solved):
         start, _, _, _, role = state.colorbar_records[index]
         move_axis(axis, solved.rects[role], size)
         if state.colorbar_position in ('side', 'side_common'):
-            low, high, _ = _cell_scale(state, state.plan.cells[start])
+            low, high, _ = _cell_scale(
+                state, state.plan.cells[start],
+                state.prepared.colorbars.bars[index].block or 0)
             rect = solved.rects[role]
             style_vertical_colorbar(
                 state.colorbar_cbars[index], low, high,
@@ -1589,8 +1740,13 @@ def _place_colorbar_titles(state, context, measured, solved):
             if role in solved.rects:
                 candidate = decoration.candidates[
                     solved.selections.get(role, 0)]
+                # Right bars align their titles with the bar's left edge;
+                # bars below centre them over the bar.
+                left = decoration.location == 'right'
                 text_slot(context.figure, solved.rects[role],
                           solved.figure_size, candidate.text, gid=role,
+                          x=0.0 if left else .5,
+                          ha='left' if left else 'center',
                           fontproperties=fonts.role_font(
                               state.run.style, 'colorbar_title_text'))
 
@@ -1599,8 +1755,8 @@ def _place_cell_stack_labels(state, context, measured, solved):
     for row in range(measured.rows):
         for ordinal, (_, runs) in enumerate(
                 grid.stack_run_groups(measured, row)):
-            for block, run in enumerate(runs):
-                role = grid.label_role('stack', row, ordinal, block)
+            for run in runs:
+                role = grid.label_role('stack', row, ordinal, run.block_index)
                 if role not in solved.rects:
                     continue
                 candidate = run.candidates[solved.selections.get(role, 0)]
@@ -1641,7 +1797,9 @@ def _retick_solved_colorbars(state, scene, context, solved):
         for index, (start, _, _, _, role) in enumerate(
                 state.colorbar_records):
             rect = solved.rects[role]
-            low, high, _ = _cell_scale(state, state.plan.cells[start])
+            low, high, _ = _cell_scale(
+                state, state.plan.cells[start],
+                state.prepared.colorbars.bars[index].block or 0)
             style_vertical_colorbar(
                 state.colorbar_cbars[index], low, high,
                 rect.height / POINTS_PER_INCH * CM_PER_INCH,

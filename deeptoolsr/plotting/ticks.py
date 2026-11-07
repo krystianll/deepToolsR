@@ -146,20 +146,21 @@ def _round_number_closest_to(target, span):
     best = None
     for rank, step in enumerate(_nice_grid_ladder(span)):
         candidate = round(target / step) * step
-        key = (round(abs(candidate - target), 9), rank)
+        # Distances relative to ``span``: ties are judged at any magnitude.
+        key = (round(abs(candidate - target) / span, 9), rank)
         if best is None or key < best[0]:
             best = (key, candidate)
     return best[1] if best is not None else target
 
 
-def _format_scientific(value):
-    """Compact scientific form: ``5e-4`` / ``-1.5e-3`` (no ``.0`` mantissa, no
-    zero-padded exponent), with zero rendered plainly."""
+def _format_scientific(value, decimals=1):
+    """Compact scientific form: ``5e-4`` / ``-1.5e-3`` (no trailing zeros in
+    the mantissa, no zero-padded exponent), with zero rendered plainly."""
     if value == 0:
         return '0'
-    mantissa, _, exponent = '{:.1e}'.format(value).partition('e')
-    if mantissa.endswith('.0'):
-        mantissa = mantissa[:-2]
+    mantissa, _, exponent = '{:.{d}e}'.format(value, d=decimals).partition('e')
+    if '.' in mantissa:
+        mantissa = mantissa.rstrip('0').rstrip('.')
     return '{}e{}'.format(mantissa, int(exponent))
 
 
@@ -170,7 +171,18 @@ def _format_tick_values(values):
     # Scientific notation once decimals get unwieldy: below 1e-2 (so 0.005 reads
     # as 5e-3 rather than a 3+-decimal figure) or above 1e5.
     if largest and (largest < 1e-2 or largest >= 1e5):
-        return [_format_scientific(value) for value in finite]
+        labels = [_format_scientific(value) for value in finite]
+        if len(set(labels)) == len(labels):
+            return labels
+        # Close values far from zero: the fewest mantissa digits that read
+        # each tick exactly.
+        tolerance = (max(finite) - min(finite)) * 1e-9
+        for decimals in range(2, 17):
+            labels = [_format_scientific(value, decimals) for value in finite]
+            if all(abs(float(label) - value) <= tolerance
+                   for label, value in zip(labels, finite)):
+                return labels
+        return labels
     for decimals in range(0, 7):
         rounded = [round(value, decimals) for value in finite]
         exact = all(abs(r - v) < 1e-9 for r, v in zip(rounded, finite))
@@ -187,7 +199,9 @@ def _multiples_in(vmin, vmax, step):
     """Multiples of ``step`` lying within ``[vmin, vmax]``."""
     start = int(np.ceil(vmin / step - 1e-9))
     end = int(np.floor(vmax / step + 1e-9))
-    return [round(index * step, 10) for index in range(start, end + 1)]
+    # Clear float noise (0.30000000000000004) a few digits below the step.
+    decimals = 3 - int(np.floor(np.log10(step)))
+    return [round(index * step, decimals) for index in range(start, end + 1)]
 
 
 def _dense_nice_ticks(vmin, vmax, target, max_ticks):
@@ -378,15 +392,30 @@ def getProfileTicks(parameters, referencePointLabel, startLabel, endLabel, idx,
     include_unit = distanceUnitLocation == 'ticks'
 
     if m == 0:
+        # Like scale-regions, the reference tick names a bin: the TSS
+        # nucleotide opens the downstream bins and the TES nucleotide closes
+        # the upstream ones. The header's reference point decides, never the
+        # label. A centre, an unknown point or a missing side keeps the edge.
+        reference = parameters.get('ref point')
+        if idx is not None and isinstance(reference, (list, tuple)):
+            reference = reference[idx]
+        if reference == 'TSS' and a > 0:
+            position = b / w
+        elif reference == 'TES' and b > 0:
+            position = b / w - 1
+        else:
+            position = max((b - 0.5 * w) / w, 0)
+        last = max((b + a - w) / w, 0)
         xticks = []
         xtickslabel = []
-        if b > 0:
+        # An outer tick on the reference bin (a one-bin side) gives way to it.
+        if b > 0 and position != 0:
             xticks.append(0)
             xtickslabel.append(formatDistance(-b, unit, include_unit))
-        xticks.append(max((b - 0.5 * w) / w, 0))
+        xticks.append(position)
         xtickslabel.append(referencePointLabel)
-        if a > 0:
-            xticks.append(max((b + a - w) / w, 0))
+        if a > 0 and position != last:
+            xticks.append(last)
             xtickslabel.append(formatDistance(a, unit, include_unit))
     else:
         xticks_values = [0]

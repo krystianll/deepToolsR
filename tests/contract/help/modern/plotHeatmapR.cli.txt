@@ -40,14 +40,12 @@ Output options:
                         plot will be saved using this name. A .gz suffix selects gzip compression;
                         other suffixes write plain text. (default: None)
   --interpolationMethod STR
-                        [global] If the heatmap image contains a large number of columns is
-                        usually better to use an interpolation method to produce better results
-                        (see https://matplotlib.org/examples/images_contours_and_fields/interpolat
-                        ion_methods.html). By default, plotHeatmapR uses the method `nearest` if
-                        the number of columns is 1000 or less. Otherwise it uses the bilinear
-                        method. This default behaviour can be changed by using any of the
-                        following options: "nearest", "bilinear", "bicubic", "gaussian" (default:
-                        auto)
+                        [global] How heatmap blocks are resized to the pixels drawn: "nearest"
+                        (point sampling, crisp regions), "bilinear" (triangle filter), "bicubic"
+                        (Catmull-Rom filter) or "gaussian" (cubic B-spline filter, the smoothest).
+                        The default, "auto", uses the raster filter from the deepToolsR settings
+                        (deeptoolsr options --rasterFilter) and keeps region edges crisp in groups
+                        of fewer than 1000 regions. (default: auto)
   --dpi DPI             [global] Set the DPI to save the figure. (default: 200)
 
 Clustering arguments:
@@ -76,11 +74,12 @@ Clustering arguments:
 Common options:
   --help, -h            show this help message and exit
   --version             [global] show program's version number and exit
-  --clusterUsingSamples CLUSTERUSINGSAMPLES [CLUSTERUSINGSAMPLES ...]
-                        [multiple] List of sample numbers (order as in matrix), that are used for
-                        clustering by --kmeans or --hclust if not given, all samples are taken
-                        into account for clustering. Example: --ClusterUsingSamples 1 3 (default:
-                        None)
+  --clusterUsingSamples SAMPLE [SAMPLE ...]
+                        [multiple] Samples that --kmeans or --hclust cluster on: 1-based numbers
+                        (order as in the matrix), a-b ranges or sample names, as in
+                        --arrangeSamples. They may include samples --arrangeSamples leaves out. By
+                        default the drawn samples are used (all samples without --arrangeSamples).
+                        Example: --clusterUsingSamples 1 3 (default: None)
   --clusterUsingGroups, --quantileUsingGroups GROUP [GROUP ...]
                         [multiple] Region groups of the matrix whose regions --kmeans/--hclust
                         cluster or --quantileSortedRegions splits into quantiles: 1-based numbers,
@@ -90,16 +89,21 @@ Common options:
                         (default: None)
   --sortRegions {descend,ascend,no,keep}
                         [global] Whether the heatmap should present the regions sorted. The
-                        default is to sort in descending order based on the mean value per region.
-                        Note that "keep" and "no" are the same thing. (default: ascend)
+                        default is to sort in ascending order based on the mean value per region.
+                        Heatmap rows are read from the bottom: within each group the sorted
+                        regions are drawn bottom-up, so "ascend" puts the biggest values at the
+                        top. Written files keep the sorted order. Note that "keep" and "no" are
+                        the same thing. (default: ascend)
   --sortUsing {mean,median,max,min,sum,region_length,score}
                         [global] Indicate which method should be used for sorting. For each row
                         the method is computed. For region_length, a dashed line is drawn at the
                         end of the region (reference point TSS and center) or the beginning of the
                         region (reference point TES) as appropriate. (default: mean)
-  --sortUsingSamples SORTUSINGSAMPLES [SORTUSINGSAMPLES ...]
-                        [multiple] List of sample numbers (order as in matrix), which are used by
-                        --sortUsing for sorting. If no value is set, it uses all samples. Example:
+  --sortUsingSamples SAMPLE [SAMPLE ...]
+                        [multiple] Samples that --sortUsing sorts on: 1-based numbers (order as in
+                        the matrix), a-b ranges or sample names, as in --arrangeSamples. They may
+                        include samples --arrangeSamples leaves out. By default the drawn samples
+                        are used (all samples without --arrangeSamples). Example:
                         --sortUsingSamples 1 3 (default: None)
   --quantileSortedRegions, --quantiles QUANTILESORTEDREGIONS
                         [global] After ascending or descending sorting, regions can be divided
@@ -144,10 +148,13 @@ Common options:
   --arrangeSamples SAMPLES [SAMPLES ...]
                         [multiple] Create custom profile panels from comma-separated sample
                         indices or names, for example "--arrangeSamples 1,2 3,4". Indices are
-                        1-based. Samples not listed are omitted. By default, all samples are
-                        plotted in separate panels i.e. --arrangeSamples 1 2 3 ... n while
-                        --perGroup creates one set i.e. --arrangeSamples 1,2,3,...,n. The sets are
-                        the "sample sets" that per-sample-set options count. (default: None)
+                        1-based; a-b ranges are accepted. Samples not listed are omitted,
+                        everywhere: sorting, clustering, --filterNans, the automatic colour limits
+                        and the --outFileNameMatrix output, unless --sortUsingSamples or
+                        --clusterUsingSamples name them. By default, all samples are plotted in
+                        separate panels i.e. --arrangeSamples 1 2 3 ... n while --perGroup creates
+                        one set i.e. --arrangeSamples 1,2,3,...,n. The sets are the "sample sets"
+                        that per-sample-set options count. (default: None)
   --arrangeGroups GROUP [GROUP ...]
                         [multiple] Region groups to draw, in this order; groups not listed are
                         omitted, everywhere: profiles, heatmaps, limits, region counts and the
@@ -178,6 +185,19 @@ Common options:
                         Use N=label to name a 1-based sample set; an empty label gives no title.
                         Unused with --perGroup and one sample set, whose panels are titled by
                         region group. Text accepts \=, \\ and \n. (default: None)
+  --nestedHeaders       [global] Split sample, region group and sample set labels into levels at
+                        "|", outermost first ("\|" is a literal bar); labels the plot joins itself
+                        (a heatmap block named by sample and group, a "set — group" title) split
+                        too. Each label shows its innermost level. Neighbouring panels, heatmap
+                        blocks or rows that share an outer level get one header with a line, over
+                        the columns, beside the region labels or beside the row labels. For
+                        example, --samplesLabel "Untreated|sense" "Untreated|antisense" titles the
+                        panels sense and antisense, with one header Untreated over both. Equal
+                        headers that are not neighbours stay separate. Where no header can be
+                        drawn (legends, --outFileNameData, colorbar titles,
+                        --outFileSortedRegionsPerGroup file names) the levels are joined with a
+                        space: "Untreated sense". Without this flag (default) "|" is an ordinary
+                        character. (default: False)
   --sampleSetGroupArrangement {overlay,adjacent,end,by_row,by_column}
                         [global] How region groups are placed within each sample set. overlay
                         (default): all groups as series in one panel. adjacent: one panel per
@@ -368,15 +388,15 @@ Heatmap options:
                         One value per sample set (see --arrangeSamples; with --groupsAsSampleSets,
                         one per panel in drawing order), separated by spaces; fewer values are
                         recycled. If a value is set to "auto", it will be set to the first
-                        percentile of the matrix values. Use N=value for a 1-based sample set.
-                        (default: None)
+                        percentile of the matrix values (see --zAxisLimits). Use N=value for a
+                        1-based sample set. (default: None)
   --zMax, -max ZMAX [ZMAX ...]
                         [multiple|explicit|recycled] Maximum value for the heatmap intensities.
                         One value per sample set (see --arrangeSamples; with --groupsAsSampleSets,
                         one per panel in drawing order), separated by spaces; fewer values are
                         recycled. If a value is set to "auto", it will be set to the 98th
-                        percentile of the matrix values. Use N=value for a 1-based sample set.
-                        (default: None)
+                        percentile of the matrix values (see --zAxisLimits). Use N=value for a
+                        1-based sample set. (default: None)
   --zMid ZMID [ZMID ...]
                         [multiple|explicit|recycled] Value corresponding to the middle of the
                         heatmap color scale. One value per sample set (see --arrangeSamples; with
@@ -384,6 +404,18 @@ Heatmap options:
                         --zMin and --zMax; N= assigns explicitly (e.g. --zMid 1,2=0.5 for 1-based
                         sample sets); sample sets not named get no midpoint shift. Each midpoint
                         must be strictly between its effective zMin and zMax. (default: None)
+  --zAxisLimits {common,per_sample_set,per_panel,per_heatmap}
+                        [global] Determine automatic heatmap colour limits ("auto" or unset --zMin
+                        and --zMax) from the whole matrix ("common", default), from all heatmaps
+                        of each sample set ("per_sample_set"), from each panel (one column of
+                        heatmaps, with all its region groups or samples; "per_panel"), or from
+                        each single heatmap (one sample and one region group; "per_heatmap").
+                        Typed --zMin and --zMax values are kept; heatmaps whose limits differ get
+                        separate colorbars, which --colorbarLocation right_common and below_common
+                        cannot show. With "per_heatmap" each heatmap gets its own colorbar, titled
+                        with its panel and heatmap labels, to the right of its row of heatmaps, so
+                        it cannot be used with --colorbarLocation bottom or below when the
+                        heatmaps of one panel have different limits. (default: common)
 
 Summary plot options:
   --outFileNameData OUTFILENAMEDATA
@@ -444,6 +476,11 @@ Summary plot options:
                         [global] Where a pseudolog Y axis (--yScaleSummaryPlot pseudolog) turns
                         from linear to logarithmic, in data units; one value for the whole figure.
                         (default: 1.0)
+  --linesAsStepsSummaryPlot
+                        [global] Draw each profile line as steps: one flat segment per bin, so a
+                        signal changes exactly at bin boundaries instead of along a slope between
+                        bin centres. Bands (fill, se, std, ci, bootstrap) follow the steps.
+                        (default: False)
   --yAxisLabelSummaryPlot YAXISLABELSUMMARYPLOT [YAXISLABELSUMMARYPLOT ...]
                         [multiple|explicit|recycled] Y-axis label for the summary plot. (default:
                         [''])
@@ -456,11 +493,13 @@ Summary plot options:
                         remaining series in order. The same series keeps its colour between
                         summary panels (and sample sets, except with --groupsAsSampleSets).
                         (default: None)
-  --legendLocationSummaryPlot {best,upper-right,upper-left,upper-center,lower-left,lower-right,lower-center,center,center-left,center-right,above,top,below,bottom,right,none}
+  --legendLocationSummaryPlot {best,upper-right,upper-left,upper-center,lower-left,lower-right,lower-center,center,center-left,center-right,above,top,below,bottom,below_top_profile,right,none}
                         [global] Location for the legend in the summary plot. "above" or "top"
-                        places the legend between the main title and subplot titles; , "below" or
-                        "bottom" places it below the Y-axis, "right" places it outside the plots;
-                        "none" hides it. (default: best)
+                        places the legend between the main title and subplot titles; "below" or
+                        "bottom" places it below the Y-axis; "below_top_profile" is like "below",
+                        but one shared legend goes under the first row of profiles instead of
+                        under the heatmaps; "right" places it outside the plots; "none" hides it.
+                        (default: best)
   --ci_level CI_LEVEL   [global] Confidence level for confidence intervals. Applicable if
                         --plotTypeSummaryPlot is "ci" or "bootstrap". (default: 0.95)
   --bootstrapReplicates BOOTSTRAPREPLICATES

@@ -2,7 +2,7 @@
 from deeptoolsr import stats as kernels, _transform, _compute_matrix_stream, parserCommon
 from deeptoolsr.matrix import (Block, Matrix,
                                MatrixHeader, OwnedMatrix, SPECIAL_PARAMS,
-                               read_header, serialize_header)
+                               read_header, serialize_header, subset_samples)
 import numpy as np
 import argparse
 from contextlib import ExitStack
@@ -17,7 +17,7 @@ from deeptoolsr import options as run_options
 from deeptoolsr.region_provenance import (
     antisense_sources, update_antisense_sources,
 )
-from deeptoolsr.cli_errors import concise_cli_errors, use_utf8_stdio
+from deeptoolsr.cli_errors import concise_cli_errors
 from deeptoolsr.native_path import native_path
 from deeptoolsr.regions import load_regions
 from deeptoolsr.numeric_validation import (
@@ -513,7 +513,6 @@ def info_record(path):
 def _run_info_or_range(args):
     if args.command == 'info' and args.json:
         record = info_record(args.matrixFile)
-        use_utf8_stdio()
         print(json.dumps(record, ensure_ascii=False))
         return
     matrix = Matrix.load(args.matrixFile, args.threads)
@@ -1088,18 +1087,6 @@ def getGroupBounds(args, matrix):
     return o, np.cumsum(obounds), indices
 
 
-def getSampleBounds(args, matrix):
-    """
-    Given the sample labels, return an indexing array
-    """
-    bounds = matrix.header.sample_boundaries
-    indices = resolveLabels(args.samples, matrix.header.sample_labels, 'sample')
-    o = list()
-    for idx in indices:
-        o.extend(range(bounds[idx], bounds[idx + 1]))
-    return o, indices
-
-
 def subsetRegions(matrix, bounds):
     out = []
     for x in bounds:
@@ -1501,24 +1488,9 @@ def stream_subset_columns(input_path, output_path, sample_selectors,
     """
     compressed = matrix_output_is_compressed(output_path)
     native = _native_stream()
-    special_params = SPECIAL_PARAMS
     params = _stream_header(input_path)
-    sample_labels = list(params['sample_labels'])
-    sample_bounds = [int(x) for x in params['sample_boundaries']]
-    indices = resolveLabels(sample_selectors, sample_labels, 'sample')
-
-    column_order = []
-    widths = []
-    for idx in indices:
-        column_order.extend(range(sample_bounds[idx], sample_bounds[idx + 1]))
-        widths.append(sample_bounds[idx + 1] - sample_bounds[idx])
-
-    params['sample_labels'] = [sample_labels[idx] for idx in indices]
-    params['sample_boundaries'] = np.cumsum([0] + widths).tolist()
-    for name in special_params:
-        value = params.get(name)
-        if isinstance(value, list):
-            params[name] = [value[idx] for idx in indices]
+    params, column_order = subset_samples(params, resolveLabels(
+        sample_selectors, list(params['sample_labels']), 'sample'))
     header = serialize_header(params)
     with atomic_output_path(output_path, suffix='.matrix.gz' if compressed
                             else '.matrix.txt') as temporary:
@@ -1802,20 +1774,13 @@ def main(args=None):
         matrix = OwnedMatrix.load(args.matrixFile, args.threads)
         if args.mergeSameNamedGroups:
             mergeSameNamedGroups(matrix)
-        original_sample_labels = list(matrix.header.sample_labels)
-        original_sample_bounds = list(matrix.header.sample_boundaries)
         original_group_labels = list(matrix.header.group_labels)
-        sIdx, sample_indices = getSampleBounds(args, matrix)
+        sample_indices = resolveLabels(args.samples, matrix.header.sample_labels,
+                                       'sample')
         gIdx, gBounds, group_indices = getGroupBounds(args, matrix)
-        sample_widths = [original_sample_bounds[idx + 1] - original_sample_bounds[idx]
-                         for idx in sample_indices]
-        parameters = dict(matrix.header.parameters)
-        parameters['sample_boundaries'] = np.cumsum([0] + sample_widths).tolist()
+        parameters, sIdx = subset_samples(matrix.header.parameters,
+                                          sample_indices)
         parameters['group_boundaries'] = gBounds.tolist()
-        for name in SPECIAL_PARAMS:
-            parameters[name] = [parameters[name][idx] for idx in sample_indices]
-        parameters['sample_labels'] = [original_sample_labels[idx]
-                                       for idx in sample_indices]
         parameters['group_labels'] = [original_group_labels[idx]
                                       for idx in group_indices]
         matrix.header = MatrixHeader.from_parameters(parameters)

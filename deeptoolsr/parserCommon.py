@@ -481,12 +481,15 @@ def add_shared_plot_options(optional, *, prog):
     add_version(optional, prog)
 
     optional.add_argument('--clusterUsingSamples',
-                          help='List of sample numbers (order as in '
-                          'matrix), that are used for clustering by '
-                          '--kmeans or --hclust if not given, all samples '
-                          'are taken into account for clustering. '
-                          'Example: --ClusterUsingSamples 1 3',
-                          type=positive_int, nargs='+')
+                          help='Samples that --kmeans or --hclust cluster '
+                          'on: 1-based numbers (order as in the matrix), '
+                          'a-b ranges or sample names, as in '
+                          '--arrangeSamples. They may include samples '
+                          '--arrangeSamples leaves out. By default the drawn '
+                          'samples are used (all samples without '
+                          '--arrangeSamples). '
+                          'Example: --clusterUsingSamples 1 3',
+                          metavar='SAMPLE', nargs='+')
 
     optional.add_argument('--clusterUsingGroups', '--quantileUsingGroups',
                           help='Region groups of the matrix whose regions '
@@ -502,8 +505,13 @@ def add_shared_plot_options(optional, *, prog):
     optional.add_argument('--sortRegions',
                           help='Whether the heatmap should present '
                           'the regions sorted. The default is '
-                          'to sort in descending order based on '
-                          'the mean value per region. Note that "keep" and "no" are the same thing.',
+                          'to sort in ascending order based on '
+                          'the mean value per region. Heatmap rows are '
+                          'read from the bottom: within each group the '
+                          'sorted regions are drawn bottom-up, so '
+                          '"ascend" puts the biggest values at the top. '
+                          'Written files keep the sorted order. '
+                          'Note that "keep" and "no" are the same thing.',
                           choices=["descend", "ascend", "no", "keep"],
                           default='ascend')
 
@@ -519,11 +527,14 @@ def add_shared_plot_options(optional, *, prog):
                           default='mean')
 
     optional.add_argument('--sortUsingSamples',
-                          help='List of sample numbers (order as in matrix), '
-                          'which are used by --sortUsing for sorting. '
-                          'If no value is set, it uses all samples. '
+                          help='Samples that --sortUsing sorts on: 1-based '
+                          'numbers (order as in the matrix), a-b ranges or '
+                          'sample names, as in --arrangeSamples. They may '
+                          'include samples --arrangeSamples leaves out. By '
+                          'default the drawn samples are used (all samples '
+                          'without --arrangeSamples). '
                           'Example: --sortUsingSamples 1 3',
-                          type=positive_int, nargs='+')
+                          metavar='SAMPLE', nargs='+')
 
     optional.add_argument('--quantileSortedRegions', '--quantiles',
                           help='After ascending or descending sorting, '
@@ -697,6 +708,15 @@ def add_y_pseudolog_sigma(group, *spellings, scale, **kwargs):
                        **kwargs)
 
 
+def add_lines_as_steps(group, spelling, *, note=''):
+    group.add_argument(spelling, dest='linesAsSteps', action='store_true',
+                       help='Draw each profile line as steps: one flat '
+                       'segment per bin, so a signal changes exactly at bin '
+                       'boundaries instead of along a slope between bin '
+                       'centres. Bands (fill, se, std, ci, bootstrap) follow '
+                       'the steps.' + note)
+
+
 def add_x_axis_label(group, *spellings, **kwargs):
     kwargs.setdefault('dest', 'xAxisLabel')
     group.add_argument(*spellings, **kwargs)
@@ -749,13 +769,17 @@ def add_legend_location(optional, option_string):
                                    'center-right',
                                    'above', "top",
                                    'below', "bottom",
+                                   'below_top_profile',
                                    'right',
                                    'none'
                                    ],
                           help='Location for the legend in the summary plot. '
                           '"above" or "top" places the legend between the '
-                          'main title and subplot titles; , "below" or '
-                          '"bottom" places it below the Y-axis, "right" '
+                          'main title and subplot titles; "below" or '
+                          '"bottom" places it below the Y-axis; '
+                          '"below_top_profile" is like "below", but one '
+                          'shared legend goes under the first row of profiles '
+                          'instead of under the heatmaps; "right" '
                           'places it outside the plots; "none" hides it.')
 
 
@@ -854,9 +878,12 @@ def add_sample_set_options(optional):
         '--arrangeSamples', nargs='+', metavar='SAMPLES',
         help='Create custom profile panels from comma-separated sample '
              'indices or names, for example "--arrangeSamples 1,2 3,4". '
-             'Indices are 1-based. Samples not listed are omitted. '
-             'By default, all samples are plotted in separate panels '
-             'i.e. --arrangeSamples 1 2 3 ... n while --perGroup creates '
+             'Indices are 1-based; a-b ranges are accepted. Samples not '
+             'listed are omitted, everywhere: sorting, clustering, '
+             '--filterNans, the automatic colour limits and the '
+             '--outFileNameMatrix output, unless --sortUsingSamples or '
+             '--clusterUsingSamples name them. By default, all samples are '
+             'plotted in separate panels i.e. --arrangeSamples 1 2 3 ... n while --perGroup creates '
              'one set i.e. --arrangeSamples 1,2,3,...,n. The sets are the '
              '"sample sets" that per-sample-set options count.')
     optional.add_argument(
@@ -897,6 +924,23 @@ def add_sample_set_options(optional):
              r'label gives no title. Unused with --perGroup and one sample '
              r'set, whose panels are titled by region group. Text accepts '
              r'\=, \\ and \n.')
+    optional.add_argument(
+        '--nestedHeaders', action='store_true',
+        help='Split sample, region group and sample set labels into '
+             'levels at "|", outermost first ("\\|" is a literal bar); '
+             'labels the plot joins itself (a heatmap block named by '
+             'sample and group, a "set — group" title) split too. Each '
+             'label shows its innermost level. Neighbouring panels, '
+             'heatmap blocks or rows that share an outer level get one '
+             'header with a line, over the columns, beside the region '
+             'labels or beside the row labels. For example, --samplesLabel '
+             '"Untreated|sense" "Untreated|antisense" titles the panels '
+             'sense and antisense, with one header Untreated over both. '
+             'Equal headers that are not neighbours stay separate. Where '
+             'no header can be drawn (legends, --outFileNameData, colorbar '
+             'titles, --outFileSortedRegionsPerGroup file names) the '
+             'levels are joined with a space: "Untreated sense". Without '
+             'this flag (default) "|" is an ordinary character.')
     optional.add_argument(
         '--sampleSetGroupArrangement',
         choices=['overlay', 'adjacent', 'end', 'by_row', 'by_column'],
@@ -986,6 +1030,8 @@ def _add_profile_axes(optional, *, common=None):
               'sets, the values are recycled. Use N=value for a 1-based sample set.')
     add_y_scale(optional, '--yScale', sigma='--yPseudologSigma')
     add_y_pseudolog_sigma(optional, '--yPseudologSigma', scale='--yScale')
+    add_lines_as_steps(optional, '--linesAsSteps',
+                       note=' Ignored with --plotType heatmap.')
 
 
 def add_axis_visibility(group):
@@ -1281,7 +1327,8 @@ def _add_heatmap_limits(optional):
                           help='Minimum value for the heatmap intensities. One value per sample set (see '
                                '--arrangeSamples; with --groupsAsSampleSets, one per panel in drawing order), separated by '
                                'spaces; fewer values are recycled. If a value is set to "auto", it will be set '
-                               ' to the first percentile of the matrix values. Use N=value for a 1-based sample set.',
+                               ' to the first percentile of the matrix values (see --zAxisLimits). Use N=value for a '
+                               '1-based sample set.',
                           type=assigned_finite_float(keywords=('auto',)),
                           nargs='+')
     optional.add_argument('--zMax', '-max',
@@ -1289,7 +1336,8 @@ def _add_heatmap_limits(optional):
                           help='Maximum value for the heatmap intensities. One value per sample set (see '
                                '--arrangeSamples; with --groupsAsSampleSets, one per panel in drawing order), separated by '
                                'spaces; fewer values are recycled. If a value is set to "auto", it will be set '
-                               ' to the 98th percentile of the matrix values. Use N=value for a 1-based sample set.',
+                               ' to the 98th percentile of the matrix values (see --zAxisLimits). Use N=value for a '
+                               '1-based sample set.',
                           type=assigned_finite_float(keywords=('auto',)),
                           nargs='+')
     optional.add_argument('--zMid',
@@ -1301,6 +1349,21 @@ def _add_heatmap_limits(optional):
                                'Each midpoint must be strictly between its effective zMin and zMax.',
                           type=assigned_finite_float(allow_empty=True),
                           nargs='+')
+    optional.add_argument('--zAxisLimits',
+                          choices=['common', 'per_sample_set', 'per_panel', 'per_heatmap'],
+                          default='common',
+                          help='Determine automatic heatmap colour limits ("auto" or unset --zMin '
+                               'and --zMax) from the whole matrix ("common", default), from all '
+                               'heatmaps of each sample set ("per_sample_set"), from each panel '
+                               '(one column of heatmaps, with all its region groups or samples; '
+                               '"per_panel"), or from each single heatmap (one sample and one region '
+                               'group; "per_heatmap"). Typed --zMin and --zMax values are kept; '
+                               'heatmaps whose limits differ get separate colorbars, which '
+                               '--colorbarLocation right_common and below_common cannot show. With '
+                               '"per_heatmap" each heatmap gets its own colorbar, titled with its panel '
+                               'and heatmap labels, to the right of its row of heatmaps, so it cannot be '
+                               'used with --colorbarLocation bottom or below when the heatmaps of one '
+                               'panel have different limits.')
 
 
 def _add_heatmap_summary(optional):
@@ -1390,6 +1453,7 @@ def _add_heatmap_summary(optional):
                 sigma='--yPseudologSigmaSummaryPlot')
     add_y_pseudolog_sigma(optional, '--yPseudologSigmaSummaryPlot',
                           scale='--yScaleSummaryPlot')
+    add_lines_as_steps(optional, '--linesAsStepsSummaryPlot')
     add_y_axis_label(optional,
                      '--yAxisLabelSummaryPlot',
                      metavar='YAXISLABELSUMMARYPLOT',
@@ -1482,14 +1546,14 @@ def add_shared_plot_tail(optional):
 
 def add_interpolation_method(group):
     group.add_argument('--interpolationMethod',
-                       help='If the heatmap image contains a large number of columns '
-                       'is usually better to use an interpolation method to produce '
-                       'better results (see '
-                       'https://matplotlib.org/examples/images_contours_and_fields/interpolation_methods.html). '
-                       'By default, plotHeatmapR uses the method `nearest` if the number of columns is 1000 or '
-                       'less. Otherwise it uses the bilinear method. This default behaviour can be changed by '
-                       'using any of the following options: "nearest", "bilinear", "bicubic", '
-                       '"gaussian"',
+                       help='How heatmap blocks are resized to the pixels drawn: '
+                       '"nearest" (point sampling, crisp regions), "bilinear" '
+                       '(triangle filter), "bicubic" (Catmull-Rom filter) or '
+                       '"gaussian" (cubic B-spline filter, the smoothest). '
+                       'The default, "auto", uses the raster filter from the '
+                       'deepToolsR settings (deeptoolsr options --rasterFilter) '
+                       'and keeps region edges crisp in groups of fewer than '
+                       '1000 regions.',
                        choices=['auto', 'nearest', 'bilinear', 'bicubic', 'gaussian'],
                        metavar='STR',
                        default='auto')

@@ -39,7 +39,7 @@ def cluster(matrix, layout, k, *, method='kmeans', cols=None, seed=0,
     means = [_statistics.reduce_axis(
         workspace[ids, :].reshape(1, -1), 1, 'mean', threads)[0]
         for ids in cluster_ids]
-    order = np.argsort(means)[::-1]
+    order = np.argsort(-np.asarray(means), kind='stable')
     current = layout.row_indices()
     rows = np.concatenate([current[cluster_ids[i]] for i in order])
     bounds = [0]

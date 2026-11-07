@@ -273,11 +273,24 @@ def calculate_group_statistics_batch(data, pairs, spec, *, threads):
     return calculate_profile_batch(blocks, spec, threads=threads)
 
 
-def scan_prepared_matrix(data, probabilities, exact=False, *, threads):
-    """Scan the full prepared row order for figure-wide percentiles."""
-    block = Block(data.matrix.values, data.layout.rows,
-                  (0, data.layout.nrows), None,
-                  (0, data.matrix.values.shape[1]))
+def scan_prepared_matrix(data, probabilities, exact=False, *, threads,
+                         region=None):
+    """Scan the prepared rows for percentiles: all of them, or the blocks of
+    one ``(groups, samples)`` region."""
+    if region is None:
+        block = Block(data.matrix.values, data.layout.rows,
+                      (0, data.layout.nrows), None,
+                      (0, data.matrix.values.shape[1]))
+    else:
+        groups, samples = region
+        rows, bounds = data.layout.row_indices(), data.layout.group_bounds
+        columns = data.matrix.header.sample_boundaries
+        block = Block(
+            data.matrix.values, np.concatenate(
+                [rows[bounds[group]:bounds[group + 1]] for group in groups]
+            ).astype(np.int64), (0, 0), np.concatenate(
+                [np.arange(columns[sample], columns[sample + 1],
+                           dtype=np.int64) for sample in samples]), (0, 0))
     return quantiles(block, probabilities, exact=exact, threads=threads)
 
 
@@ -299,8 +312,9 @@ class NumericProvider(Protocol):
     def statistics_batch(self, data, pairs, spec, threads):
         """Return statistics in ``pairs`` order, batching cache misses."""
 
-    def scan(self, data, probabilities, exact, threads):
-        """Return figure-wide quantiles in the prepared row order."""
+    def scan(self, data, probabilities, exact, threads, region=None):
+        """Return quantiles of the prepared rows, or of one region's blocks
+        (see ``scan_prepared_matrix``)."""
 
 
 def calculate_profile_statistics(block, options, *, threads):

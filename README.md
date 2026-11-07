@@ -9,7 +9,7 @@ extensions; the command-line programs are provided by the Python package
 with RNA-seq in mind, and so they can be installed beside the originals.
 
 **Status:** deepToolsR is under active development. This is a beta release
-(0.10.2-beta) and it may still contain bugs. Please check results that matter
+(0.10.5-beta) and it may still contain bugs. Please check results that matter
 against deepTools 3.5.6, and report problems at <https://github.com/krystianll/deepToolsR/issues>.
 
 | Command                        | Purpose                                                                 |
@@ -48,7 +48,9 @@ bundled libraries are compiled from source on every platform). You need:
 - CMake, a C/C++17 compiler, make and zlib development headers;
 - on Linux and macOS, the autotools needed to configure htslib;
 - on Windows, an MSYS2 MinGW toolchain (CLANGARM64 or UCRT64 environment)
-  with the regex/tre packages.
+  with the regex/tre packages;
+- on Windows, paths longer than 259 characters need Windows long paths
+  enabled (`LongPathsEnabled`).
 
 ## Quick start
 
@@ -81,7 +83,7 @@ Every command accepts `--help`.
 **New tools and options**
 
 - `plotMatrixR` is the unified command to plot profiles, heatmaps or both using a new unified collision-aware plotting engine. The new grid system enables custom sample/region group arrangement. `plotProfileR` and `plotHeatmapR` are also available for compatibility.
-- Also in plotting: `--arrangeGroups` (select and order region groups), `--groupsAsSampleSets`, `--axisVisibility`, `--commonLegend` (`auto|yes|no`), `--distanceUnit` and `--distanceUnitLocation`, `--showRegionCounts`, `--aspectRatio`, geometric and trimmed means for profile trace, confidence intervals and bootstrap, `--sortIndicator`, `--zMid`, `--quantiles`, a pseudo-log profile Y axis (`--yScale pseudolog`) and more.
+- Also in plotting: `--arrangeGroups` (select and order region groups), `--groupsAsSampleSets`, `--axisVisibility`, `--commonLegend` (`auto|yes|no`), `--distanceUnit` and `--distanceUnitLocation`, `--showRegionCounts`, `--aspectRatio`, geometric and trimmed means for profile trace, confidence intervals and bootstrap, `--sortIndicator`, `--zMid`, per-sample-set, per-panel or per-heatmap automatic heatmap limits (`--zAxisLimits`), shared headers from nested labels (`--nestedHeaders`), step-shaped profiles (`--linesAsSteps`), `--quantiles`, a pseudo-log profile Y axis (`--yScale pseudolog`) and more.
 - `bigWigOperationsR`: scaling and merging bigWig files.
 - `bamCoverageR`: `--normalizeUsing coverage-mean|coverage-sum|read-count`,
   `--strandedness` (including inference), `--collapse`, whitelists and
@@ -99,8 +101,10 @@ Every command accepts `--help`.
 
 **Changed defaults and behaviour**
 
-- Plot tools default to `--sortRegions ascend` and `--yAxisLimits per_y_label`
-  (deepTools plotHeatmap sorted `descend`).
+- Plot tools default to `--sortRegions ascend` and `--yAxisLimits per_y_label`.
+  Heatmap rows are drawn bottom-up within each group. That puts the biggest
+  values at the top, as in deepTools 3.5.6 (default `descend`), while
+  ensuring that quantiles are ascending by default.
 - Plot tools no longer re-filter rows by the matrix header's
   `min threshold`/`max threshold`; computeMatrixR applies those filters.
 - Explicit per-sample and per-group assignments use `N=value`.
@@ -212,6 +216,9 @@ Every command accepts `--help`.
   [deepTools issue #1048](https://github.com/deeptools/deepTools/issues/1048)).
   To reproduce deepTools BPM tracks, use `--normalizeUsing CPM
   --normalizationDenominator filtered --filterMode deeptools`.
+- Reference-point ticks sit on the reference nucleotide's bin, as in
+  scale-regions mode; deepTools 3.5.6 puts them half a bin away. Regions with
+  equal sort values keep their input order on every platform.
 - Compressed matrices, PDF and SVG output are byte-reproducible (no timestamps).
 - Plain-text matrix operations keep the input's numeric tokens; matrix headers
   record the resolved thread count and the sort actually applied.

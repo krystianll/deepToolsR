@@ -11,10 +11,12 @@ def concise_cli_errors(tool, errors=Exception):
 
     ``DTP_DEBUG=1`` retains the Python traceback for development and bug
     reports. Parser errors and explicit ``SystemExit`` messages pass through.
+    Every wrapped entry point writes UTF-8 to stdout (``use_utf8_stdio``).
     """
     def decorate(function):
         @wraps(function)
         def wrapped(*args, **kwargs):
+            use_utf8_stdio()
             try:
                 return function(*args, **kwargs)
             except KeyboardInterrupt:
@@ -30,7 +32,9 @@ def concise_cli_errors(tool, errors=Exception):
 
 
 def use_utf8_stdio():
-    """Make machine-readable stdio UTF-8 whatever the locale (Windows cp1252)."""
+    """Make stdin and stdout UTF-8 whatever the locale (a Windows pipe is
+    cp1252): names, labels and paths printed by a command must not crash it.
+    Called by command-line entry points only; stderr keeps Python's default."""
     for stream in (sys.stdin, sys.stdout):
         if hasattr(stream, 'reconfigure'):
             stream.reconfigure(encoding='utf-8', newline='\n')

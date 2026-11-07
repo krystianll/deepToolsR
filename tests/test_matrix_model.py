@@ -105,11 +105,10 @@ def test_row_operations_reproduce_cli_files(case, tmp_path):
                       threads=1)
         layout = silhouette(matrix, layout, threads=1)
     elif case in ('empty_override', 'show_counts',
-                  'profile_together_duplicate', 'profile_merge_duplicate'):
+                  'profile_together_duplicate', 'profile_merge_duplicate',
+                  'profile_cluster_relabel'):
         layout = sort(matrix, layout, method='ascend', using='mean',
                       threads=1)
-    elif case == 'profile_cluster_relabel':
-        pass
     elif case == 'sort_no':
         pass
     elif case in ('kmeans', 'hclust_selected'):
@@ -137,10 +136,9 @@ def test_row_operations_reproduce_cli_files(case, tmp_path):
 
 @pytest.mark.parametrize('method', ['ascend', 'descend'])
 @pytest.mark.parametrize('using', ['mean', 'median', 'sum', 'max', 'min'])
-def test_sort_breaks_ties_like_default_argsort(method, using):
-    # The CLI fixtures avoid tied keys because NumPy's default argsort orders
-    # ties differently across platforms. Pin tie handling against argsort on
-    # the running platform instead: keys in layout order, default kind.
+def test_sort_keeps_ties_in_input_order(method, using):
+    # Sorting is stable in both directions: rows with equal keys keep their
+    # layout order on every platform (NumPy's default argsort does not).
     values = np.asarray([[1, 1], [2, 2], [1, 1], [3, 3], [2, 2], [1, 1],
                          [2, 2], [1, 1], [3, 3], [1, 1]], dtype=np.float32)
     header = read_header(FIXTURES / 'single.gz')
@@ -158,9 +156,7 @@ def test_sort_breaks_ties_like_default_argsort(method, using):
                          start.group_bounds, start.base_names, start.origins)
     result = sort(matrix, shuffled, using=using, method=method, threads=1)
     keys = getattr(np, using)(values[shuffled.rows], axis=1)
-    order = keys.argsort()
-    if method == 'descend':
-        order = order[::-1]
+    order = np.argsort(-keys if method == 'descend' else keys, kind='stable')
     assert result.rows.tolist() == shuffled.rows[order].tolist()
 
 

@@ -2,6 +2,7 @@
 import bz2
 import gzip
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -376,3 +377,18 @@ def test_blacklist_merges_chromosome_aliases_on_request(tmp_path):
 def test_windows_paths_give_basename_labels(tmp_path):
     bed = write(tmp_path / 'w.bed', 'chr1\t0\t10\ta\t0\t+\n')
     assert load_regions(bed.replace('/', '\\')).labels == ['w.bed']
+
+
+@pytest.mark.parametrize('suffix,opener', [
+    pytest.param('', open, id='plain'),
+    pytest.param('.gz', gzip.open, id='gzip'),
+    pytest.param('.bz2', bz2.open, id='bzip2'),
+])
+def test_non_ascii_file_names_keep_their_label(tmp_path, suffix, opener):
+    # Labels and messages name the file as given, whatever its compression.
+    name = 'gènes.bed' + suffix
+    bed = write(tmp_path / name, 'chr1\t0\t10\ta\t0\t+\n', opener)
+    assert load_regions(bed).labels == [name]
+    bad = 'blèck.bed' + suffix
+    with pytest.raises(RuntimeError, match=re.escape(bad)):
+        load_blacklist(write(tmp_path / bad, 'chr1\t10\n', opener))

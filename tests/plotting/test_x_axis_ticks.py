@@ -81,12 +81,13 @@ def test_default_labels_every_panel(tmp_path, content):
     assert states == {OWNER}
 
 
+@pytest.mark.parametrize('mode', ['outer', 'outer_merged'])
 @pytest.mark.parametrize('content', [('--profile',), ('--heatmap',),
                                      ('--profile', '--heatmap')])
 def test_outer_rows_with_decorations_between_share_one_axis(
-        tmp_path, content):
+        tmp_path, content, mode):
     axes = _render(tmp_path, *content, '--perGroup', '--gridRows', '3',
-                   '--xAxisVisibility', 'outer')
+                   '--xAxisVisibility', mode)
     closing = _closing(axes)
     rows = sorted({row for row, _column in closing})
     assert len(rows) == 3

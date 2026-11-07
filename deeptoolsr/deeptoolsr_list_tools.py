@@ -6,6 +6,7 @@ import math
 import sys
 
 from deeptoolsr import config, options as run_options, _statistics
+from deeptoolsr.cli_errors import use_utf8_stdio
 from deeptoolsr.parserCommon import add_version
 from deeptoolsr.numeric_validation import bounded_int
 
@@ -218,6 +219,7 @@ def process_args(args=None):
 
 
 def main(args=None):
+    use_utf8_stdio()
     if args is None and len(sys.argv) == 1:
         args = ["--help"]
     process_args(args)

@@ -24,6 +24,7 @@ import numpy as np
 from deeptoolsr.plotHeatmap import process_args
 from deeptoolsr.plotting.heatmap import add_minor_x_ticks, distribute_minor_ticks
 import dataclasses
+import itertools
 from deeptoolsr.plotting.geometry import GeometrySpec
 
 
@@ -566,6 +567,28 @@ def test_tick_helper_scientific_kicks_in_at_the_third_power():
     assert _format_tick_values([-0.05, 0.0, 0.05]) == ['-0.05', '0.00', '0.05']
 
 
+@pytest.mark.parametrize('vmin,vmax,length_cm', [
+    pytest.param(100000.0, 100010.0, 3.0, id='narrow-far-from-zero-sparse'),
+    pytest.param(100000.0, 100010.0, 6.0, id='narrow-far-from-zero-dense'),
+    pytest.param(1e-11, 2e-11, 6.0, id='below-1e-8-dense'),
+    pytest.param(1e-9, 2e-9, 6.0, id='near-1e-9-dense'),
+    pytest.param(0.0, 3e-9, 3.0, id='near-1e-9-sparse'),
+])
+def test_tick_helper_keeps_ticks_inside_even_and_distinctly_labelled(
+        vmin, vmax, length_cm):
+    # At any magnitude: every tick lies within the requested limits, the
+    # ticks are evenly spaced, and distinct ticks read as distinct labels.
+    positions, labels = choose_colorbar_ticks(vmin, vmax, length_cm)
+    slack = (vmax - vmin) * 1e-9
+    assert len(positions) >= 2, positions
+    assert all(vmin - slack <= value <= vmax + slack for value in positions), \
+        positions
+    steps = np.diff(positions)
+    assert steps == pytest.approx([steps[0]] * len(steps), rel=1e-6, abs=0), \
+        positions
+    assert len(set(labels)) == len(labels), labels
+
+
 DATA = Path(__file__).parent.parent / 'test_heatmapper'
 
 
@@ -801,6 +824,29 @@ def test_side_colorbar_uses_near_edge_tick_positions():
     assert len(ticks) >= 3
 
 
+@pytest.mark.parametrize('z_min,z_max', [
+    pytest.param('100000', '100010', id='narrow-far-from-zero'),
+    pytest.param('1e-11', '2e-11', id='below-1e-8'),
+])
+def test_side_colorbar_keeps_its_limits_and_distinct_tick_labels(z_min, z_max):
+    colors = dict(_base_dict(), colorMap=['RdYlBu'])
+    figure, _ = _render(colors, colorbarLocation='right',
+                        zMin=[z_min], zMax=[z_max])
+    low, high = float(z_min), float(z_max)
+    try:
+        bar = _side_colorbar_axes(figure)[0]
+        # The bar spans exactly the requested limits, as the heatmap does.
+        assert bar.get_ylim() == pytest.approx((low, high), rel=1e-9, abs=0)
+        ticks = list(bar.get_yticks())
+        slack = (high - low) * 1e-9
+        assert ticks and all(low - slack <= value <= high + slack
+                             for value in ticks), ticks
+        labels = [label.get_text() for label in bar.get_yticklabels()]
+        assert all(labels) and len(set(labels)) == len(labels), labels
+    finally:
+        plt.close(figure)
+
+
 def test_partial_colorlist_falls_back_to_default_colormap():
     # Only cols 1,2 get an explicit colour list; cols 3,4 use the default
     # colormap with the common scale -> two distinct side colorbars.
@@ -829,6 +875,36 @@ def test_small_groups_render_crisp_not_antialiased():
     images = [image for axis in figure.axes for image in axis.get_images()]
     assert images  # heatmap data images exist
     assert {image.get_interpolation() for image in images} == {'nearest'}
+
+
+def test_interpolation_method_chooses_the_downsampling_kernel():
+    # 4999 rows drawn a few hundred pixels tall: every block is downsampled.
+    # Each explicit method draws with its own kernel whatever the global
+    # raster filter is; auto follows the global raster filter.
+    data = plot_data(Matrix.load(str(DATA / 'large_matrix.mat.gz'), threads=1))
+
+    def drawn(method, raster_filter):
+        figure, _ = render_heatmap(
+            data, showSummaryPlot='off', dpi=100, interpolationMethod=method,
+            raster=run_options.RasterOptions(raster_filter, 8))
+        try:
+            figure.canvas.draw()
+            return np.asarray(figure.canvas.buffer_rgba()).copy()
+        finally:
+            plt.close(figure)
+
+    methods = ('nearest', 'bilinear', 'bicubic', 'gaussian')
+    images = {method: drawn(method, 'cubic') for method in methods}
+    same_kernel = [pair for pair in itertools.combinations(methods, 2)
+                   if np.array_equal(images[pair[0]], images[pair[1]])]
+    assert not same_kernel
+    follow_global = [method for method in methods
+                     if not np.array_equal(drawn(method, 'box'),
+                                           images[method])]
+    assert not follow_global
+    auto_follows_global = not np.array_equal(drawn('auto', 'box'),
+                                             drawn('auto', 'cubic'))
+    assert auto_follows_global
 
 
 def test_colorbar_row_labels_settle_by_clearance():

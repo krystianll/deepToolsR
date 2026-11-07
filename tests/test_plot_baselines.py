@@ -192,6 +192,22 @@ MATRIX_CASES = {
                             '--xAxisVisibility', 'outer'),
     'matrix_grid_columns_outer': ('--heatmap', '--profile', '--gridColumns',
                                   '1', '--xAxisVisibility', 'outer'),
+    # Nested headers: one header with a rule over each pair of columns.
+    'matrix_nested_headers': ('--heatmap', '--profile', '--nestedHeaders',
+                              '--samplesLabel', 'Untreated|antisense',
+                              'Untreated|sense', 'Treated|antisense',
+                              'Treated|sense'),
+    # Nested headers beside the region labels of one stacked cell.
+    'matrix_nested_stack_headers': ('--heatmap', '--arrangeSamples', '1,3',
+                                    '--samplesLabel', '1=Sample A',
+                                    '3=Sample B', '--regionsLabel', 'genes',
+                                    'enhancers', '--nestedHeaders'),
+    # Nested headers beside the row labels of facet rows.
+    'matrix_nested_row_headers': ('--profile', '--sampleSetGroupArrangement',
+                                  'by_row', '--nestedHeaders',
+                                  '--samplesLabel', 'Untreated|rep 1',
+                                  'Untreated|rep 2', 'Treated|rep 1',
+                                  'Treated|rep 2'),
 }
 
 

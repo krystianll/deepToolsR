@@ -6,6 +6,8 @@ that the plot CLI applies the selected policy to the final BED output.
 
 from deeptoolsr.plotHeatmap import main
 from deeptoolsr.matrix import OwnedMatrix
+from tests.helpers.hidden_samples import (
+    plot_outputs, write_hidden_sample_matrix)
 import matplotlib
 import numpy as np
 import pytest
@@ -65,3 +67,15 @@ def test_filter_nans_argument_reaches_plot_heatmap(
         names = [line.split('\t')[3] for line in handle
                  if not line.startswith('#')]
     assert names == expected
+
+
+@pytest.mark.parametrize('tool', ['plotHeatmapR', 'plotProfileR'])
+def test_filter_nans_ignores_hidden_samples(tmp_path, tool):
+    # r0's only NaN is in hidden Sample C; r1's is in drawn Sample A
+    source = write_hidden_sample_matrix(tmp_path / 'nan.gz',
+                                        nans=[(0, 5), (1, 0)])
+    rows, _ = plot_outputs(tmp_path / 'run', tool, source,
+                           '--arrangeSamples', '1', '2', '--filterNans',
+                           'any_bin', '--sortRegions', 'keep')
+    assert [name for name, _ in rows] == ['r0'] + [f'r{i}'
+                                                   for i in range(2, 8)]

@@ -155,7 +155,10 @@ def test_protocol_errors_then_success(worker):
 def test_option_errors_then_success(worker):
     help_or_version = (['--help'], ['--version'], ['--vers'], ['--versi'],
                        ['--hel'], ['-hp', '2'], ['-p2', '-h'])
-    for index, bad in enumerate((['--unknown-option'], *help_or_version)):
+    # A missing -m is the user's to fix, not a worker bug.
+    no_matrix = ['-o', 'unused.png']
+    for index, bad in enumerate((['--unknown-option'], *help_or_version,
+                                 no_matrix)):
         for kind in ('command', 'describe'):
             worker.send({'id': f'bad-{index}', kind: ['plotProfileR', *bad]})
             failed = worker.response(f'bad-{index}')

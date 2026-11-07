@@ -25,6 +25,7 @@ import pytest
 from deeptoolsr import _cluster
 from deeptoolsr.matrix import Matrix, RowLayout
 from deeptoolsr import cluster as cluster_module
+from tests.helpers.hidden_samples import plot_outputs, write_hidden_sample_matrix
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -395,3 +396,24 @@ def test_cluster_sample_index_is_checked_before_clustering(tmp_path, module):
     with pytest.raises(SystemExit, match='indices must be between'):
         module.main(['-m', str(MATRIX), '-o', str(output), '--kmeans', '2', '--clusterUsingSamples', '999'])
     assert not output.exists()
+
+
+@pytest.mark.parametrize('tool', ['plotHeatmapR', 'plotProfileR', 'plotMatrixR'])
+@pytest.mark.parametrize('method', ['kmeans', 'hclust'])
+def test_default_clustering_uses_only_drawn_samples(tmp_path, tool, method):
+    source = write_hidden_sample_matrix(tmp_path / 'hidden.gz')
+    base = ('--arrangeSamples', '1', '2', '--' + method, '2')
+    runs = iter(range(100))
+
+    def members(*flags):
+        rows, _ = plot_outputs(tmp_path / f'run{next(runs)}', tool, source, *base, *flags)
+        return dict(rows)
+    hidden = members('--clusterUsingSamples', '3')
+    # an explicit list may still name the hidden sample: even vs odd rows
+    assert len({hidden[f'r{i}'] for i in (0, 2, 4, 6)}) == 1
+    drawn = members('--clusterUsingSamples', '1', '2')
+    assert len({drawn[f'r{i}'] for i in range(4)}) == 1
+    assert members() == drawn, 'default clustering used the hidden sample'
+    assert members('--clusterUsingSamples', '1-2') == drawn, 'range'
+    assert members('--clusterUsingSamples', 'Sample C') == hidden, 'name'
+    assert members('--clusterUsingSamples', 'Sample A', '2-3') == members('--clusterUsingSamples', '1', '2', '3'), 'name and range'

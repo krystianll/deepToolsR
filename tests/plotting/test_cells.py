@@ -1,5 +1,6 @@
 """The pure resolver and drawn plotters agree with the pinned series goldens."""
 
+import csv
 import json
 from pathlib import Path
 import subprocess
@@ -16,8 +17,10 @@ from deeptoolsr.matrix import Matrix, MatrixHeader
 from deeptoolsr.prepare import (
     heatmap_spec, prepare, profile_spec, resolve_prepared_labels)
 from deeptoolsr.plotting.series import (
-    Cell, LabelKind, StackBlock, apply_grouped_y_limits, build_sample_set_plans,
-    label_runs, parse_sample_sets, resolve_cells, series_slot, cell_options)
+    Cell, LabelKind, SeriesPlan, StackBlock, apply_grouped_y_limits,
+    build_sample_set_plans, header_runs, label_runs, parse_sample_sets,
+    resolve_cells, series_slot, cell_options)
+from deeptoolsr.plotting.matrix_plan import resolve_matrix_plan
 from deeptoolsr.plotting.matrix_spec import project_matrix_spec
 from tests.helpers.capture_series_goldens import (
     HERE, _rendered, cases, regenerate_newly_supported_case, write_input)
@@ -372,3 +375,211 @@ def test_y_limits_group_by_subplot():
         axes, [0, 0, 1], ['RNA', 'RNA', 'ChIP'],
         [None], [None], 'per_subplot')
     assert limits == ((-1, 2), (-1, 2), (10, 20))
+
+
+def _header_cell(index, row, column, title_levels=(), stack_levels=()):
+    return Cell(index, row, column, (0,), (0,), '|'.join(title_levels),
+                None, None, tuple(StackBlock(0, 0) for _ in stack_levels),
+                tuple('|'.join(levels) for levels in stack_levels),
+                title_levels=title_levels, stack_label_levels=stack_levels)
+
+
+def _x_cells(*rows):
+    """Cells from rows of (column, title levels)."""
+    cells = []
+    for row, items in enumerate(rows):
+        for column, levels in items:
+            cells.append(_header_cell(len(cells) + 1, row, column, levels))
+    return tuple(cells)
+
+
+SENSE = (('Untreated', 'antisense'), ('Untreated', 'sense'))
+HEADER_CASES = {
+    # axis, cells, row label levels, [(row, level, text, members)]
+    'equal_neighbours_share_one_header': (
+        'x', _x_cells([(0, SENSE[0]), (1, SENSE[1]),
+                       (2, ('Treated', 'sense'))]), (),
+        [(0, 1, 'Untreated', (1, 2)), (0, 1, 'Treated', (3,))]),
+    'equal_headers_not_adjacent_stay_apart': (
+        'x', _x_cells([(0, SENSE[0]), (1, ('Treated', 'sense')),
+                       (2, SENSE[1])]), (),
+        [(0, 1, 'Untreated', (1,)), (0, 1, 'Treated', (2,)),
+         (0, 1, 'Untreated', (3,))]),
+    'inner_header_never_crosses_an_outer_change': (
+        'x', _x_cells([(0, ('Untreated', 'rep 1', 'a')),
+                       (1, ('Untreated', 'rep 1', 'b')),
+                       (2, ('Treated', 'rep 1', 'a'))]), (),
+        [(0, 1, 'rep 1', (1, 2)), (0, 1, 'rep 1', (3,)),
+         (0, 2, 'Untreated', (1, 2)), (0, 2, 'Treated', (3,))]),
+    'label_without_the_level_ends_the_run': (
+        'x', _x_cells([(0, SENSE[0]), (1, ('Input A',)), (2, SENSE[1])]), (),
+        [(0, 1, 'Untreated', (1,)), (0, 1, 'Untreated', (3,))]),
+    'untitled_cell_ends_the_run': (
+        'x', _x_cells([(0, SENSE[0]), (1, ()), (2, SENSE[1])]), (),
+        [(0, 1, 'Untreated', (1,)), (0, 1, 'Untreated', (3,))]),
+    'empty_outer_level_gives_no_header': (
+        'x', _x_cells([(0, ('', 'antisense')), (1, ('', 'sense'))]), (), []),
+    'missing_grid_position_ends_the_run': (
+        'x', _x_cells([(0, SENSE[0]), (2, SENSE[1])]), (),
+        [(0, 1, 'Untreated', (1,)), (0, 1, 'Untreated', (2,))]),
+    'whole_grid_row_header_stays_above_its_row': (
+        'x', _x_cells([(0, SENSE[0]), (1, SENSE[1])],
+                      [(0, ('Untreated', 'input'))]), (),
+        [(0, 1, 'Untreated', (1, 2)), (1, 1, 'Untreated', (3,))]),
+    'stack_headers_follow_the_region_label_run': (
+        'stack', tuple(
+            _header_cell(index, 0, column, stack_levels=stack)
+            for index, column, stack in (
+                (1, 0, (('Sample A', 'genes'), ('Sample A', 'enhancers'),
+                        ('Sample B', 'genes'))),
+                (2, 1, (('Sample A', 'genes'), ('Sample A', 'enhancers'),
+                        ('Sample B', 'genes'))),
+                (3, 2, (('GENE1',), ('Sample B', 'genes'))))), (),
+        [(0, 1, 'Sample A', ((1, 2), (0, 1))),
+         (0, 1, 'Sample B', ((1, 2), (2,))),
+         (0, 1, 'Sample B', ((3,), (1,)))]),
+    'row_headers_join_consecutive_grid_rows': (
+        'row', (), (('Untreated', 'rep 1'), ('Untreated', 'rep 2'), (),
+                    ('Untreated', 'rep 3')),
+        [(None, 1, 'Untreated', (0, 1)), (None, 1, 'Untreated', (3,))]),
+}
+
+
+@pytest.mark.parametrize('name', HEADER_CASES)
+def test_header_runs_join_equal_neighbouring_levels(name):
+    axis, cells, row_levels, expected = HEADER_CASES[name]
+    plan = SeriesPlan((), (), (), (), cells, row_levels)
+    members = {'x': lambda run: run.cells,
+               'stack': lambda run: (run.cells, run.blocks),
+               'row': lambda run: run.rows}[axis]
+    assert [(run.row, run.level, run.text, members(run))
+            for run in header_runs(plan, axis)] == expected
+
+
+def _levels_plan(tmp_path, tool, options):
+    case = replace(cases()['heatmap_summary' if tool == 'heatmap'
+                           else 'profile_relabel_equal'],
+                   source='distinct', options=options)
+    _module, _argv, args, layout, labels, _plans, _sizes = _inputs(
+        tmp_path, case)
+    header = Matrix.load(str(tmp_path / 'input.gz'), 1).header
+    tool = 'plotHeatmapR' if tool == 'heatmap' else 'plotProfileR'
+    plan, _, _ = resolve_matrix_plan(
+        header, layout, labels, project_matrix_spec(args, tool))
+    return plan
+
+
+THREE = ('--samplesLabel', 'Untreated|antisense', 'Untreated|sense',
+         'Treated|sense')
+ON = ('--nestedHeaders',)
+LEVEL_CASES = {
+    # tool, options, what (cell title / stack / row levels), expected
+    'bar_splits_a_label_into_levels': (
+        'profile', THREE + ON, 'titles',
+        [('Untreated', 'antisense'), ('Untreated', 'sense'),
+         ('Treated', 'sense')]),
+    'escaped_bar_is_a_literal_bar': (
+        'profile', ('--samplesLabel', 'A\\|B|sense', 'GENE1', 'GENE2') + ON,
+        'titles', [('A|B', 'sense'), ('GENE1',), ('GENE2',)]),
+    'off_keeps_a_bar_as_text': (
+        'profile', THREE, 'titles',
+        [('Untreated|antisense',), ('Untreated|sense',), ('Treated|sense',)]),
+    'default_set_title_joins_level_by_level': (
+        'profile', THREE + ON + ('--arrangeSamples', '1,2', '3'), 'titles',
+        [('Untreated', 'antisense, sense'), ('Treated', 'sense')]),
+    'split_title_puts_the_set_outside_its_group': (
+        'profile', THREE + ON + (
+            '--arrangeSamples', '1', '--sampleSetGroupArrangement',
+            'adjacent', '--regionsLabel', 'Input|genes', 'enhancers',
+            'promoters'), 'titles',
+        [('Untreated', 'antisense', 'Input', 'genes'),
+         ('Untreated', 'antisense', '', 'enhancers'),
+         ('Untreated', 'antisense', '', 'promoters')]),
+    'row_labels_have_levels': (
+        'profile', THREE + ON + ('--sampleSetGroupArrangement', 'by_row'),
+        'rows', [('Untreated', 'antisense'), ('Untreated', 'sense'),
+                 ('Treated', 'sense')]),
+    'block_sample_outside_group_count_stays_inner': (
+        'heatmap', THREE + ON + (
+            '--arrangeSamples', '1,2', '--showRegionCounts',
+            '--regionsLabel', 'genes', 'enhancers', 'promoters'), 'stack',
+        [('Untreated', 'antisense', 'genes [n = 2]'),
+         ('Untreated', 'antisense', 'enhancers [n = 3]'),
+         ('Untreated', 'antisense', 'promoters [n = 4]'),
+         ('Untreated', 'sense', 'genes [n = 2]'),
+         ('Untreated', 'sense', 'enhancers [n = 3]'),
+         ('Untreated', 'sense', 'promoters [n = 4]')]),
+    'per_group_block_group_outside_sample': (
+        'heatmap', THREE + ON + (
+            '--perGroup', '--sameGroupLabels', 'together',
+            '--regionsLabel', 'genes', 'genes', 'enhancers'), 'stack',
+        [('genes', 'Untreated', 'antisense'), ('genes', 'Untreated', 'sense'),
+         ('genes', 'Treated', 'sense'), ('genes', 'Untreated', 'antisense'),
+         ('genes', 'Untreated', 'sense'), ('genes', 'Treated', 'sense')]),
+}
+
+
+@pytest.mark.parametrize('name', LEVEL_CASES)
+def test_outer_header_levels_come_from_labels(name, tmp_path):
+    tool, options, what, expected = LEVEL_CASES[name]
+    plan = _levels_plan(tmp_path, tool, options)
+    actual = {'titles': [cell.title_levels for cell in plan.cells],
+              'stack': list(plan.cells[0].stack_label_levels),
+              'rows': list(plan.row_label_levels)}[what]
+    assert actual == expected
+
+
+@pytest.mark.parametrize('tool,options', [
+    pytest.param('profile', THREE + (
+        '--arrangeSamples', '1', '--sampleSetGroupArrangement', 'adjacent',
+        '--regionsLabel', 'Input|genes', 'enhancers', 'promoters'),
+        id='split_group_titles'),
+    pytest.param('profile', THREE + ('--sampleSetGroupArrangement', 'by_row'),
+                 id='row_labels'),
+    pytest.param('heatmap', THREE + ('--arrangeSamples', '1,2'),
+                 id='sample_and_group_blocks'),
+])
+def test_without_nested_headers_every_label_is_one_level(tool, options,
+                                                         tmp_path):
+    plan = _levels_plan(tmp_path, tool, options)
+    levels = ([cell.title_levels for cell in plan.cells if cell.title] +
+              [levels for cell in plan.cells
+               for levels in cell.stack_label_levels] +
+              list(plan.row_label_levels))
+    assert levels and all(len(item) == 1 for item in levels)
+    assert [run for axis in ('x', 'stack', 'row')
+            for run in header_runs(plan, axis)] == []
+
+
+def test_nested_headers_flatten_where_no_header_is_drawn(tmp_path):
+    case = replace(cases()['profile_relabel_equal'], source='distinct',
+                   options=('--samplesLabel', 'Untreated|antisense',
+                            'Untreated|sense', 'Treated|sense',
+                            '--regionsLabel', 'Input|genes', 'enhancers',
+                            'promoters', '--nestedHeaders',
+                            '--perGroup'))
+    module, argv, *_ = _inputs(tmp_path, case)
+    table = tmp_path / 'profile.tsv'
+    prefix = tmp_path / 'regions'
+    argv += ['--outFileNameData', str(table),
+             '--outFileSortedRegionsPerGroup', str(prefix)]
+    captured = {}
+
+    def save(figure, path, **_kwargs):
+        captured['rendered'] = _rendered(figure, [])
+        Path(path).write_bytes(b'')
+
+    with patch.object(plotMatrix, 'save_figure_atomic', save):
+        module.main(argv)
+    flat = ['Untreated antisense', 'Untreated sense', 'Treated sense']
+    assert [legend['entries'] for legend in captured['rendered']['legends']
+            ] == [flat]
+    with open(table, newline='', encoding='utf-8') as handle:
+        rows = [row[:4] for row in csv.reader(handle, delimiter='\t')][1:]
+    assert {row[1] for row in rows} == {
+        ', '.join(flat) + ' — ' + group
+        for group in ('Input genes', 'enhancers', 'promoters')}
+    assert [row[3] for row in rows] == flat * 3
+    assert sorted(path.name for path in tmp_path.glob('regions_*.bed')) == [
+        'regions_Input genes.bed', 'regions_enhancers.bed',
+        'regions_promoters.bed']

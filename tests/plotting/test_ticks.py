@@ -223,8 +223,9 @@ def test_sort_indicator_polygon_directions():
     figure, axes = plt.subplots(1, 2)
     descending = draw_sort_indicator(axes[0], 'descend')
     ascending = draw_sort_indicator(axes[1], 'ascend')
-    assert descending.get_xy()[:3].tolist() == [[0, 1], [1, 1], [1, 0]]
-    assert ascending.get_xy()[:3].tolist() == [[1, 1], [0, 0], [1, 0]]
+    # Wide at the biggest values: rows read from the bottom of each group.
+    assert ascending.get_xy()[:3].tolist() == [[0, 1], [1, 1], [1, 0]]
+    assert descending.get_xy()[:3].tolist() == [[1, 1], [0, 0], [1, 0]]
     plt.close(figure)
 
 

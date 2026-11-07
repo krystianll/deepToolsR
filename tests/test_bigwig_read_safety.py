@@ -208,7 +208,10 @@ CHILD = "\nimport json, sys\ntry:\n    import resource\n    resource.setrlimit(r
 
 
 def run_bigwig_child(path, consumer):
-    return subprocess.run([sys.executable, '-c', CHILD, str(path), consumer], capture_output=True, text=True, timeout=8)
+    # The child prints file-derived text; a Windows pipe would default to cp1252.
+    env = dict(os.environ, PYTHONIOENCODING='utf-8')
+    return subprocess.run([sys.executable, '-c', CHILD, str(path), consumer], capture_output=True, text=True,
+                          encoding='utf-8', timeout=8, env=env)
 
 
 @pytest.mark.usefixtures('validation_isolated_config')

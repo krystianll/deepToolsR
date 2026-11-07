@@ -2794,7 +2794,7 @@
         "default": "None",
         "choices": null,
         "nargs": "+",
-        "type": "convert",
+        "type": null,
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -2860,7 +2860,7 @@
         "default": "None",
         "choices": null,
         "nargs": "+",
-        "type": "convert",
+        "type": null,
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -3064,6 +3064,19 @@
         "nargs": "+",
         "type": null,
         "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--nestedHeaders"
+        ],
+        "dest": "nestedHeaders",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
         "required": false,
         "mutex_group": null
       },
@@ -3490,6 +3503,24 @@
       },
       {
         "flags": [
+          "--zAxisLimits"
+        ],
+        "dest": "zAxisLimits",
+        "default": "'common'",
+        "choices": [
+          "common",
+          "per_sample_set",
+          "per_panel",
+          "per_heatmap"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--outFileNameData"
         ],
         "dest": "outFileNameData",
@@ -3684,6 +3715,19 @@
       },
       {
         "flags": [
+          "--linesAsStepsSummaryPlot"
+        ],
+        "dest": "linesAsSteps",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--yAxisLabelSummaryPlot"
         ],
         "dest": "yAxisLabel",
@@ -3730,6 +3774,7 @@
           "top",
           "below",
           "bottom",
+          "below_top_profile",
           "right",
           "none"
         ],
@@ -4052,7 +4097,7 @@
         "default": "None",
         "choices": null,
         "nargs": "+",
-        "type": "convert",
+        "type": null,
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -4118,7 +4163,7 @@
         "default": "None",
         "choices": null,
         "nargs": "+",
-        "type": "convert",
+        "type": null,
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -4274,6 +4319,19 @@
         "nargs": "+",
         "type": null,
         "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--nestedHeaders"
+        ],
+        "dest": "nestedHeaders",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
         "required": false,
         "mutex_group": null
       },
@@ -4468,6 +4526,19 @@
         "nargs": null,
         "type": "positive_finite_float",
         "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--linesAsSteps"
+        ],
+        "dest": "linesAsSteps",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
         "required": false,
         "mutex_group": null
       },
@@ -4681,6 +4752,7 @@
           "top",
           "below",
           "bottom",
+          "below_top_profile",
           "right",
           "none"
         ],
@@ -5171,6 +5243,24 @@
       },
       {
         "flags": [
+          "--zAxisLimits"
+        ],
+        "dest": "zAxisLimits",
+        "default": "'common'",
+        "choices": [
+          "common",
+          "per_sample_set",
+          "per_panel",
+          "per_heatmap"
+        ],
+        "nargs": null,
+        "type": null,
+        "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--config"
         ],
         "dest": "config",
@@ -5355,7 +5445,7 @@
         "default": "None",
         "choices": null,
         "nargs": "+",
-        "type": "convert",
+        "type": null,
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -5421,7 +5511,7 @@
         "default": "None",
         "choices": null,
         "nargs": "+",
-        "type": "convert",
+        "type": null,
         "action": "_StoreAction",
         "required": false,
         "mutex_group": null
@@ -5666,6 +5756,19 @@
       },
       {
         "flags": [
+          "--nestedHeaders"
+        ],
+        "dest": "nestedHeaders",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
           "--sampleSetGroupArrangement"
         ],
         "dest": "sampleSetGroupArrangement",
@@ -5855,6 +5958,19 @@
         "nargs": null,
         "type": "positive_finite_float",
         "action": "_StoreAction",
+        "required": false,
+        "mutex_group": null
+      },
+      {
+        "flags": [
+          "--linesAsSteps"
+        ],
+        "dest": "linesAsSteps",
+        "default": "False",
+        "choices": null,
+        "nargs": 0,
+        "type": null,
+        "action": "_StoreTrueAction",
         "required": false,
         "mutex_group": null
       },
@@ -6068,6 +6184,7 @@
           "top",
           "below",
           "bottom",
+          "below_top_profile",
           "right",
           "none"
         ],

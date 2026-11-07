@@ -9,7 +9,7 @@ from deeptoolsr.stats import (
     NumericProvider, calculate_group_statistics_batch, scan_prepared_matrix,
     statistics_spec)
 from . import DEFAULT_HEATMAP_COLORMAP, DEFAULT_SERIES_COLORMAP, colormap
-from .colorbars import plan_colorbars
+from .colorbars import limit_slots, plan_colorbars
 from .heatmap import heatmap_scales, region_lengths
 from .matrix_plan import tool_option_spellings
 from .series import has_explicit_assignment, resolve_recyclable
@@ -23,7 +23,9 @@ class PreparedMatrix:
     heatmap stacks, so both kinds of figure share one set of statistics,
     limits and series colours. ``series_colors`` has one entry per slot of
     the profile colour domain: a colour for line profiles, a colour map for
-    a series heatmap. The heatmap part is filled only with stacks.
+    a series heatmap. The heatmap part is filled only with stacks; its
+    limits have one entry per limit slot, and ``z_slots`` gives each
+    cell's slot per heatmap block (``limit_slots``).
     """
 
     sample_set_plans: tuple
@@ -39,22 +41,27 @@ class PreparedMatrix:
     z_min: tuple = ()
     z_max: tuple = ()
     z_mid: tuple | None = None
+    z_slots: tuple = ()
     colorbars: object = None
     regions_length_in_bins: tuple = ()
 
 
 def _y_limits(data, spec, scales, run, numeric):
-    """The plan's typed Y limits, with a heatmap's profile scan filling auto."""
+    """The plan's typed Y limits, with a heatmap's profile scan filling auto.
+
+    Every bound left unspecified, assigned panels or not, takes the same
+    automatic value; a typed bound replaces only itself.
+    """
     y_min, y_max = scales['yMin'], scales['yMax']
     if (spec.show_profile and spec.plot_type == 'heatmap' and
-            (y_min == [None] or y_max == [None])):
+            None in y_min + y_max):
         low, high = (numeric.scan(data, (1.0, 98.0), False, run.threads)
                      if numeric is not None else scan_prepared_matrix(
                          data, (1.0, 98.0), threads=run.threads))
-        if y_min == [None]:
-            y_min = [None if np.isnan(low) else low]
-        if y_max == [None]:
-            y_max = [None if np.isnan(high) else high]
+        low, high = (None if np.isnan(value) else value
+                     for value in (low, high))
+        y_min = [low if value is None else value for value in y_min]
+        y_max = [high if value is None else value for value in y_max]
     return tuple(y_min), tuple(y_max)
 
 
@@ -254,10 +261,10 @@ def prepare_matrix(data, plan, sample_plans, scales, spec, run,
     scales = check_heatmap_colours(scales, spec)
     colorbars = plan_colorbars(spec, plan, sample_plans, scales)
     color_options, percentiles, z_min, z_max, z_mid = heatmap_scales(
-        data, spec, scales, numeric=numeric)
+        data, spec, plan, scales, numeric=numeric)
     return PreparedMatrix(
         **common, color_options=color_options, percentiles=percentiles,
         z_min=tuple(z_min), z_max=tuple(z_max),
         z_mid=None if z_mid is None else tuple(z_mid),
-        colorbars=colorbars,
+        z_slots=limit_slots(spec, plan)[0], colorbars=colorbars,
         regions_length_in_bins=region_lengths(data))

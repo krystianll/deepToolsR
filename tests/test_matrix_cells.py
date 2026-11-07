@@ -229,6 +229,41 @@ def test_series_heatmap_colour_assignment_addresses_panels(
                     'cell/1/4/profile': 'RdYlBu_r'}
 
 
+def _series_heatmap_limits(result):
+    return {axis.get_gid(): (axis.images[0].norm.vmin,
+                             axis.images[0].norm.vmax)
+            for axis in result['figure'].axes
+            if (axis.get_gid() or '').endswith('/profile')}
+
+
+@pytest.mark.parametrize('options, typed', [
+    pytest.param(('--yMax', '100'), {panel: (None, 100) for panel in range(1, 5)},
+                 id='plain_max'),
+    pytest.param(('--yMax', '1-4=100'),
+                 {panel: (None, 100) for panel in range(1, 5)},
+                 id='every_panel_assigned_max'),
+    pytest.param(('--yMin', '1-4=0'), {panel: (0, None) for panel in range(1, 5)},
+                 id='every_panel_assigned_min'),
+    pytest.param(('--yMax', '1=100'), {1: (None, 100)}, id='one_panel_max'),
+    pytest.param(('--yMin', '1=0.5'), {1: (0.5, None)}, id='one_panel_min'),
+])
+def test_series_heatmap_unassigned_bounds_keep_the_automatic_limits(
+        tmp_path, monkeypatch, options, typed):
+    # Without an option every panel shares the automatic percentile limits;
+    # a typed bound replaces only itself and leaves the rest automatic.
+    base = ('--profile', '--plotType', 'heatmap')
+    automatic = _series_heatmap_limits(_render(tmp_path, monkeypatch, *base))
+    assert len(automatic) == 4 and len(set(automatic.values())) == 1
+    expected = {}
+    for gid, bounds in automatic.items():
+        panel = int(gid.split('/')[2])
+        given = typed.get(panel, (None, None))
+        expected[gid] = tuple(bound if value is None else value
+                              for bound, value in zip(bounds, given))
+    assert _series_heatmap_limits(
+        _render(tmp_path, monkeypatch, *base, *options)) == expected
+
+
 def test_series_heatmap_rows_are_named_by_what_varies(tmp_path, monkeypatch):
     # by_row puts one group's samples in each panel: rows are samples.
     result = _render(tmp_path, monkeypatch, '--profile',
@@ -488,9 +523,9 @@ def test_reference_labels_follow_each_panels_reference_point(tmp_path, flags, ex
     from deeptoolsr import _compute_matrix_io, plotProfile
     matrix, table = tmp_path / 'm.gz', tmp_path / 'profile.tab'
     header = {
-        'sample_labels': ['S1', 'S2'], 'sample_boundaries': [0, 2, 4],
+        'sample_labels': ['S1', 'S2'], 'sample_boundaries': [0, 4, 8],
         'group_labels': ['G1', 'G2'], 'group_boundaries': [0, 2, 4],
-        'bin size': [1, 1], 'upstream': [1, 1], 'body': [0, 0], 'downstream': [1, 1],
+        'bin size': [1, 1], 'upstream': [2, 2], 'body': [0, 0], 'downstream': [2, 2],
         'unscaled 5 prime': [0, 0], 'unscaled 3 prime': [0, 0], 'ref point': ['TSS', 'TES'],
         'min threshold': None, 'max threshold': None, 'sort regions': 'keep',
         'sort using': 'mean', 'proc number': 1,
@@ -498,7 +533,7 @@ def test_reference_labels_follow_each_panels_reference_point(tmp_path, flags, ex
     _compute_matrix_io.write_matrix(
         str(matrix), json.dumps(header),
         [['chr1', [(i * 20, i * 20 + 10)], f'r{i}', i // 2, '+', '0'] for i in range(4)],
-        np.ones((4, 4), dtype=np.float32), 1)
+        np.ones((4, 8), dtype=np.float32), 1)
     plotProfile.main(['-m', str(matrix), '-o', str(tmp_path / 'p.png'), '--dpi', '30',
                       '--outFileNameData', str(table), *flags])
     with open(table, newline='') as handle:

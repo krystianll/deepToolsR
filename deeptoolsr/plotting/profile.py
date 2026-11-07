@@ -108,30 +108,42 @@ def prepare_profile_series_batch(series_specs, options, *, threads):
             for spec, stat in zip(specs, statistics)]
 
 
+def _as_steps(x, *values):
+    """Step coordinates: each bin is flat from half a bin before its knot to
+    half a bin after it. Masked bins stay masked, so they leave gaps."""
+    return ((x[:, None] + np.array([-.5, .5])).ravel(),
+            *(None if value is None else value.repeat(2) for value in values))
+
+
 def draw_prepared_profile_series(axis, prepared,
-                                 line_width=PROFILE_LINE_WIDTH_POINTS):
+                                 line_width=PROFILE_LINE_WIDTH_POINTS, *,
+                                 steps=False):
     """Draw one already-computed series (centre line plus optional interval).
 
     This is the single series renderer; ``draw_profile_series`` is the
     convenience wrapper that computes the statistics first. ``line_width`` is a
     fixed physical stroke width in points (the resolved ``profile_line_width``);
     it is never scaled by the font multiplier and does not affect the
-    zero/reference or interval fills.
+    zero/reference or interval fills. ``steps`` draws the line and its bands
+    as one flat segment per bin (``--linesAsSteps``).
     """
     statistics = prepared.statistics
+    values = (statistics.x, statistics.center, statistics.lower,
+              statistics.upper)
+    x, center, lower, upper = _as_steps(*values) if steps else values
     color = _matplotlib_color(prepared.color)
-    axis.plot(statistics.x, statistics.center, color=color,
+    axis.plot(x, center, color=color,
               label=prepared.label, alpha=0.9, linewidth=line_width)
     if prepared.fill_to_zero:
-        axis.fill_between(statistics.x, statistics.center,
+        axis.fill_between(x, center,
                           facecolor=color, alpha=0.6, edgecolor='none')
-    if statistics.lower is not None:
+    if lower is not None:
         fill_color = pltcolors.colorConverter.to_rgba(
             color, prepared.interval_alpha)
-        axis.fill_between(statistics.x, statistics.lower, statistics.upper,
+        axis.fill_between(x, lower, upper,
                           facecolor=fill_color, edgecolor='none')
-    if statistics.x.size:
-        axis.set_xlim(0, max(statistics.x))
+    if x.size:
+        axis.set_xlim((x.min(), x.max()) if steps else (0, max(x)))
     return statistics
 
 
@@ -158,11 +170,12 @@ def _apply_panel_decorations(axis, panel):
 
 
 def draw_profile_data(axis, prepared_series, y_scale='linear', sigma=None,
-                      line_width=PROFILE_LINE_WIDTH_POINTS):
+                      line_width=PROFILE_LINE_WIDTH_POINTS, steps=False):
     """Draw a panel's series on its Y scale: all its automatic Y limits
     come from (see series.grouped_y_limits)."""
     statistics = [draw_prepared_profile_series(axis, prepared,
-                                               line_width=line_width)
+                                               line_width=line_width,
+                                               steps=steps)
                   for prepared in prepared_series]
     if y_scale == 'pseudolog':
         set_pseudolog_y_scale(axis, sigma)
@@ -171,10 +184,10 @@ def draw_profile_data(axis, prepared_series, y_scale='linear', sigma=None,
 
 def draw_prepared_profile_panel(axis, panel, prepared_series,
                                 line_width=PROFILE_LINE_WIDTH_POINTS, *,
-                                y_scale='linear', sigma=None):
+                                y_scale='linear', sigma=None, steps=False):
     """Draw a panel whose statistics were prepared before rendering."""
     statistics = draw_profile_data(axis, prepared_series, y_scale, sigma,
-                                   line_width)
+                                   line_width, steps)
     _apply_panel_decorations(axis, panel)
     return statistics
 

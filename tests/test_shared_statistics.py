@@ -91,7 +91,7 @@ def test_shared_filter_threshold_and_missing_counts(dtype, statistic, nan_mode):
                     value = float(np.median(finite))
                 fail = value < 2 or value > 2
         fail |= nan_mode == 1 and len(finite) < len(row)
-        fail |= nan_mode == 2 and not finite
+        fail |= nan_mode in (2, 3) and not finite
         expected.append(fail)
     failed, counts = kernels.filter_rows(data, statistic, 2, 2,
                                          nan_mode=nan_mode, threads=1)

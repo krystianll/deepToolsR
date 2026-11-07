@@ -122,19 +122,6 @@ def _cp1252():
     return {**os.environ, 'PYTHONIOENCODING': 'cp1252'}
 
 
-def test_info_and_describe_json_are_utf8_whatever_the_locale(tmp_path):
-    matrix = _labelled(tmp_path)
-    info = _run('computeMatrixOperationsR', 'info', '-m', str(matrix),
-                '--json', env=_cp1252())
-    assert info.returncode == 0, info.stderr
-    assert json.loads(info.stdout.decode('utf-8'))['groups'][0]['label'] == (
-        'geny_ł')
-    record = _run('deeptoolsr', 'describe', 'plotHeatmapR', '-m', str(matrix),
-                  '-o', str(tmp_path / 'p.png'), env=_cp1252())
-    assert record.returncode == 0, record.stderr
-    assert 'geny_ł' in record.stdout.decode('utf-8')
-
-
 def test_serve_speaks_utf8_whatever_the_locale(tmp_path):
     matrix = _labelled(tmp_path)
     worker = subprocess.Popen(['deeptoolsr', 'serve'], cwd=ROOT, env=_cp1252(),
@@ -165,6 +152,69 @@ def test_serve_speaks_utf8_whatever_the_locale(tmp_path):
     finally:
         worker.stdin.close()
         worker.wait(timeout=60)
+
+
+NOT_CP1252 = 'name_✓'  # a check mark: a Windows pipe's cp1252 lacks it
+
+
+def _stdout_case(case, tmp_path):
+    """Command whose stdout carries non-cp1252 text, and the text it must show
+    (or a check of the decoded stdout)."""
+    if case == 'matrix_info_json':
+        matrix = _labelled(tmp_path)
+
+        def check(stdout):
+            assert json.loads(stdout)['groups'][0]['label'] == 'geny_ł'
+        return (['computeMatrixOperationsR', 'info', '-m', str(matrix),
+                 '--json'], check)
+    if case == 'describe_json':
+        matrix = _labelled(tmp_path)
+        return (['deeptoolsr', 'describe', 'plotHeatmapR', '-m', str(matrix),
+                 '-o', str(tmp_path / 'p.png')], 'geny_ł')
+    if case in ('matrix_info_labels', 'matrix_dataRange_labels'):
+        text = _text()
+        samples = json.loads(text.split('\n', 1)[0][1:])['sample_labels']
+        matrix = tmp_path / 'm.mat.gz'
+        matrix.write_bytes(gzip.compress(_header(
+            text, group_labels=[NOT_CP1252],
+            sample_labels=[NOT_CP1252] + samples[1:]).encode('utf-8')))
+        command = 'info' if case == 'matrix_info_labels' else 'dataRange'
+        return (['computeMatrixOperationsR', command, '-m', str(matrix)],
+                NOT_CP1252)
+    if case == 'bigwig_chromsizes_to_stdout':
+        from tests.helpers.bigwig import pyBigWig
+        bigwig = str(tmp_path / 'in.bw')
+        writer = pyBigWig.open(bigwig, 'w')
+        writer.addHeader([(NOT_CP1252, 1000)])
+        writer.addEntries([NOT_CP1252], [0], ends=[100], values=[1.0])
+        writer.close()
+        return (['bigWigOperationsR', 'info', bigwig, '--chromSizes', '-'],
+                NOT_CP1252 + '\t1000\n')
+    if case == 'options_file_path':
+        folder = tmp_path / NOT_CP1252
+        folder.mkdir()
+        config = str(folder / 'options.txt')
+        return ['deeptoolsr', 'options', '--config', config], config
+    return (['deeptoolsr', 'options', '--config', str(tmp_path / 'options.txt'),
+             '--fontFamily', NOT_CP1252], 'Font family: ' + NOT_CP1252)
+
+
+@pytest.mark.parametrize('case', (
+    'matrix_info_json', 'describe_json',
+    'matrix_info_labels', 'matrix_dataRange_labels',
+    'bigwig_chromsizes_to_stdout', 'options_file_path',
+    'options_font_family'))
+def test_text_on_stdout_is_utf8_whatever_the_locale(case, tmp_path):
+    # Names, labels and paths printed to a Windows pipe (cp1252) must neither
+    # crash the command nor be lost: stdout is UTF-8 like the JSON outputs.
+    argv, expected = _stdout_case(case, tmp_path)
+    result = _run(*argv, env=_cp1252())
+    assert result.returncode == 0, result.stderr.decode('utf-8', 'replace')
+    stdout = result.stdout.decode('utf-8').replace('\r\n', '\n')
+    if callable(expected):
+        expected(stdout)
+    else:
+        assert expected in stdout
 
 
 @pytest.mark.skipif(os.name == 'nt', reason='POSIX byte arguments')

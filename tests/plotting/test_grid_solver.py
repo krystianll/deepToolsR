@@ -101,8 +101,9 @@ def test_region_labels_can_wrap_without_growing_stack_height():
                  for index, candidate in enumerate(candidates))
     spec = grid.GridLayoutSpec(1, 1, (cell,), runs=runs)
     growing = grid.solve(spec)
-    strict = grid.solve(replace(spec, label_layout=replace(
-        spec.label_layout, heatmap_region_label_gap_growth=False)))
+    strict_layout = replace(spec.label_layout,
+                            heatmap_region_label_gap_growth=False)
+    strict = grid.solve(replace(spec, label_layout=strict_layout))
 
     def stack_span(solution):
         top = solution.rects['cell/1/1/block/1']
@@ -116,6 +117,13 @@ def test_region_labels_can_wrap_without_growing_stack_height():
     assert stack_span(strict)[1] == pytest.approx((8, 8))
     assert strict.rects['label/stack/1/1/2'].height == 130
     assert strict.selections['label/stack/1/1/2'] == 0
+    # Empty labels are dropped from the runs; the rest keep their block's
+    # place, role, gap and overhang (none: the top block has no label).
+    for solved, layout in ((growing, spec.label_layout),
+                           (strict, strict_layout)):
+        dropped = grid.solve(replace(spec, runs=(runs[1],),
+                                     label_layout=layout))
+        assert dropped.rects == solved.rects
 
     alternatives = replace(runs[1], candidates=(
         _candidate('middle region', 16, 130),
@@ -143,6 +151,18 @@ def _role_uses_grid_naming(role):
             maker = {'profile': grid.cell_profile,
                      'title': grid.cell_title}[parts[3]]
             return role == maker(row, column)
+        if parts[0] in ('label', 'rule') and parts[1] == 'header_row':
+            maker = (grid.row_header_role if parts[0] == 'label'
+                     else grid.row_header_rule_role)
+            return role == maker(int(parts[2]), int(parts[3]) - 1)
+        headers = ('header_x', 'header_stack')
+        if parts[0] in ('label', 'rule') and parts[1] in headers:
+            numbers = [int(part) for part in parts[2:]]
+            row, ordinal = numbers[0] - 1, numbers[-1] - 1
+            group = numbers[1] - 1 if parts[1] == 'header_stack' else None
+            maker = (grid.header_role if parts[0] == 'label'
+                     else grid.header_rule_role)
+            return role == maker(row, numbers[-2], ordinal, group)
         if parts[0] == 'label':
             if parts[1] == 'row':
                 return role == grid.row_label(int(parts[2]) - 1)
@@ -849,3 +869,300 @@ def test_below_common_selector_prefers_legal_break_over_equal_geometry_fallback(
         grid.DEFAULT_LABEL_LAYOUT, 8.0, grid.DEFAULT_GEOMETRY)
 
     assert selected == (legal,)
+
+
+def _header_grid(headers, *, rows=1, columns=4, titles=None, stack=(),
+                 region='right', stack_headers=(), y_label=None,
+                 row_headers=(), **options):
+    """A profile grid with one title per cell (heights from ``titles``,
+    default 10) and ``headers`` as (level, (first, last) cell, candidates),
+    and ``row_headers`` as (level, (first, last) grid row, candidates).
+
+    With ``stack`` (block heights) the cells are heatmap stacks instead,
+    each block with its own region label (12 wide, 30 long) on side
+    ``region``, an optional heatmap Y label, and ``stack_headers`` as
+    (level, cell, (first, last) block, candidates).
+    """
+    heights = titles or {}
+    cells = tuple(grid.CellLayout(
+        row, column, None if stack else grid.Size(100, 80), tuple(stack),
+        100, grid.CellInsets(),
+        grid.CellLabels(
+            title_text='title', title_order=row * columns + column,
+            title_candidates=(_candidate(
+                'title', 40, heights.get((row, column), 10)),),
+            y_candidates=(y_label,) if y_label else ()),
+        blocks=tuple(StackBlock(block, 0) for block in range(len(stack))))
+        for row in range(rows) for column in range(columns))
+    runs = tuple(grid.LabelRun('stack', (cell,), (_candidate('label', 12, 30),),
+                               block_index=block, location=region)
+                 for cell in range(len(cells)) if stack
+                 for block in range(len(stack)))
+    return grid.GridLayoutSpec(rows, columns, cells, runs=runs, headers=tuple(
+        grid.LabelRun('header_x', tuple(range(first, last + 1)), candidates,
+                      level=level)
+        for level, (first, last), candidates in headers) + tuple(
+        grid.LabelRun('header_stack', (cell,), candidates, location=region,
+                      level=level, block_span=span)
+        for level, cell, span, candidates in stack_headers) + tuple(
+        grid.LabelRun('header_row', tuple(
+            index for index, cell in enumerate(cells)
+            if first <= cell.row <= last), candidates, location='right',
+            level=level)
+        for level, (first, last), candidates in row_headers), **options)
+
+
+def test_x_headers_stack_over_titles_and_under_figure_decorations():
+    geometry = replace(grid.DEFAULT_GEOMETRY, header_rule_to_label_gap=5,
+                       header_text_to_rule_gap=3, header_rule_inset=4,
+                       header_rule_width=1.5)
+    spec = _header_grid((
+        (1, (0, 1), (_candidate('Untreated', 60, 10),)),
+        (1, (2, 3), (_candidate('Treated', 50, 12),)),
+        (2, (0, 3), (_candidate('Experiment', 70, 10),)),
+        (1, (5, 6), (_candidate('Sample A', 50, 10),))),
+        rows=2, titles={(0, 1): 20},
+        decorations=(grid.Decoration('legend', 'figure', 0, 'above',
+                                     size=grid.Size(80, 24)),),
+        title=grid.MeasuredLabelSpec((_candidate('figure', 60, 14),)),
+        geometry=geometry)
+    rects = grid.solve(spec).rects
+    profile = {(row, column): rects[grid.cell_profile(row, column)]
+               for row in range(2) for column in range(4)}
+    rule = {name: rects[grid.header_rule_role(*name)]
+            for name in ((0, 1, 0), (0, 1, 1), (0, 2, 0), (1, 1, 0))}
+    text = {name: rects[grid.header_role(*name)] for name in rule}
+    titles = {key: rects[grid.cell_title(*key)] for key in profile}
+    # Each rule spans the data of the cells it collects, inset at both
+    # ends; its text is centred on it, the text gap above it.
+    for (row, level, ordinal), (first, last) in {
+            (0, 1, 0): (0, 1), (0, 1, 1): (2, 3), (0, 2, 0): (0, 3),
+            (1, 1, 0): (1, 2)}.items():
+        line = rule[row, level, ordinal]
+        assert line.x0 == profile[row, first].x0 + 4
+        assert line.x1 == profile[row, last].x1 - 4
+        assert line.height == 1.5
+        label = text[row, level, ordinal]
+        assert label.x0 + label.width / 2 == pytest.approx(
+            line.x0 + line.width / 2)
+        assert label.y0 == pytest.approx(line.y1 + 3)
+    # Level 1 shares one baseline over the row's highest (wrapped) title;
+    # level 2 sits the same gap over level 1's tallest text.
+    assert rule[0, 1, 0].y0 == rule[0, 1, 1].y0 == pytest.approx(
+        titles[0, 1].y1 + 5)
+    assert rule[0, 2, 0].y0 == pytest.approx(text[0, 1, 1].y1 + 5)
+    # Neighbouring rules keep the column gap and both insets apart.
+    assert rule[0, 1, 1].x0 - rule[0, 1, 0].x1 == pytest.approx(
+        _gap(profile[0, 1], profile[0, 2]) + 8)
+    # A lower row's headers widen the gap above it, not the row above.
+    assert rule[1, 1, 0].y0 == pytest.approx(titles[1, 1].y1 + 5)
+    assert profile[0, 0].y0 - text[1, 1, 0].y1 == pytest.approx(
+        geometry.profile_row_gap)
+    # The above legend and the figure title stay over every header.
+    legend, title = rects['legend/figure/1'], rects[grid.figure_title()]
+    assert legend.y0 == pytest.approx(
+        text[0, 2, 0].y1 + geometry.external_legend_to_content_gap)
+    assert title.y0 >= legend.y1
+
+
+@pytest.mark.parametrize('name,candidates,selected', [
+    ('wraps_within_its_columns',
+     (_candidate('long header', 400, 10), _candidate('long\nheader', 150, 20)),
+     1),
+    ('widens_the_column_gap_within_the_cap',
+     (_candidate('wide header', 230, 10),), 0),
+])
+def test_long_x_header_wraps_or_widens_the_column_gap(name, candidates,
+                                                      selected):
+    headers = ((1, (0, 1), candidates), (1, (2, 3), candidates))
+    spec = _header_grid(headers)
+    solved = grid.solve(spec)
+    base = grid.solve(_header_grid(()))
+    left, right = (solved.rects[grid.header_role(0, 1, ordinal)]
+                   for ordinal in (0, 1))
+    assert [solved.selections[grid.header_role(0, 1, ordinal)]
+            for ordinal in (0, 1)] == [selected] * 2
+    assert left.height == candidates[selected].height
+    assert right.x0 - left.x1 >= spec.geometry.label_min_clearance
+    gap = _gap(solved.rects[grid.cell_profile(0, 1)],
+               solved.rects[grid.cell_profile(0, 2)])
+    base_gap = _gap(base.rects[grid.cell_profile(0, 1)],
+                    base.rects[grid.cell_profile(0, 2)])
+    assert base_gap <= gap <= spec.label_layout.max_column_gap_points
+    assert (gap > base_gap) == (name == 'widens_the_column_gap_within_the_cap')
+    assert 0 <= left.x0 and right.x1 <= solved.figure_size.width
+
+
+@pytest.mark.parametrize('region', ['right', 'left'])
+def test_stack_headers_stand_outside_region_labels(region):
+    geometry = replace(grid.DEFAULT_GEOMETRY, header_rule_to_label_gap=5,
+                       header_text_to_rule_gap=3, header_rule_inset=4,
+                       header_rule_width=1.5, heatmap_to_row_header_gap=6,
+                       row_header_to_y_label_gap=7)
+    stack_headers = tuple(
+        (level, cell, span, (_candidate(text, width, 40),))
+        for cell in (0, 1) for level, span, text, width in (
+            (1, (0, 1), 'Sample A', 14), (1, (2, 3), 'Sample B', 10),
+            (2, (0, 3), 'Experiment', 12)))
+    spec = _header_grid(
+        (), columns=2, stack=(40, 40, 40, 40), region=region,
+        stack_headers=stack_headers, y_label=_candidate('regions', 12, 50),
+        decorations=(grid.Decoration('colorbar', 'row', 0, 'right'),
+                     grid.Decoration('row_label', 'row', 0, 'right',
+                                     text='row', candidates=(
+                                         _candidate('row', 12, 30),))),
+        geometry=geometry)
+    rects = grid.solve(spec).rects
+    sign = 1 if region == 'right' else -1
+
+    def outward(inner, outer):
+        """How far ``outer`` stands outside ``inner``, away from the stack."""
+        return outer.x0 - inner.x1 if sign > 0 else inner.x0 - outer.x1
+
+    for cell in (0, 1):
+        blocks = [rects[grid.cell_block(0, cell, block)] for block in range(4)]
+        labels = [rects[grid.label_role('stack', 0, cell, block)]
+                  for block in range(4)]
+        rule = {(level, ordinal): rects[grid.header_rule_role(
+                    0, level, ordinal, cell)]
+                for level, ordinal in ((1, 0), (1, 1), (2, 0))}
+        text = {key: rects[grid.header_role(0, *key, cell)] for key in rule}
+        # Each rule spans the blocks it collects, inset at both ends, and
+        # its text is centred on it, the text gap outside it.
+        for key, (first, last) in {(1, 0): (0, 1), (1, 1): (2, 3),
+                                   (2, 0): (0, 3)}.items():
+            assert rule[key].y1 == pytest.approx(blocks[first].y1 - 4)
+            assert rule[key].y0 == pytest.approx(blocks[last].y0 + 4)
+            assert rule[key].width == 1.5
+            assert text[key].y0 + text[key].height / 2 == pytest.approx(
+                rule[key].y0 + rule[key].height / 2)
+            assert outward(rule[key], text[key]) == pytest.approx(3)
+        # Level 1 clears the region labels by the rule gap; level 2 stacks
+        # outward the same gap past level 1's widest text.
+        edge = max(labels, key=lambda rect: sign * rect.x1)
+        assert outward(edge, rule[1, 0]) == pytest.approx(5)
+        assert rule[1, 0].x0 == rule[1, 1].x0
+        assert outward(text[1, 0], rule[2, 0]) == pytest.approx(5)
+        # The block gap breaks the rules of neighbouring headers.
+        assert rule[1, 0].y0 - rule[1, 1].y1 == pytest.approx(
+            blocks[1].y0 - blocks[2].y1 + 8)
+    second = rects[grid.cell_block(0, 1, 0)]
+    first = rects[grid.cell_block(0, 0, 0)]
+    if region == 'right':
+        # The next column, the right colorbar and the row label clear the
+        # headers.
+        assert second.x0 > rects[grid.header_role(0, 2, 0, 0)].x1
+        assert rects['colorbar/row/1/1'].x0 > \
+            rects[grid.header_role(0, 2, 0, 1)].x1
+        assert rects[grid.row_label(0)].x0 > rects['colorbar/row/1/1'].x1
+        bare = grid.solve(replace(spec, decorations=spec.decorations[1:]))
+        assert bare.rects[grid.row_label(0)].x0 > \
+            bare.rects[grid.header_role(0, 2, 0, 1)].x1
+    else:
+        # Heatmap Y labels clear the headers by their gap, in every column,
+        # and the next column clears the first column's data.
+        for cell in (0, 1):
+            assert rects[grid.header_role(0, 2, 0, cell)].x0 - \
+                rects[grid.label_role('heatmap_y', 0, cell)].x1 == \
+                pytest.approx(7)
+        assert rects[grid.label_role('heatmap_y', 0, 1)].x0 > first.x1
+
+
+@pytest.mark.parametrize('name,candidates,growth,selected', [
+    ('wraps_within_its_blocks',
+     (_candidate('long header', 12, 150), _candidate('long\nheader', 24, 70)),
+     True, 1),
+    ('grows_the_block_gap_within_the_cap',
+     (_candidate('long header', 12, 100),), True, 0),
+    ('keeps_the_block_gap_without_growth',
+     (_candidate('long header', 12, 100),), False, 0),
+])
+def test_long_stack_header_wraps_or_grows_the_block_gap(name, candidates,
+                                                        growth, selected):
+    layout = replace(grid.DEFAULT_LABEL_LAYOUT,
+                     heatmap_region_label_gap_growth=growth)
+    spec = _header_grid((), columns=1, stack=(40, 40, 40, 40), stack_headers=(
+        (1, 0, (0, 1), candidates), (1, 0, (2, 3), candidates)),
+        label_layout=layout)
+    solved = grid.solve(spec)
+    upper, lower = (solved.rects[grid.header_role(0, 1, ordinal, 0)]
+                    for ordinal in (0, 1))
+    assert [solved.selections[grid.header_role(0, 1, ordinal, 0)]
+            for ordinal in (0, 1)] == [selected] * 2
+    assert upper.height == candidates[selected].height
+    gap = (solved.rects[grid.cell_block(0, 0, 1)].y0 -
+           solved.rects[grid.cell_block(0, 0, 2)].y1)
+    base = spec.geometry.heatmap_group_gap
+    assert base <= gap <= layout.max_heatmap_region_gap_points
+    assert (gap > base) == (name == 'grows_the_block_gap_within_the_cap')
+    if growth:
+        assert upper.y0 - lower.y1 >= spec.geometry.label_min_clearance
+
+
+@pytest.mark.parametrize('labelled', [True, False],
+                         ids=['beside_row_labels', 'in_place_of_row_labels'])
+def test_row_headers_stand_outside_row_labels(labelled):
+    geometry = replace(grid.DEFAULT_GEOMETRY, header_rule_to_label_gap=5,
+                       header_text_to_rule_gap=3, header_rule_inset=4,
+                       header_rule_width=1.5,
+                       profile_panel_to_row_header_gap=6)
+    long = (_candidate('long header', 12, 2000),
+            _candidate('long\nheader', 24, 150))
+    row_labels = tuple(
+        grid.Decoration('row_label', 'row', row, 'right', text='rep',
+                        candidates=(_candidate('rep', 10 + row, 30),))
+        for row in range(4)) if labelled else ()
+    spec = _header_grid(
+        (), rows=4, columns=2, row_headers=(
+            (1, (0, 1), (_candidate('Untreated', 14, 60),)),
+            (1, (2, 2), (_candidate('Treated', 10, 40),)),
+            (1, (3, 3), (_candidate('Treated', 10, 40),)),
+            (2, (0, 3), long)),
+        decorations=row_labels + (
+            grid.Decoration('legend', 'row', 1, 'right',
+                            size=grid.Size(60, 20)),
+            grid.Decoration('legend', 'figure', 0, 'right',
+                            size=grid.Size(30, 20))),
+        geometry=geometry)
+    solved = grid.solve(spec)
+    rects = solved.rects
+    profile = {(row, column): rects[grid.cell_profile(row, column)]
+               for row in range(4) for column in range(2)}
+    rule = {key: rects[grid.row_header_rule_role(*key)]
+            for key in ((1, 0), (1, 1), (1, 2), (2, 0))}
+    text = {key: rects[grid.row_header_role(*key)] for key in rule}
+    # Each rule spans the data of the rows it collects, inset at both
+    # ends; its text is centred on it, the text gap right of it.
+    for key, (first, last) in {(1, 0): (0, 1), (1, 1): (2, 2),
+                               (1, 2): (3, 3), (2, 0): (0, 3)}.items():
+        assert rule[key].y1 == pytest.approx(profile[first, 0].y1 - 4)
+        assert rule[key].y0 == pytest.approx(profile[last, 0].y0 + 4)
+        assert rule[key].width == 1.5
+        assert text[key].y0 + text[key].height / 2 == pytest.approx(
+            rule[key].y0 + rule[key].height / 2)
+        assert text[key].x0 - rule[key].x1 == pytest.approx(3)
+    # Equal neighbours given apart stay two rules, broken by the row gap
+    # and both insets.
+    assert rule[1, 1].y0 - rule[1, 2].y1 == pytest.approx(
+        profile[2, 0].y0 - profile[3, 0].y1 + 8)
+    # Level 1 shares one line the rule gap right of the widest row label
+    # (or, without labels, the label gap right of the rows, which clear
+    # the right row legend); level 2 stacks outward past level 1's widest
+    # text. The long level-2 header wraps to fit the rows.
+    level_one = {rule[1, ordinal].x0 for ordinal in range(3)}
+    assert len(level_one) == 1
+    if labelled:
+        labels = [rects[grid.row_label(row)] for row in range(4)]
+        assert level_one.pop() == pytest.approx(
+            max(label.x1 for label in labels) + 5)
+    else:
+        assert not any(role.startswith('label/row/') for role in rects)
+        assert level_one.pop() == pytest.approx(
+            rects['legend/row/2'].x1 + 6)
+    assert rects['legend/row/2'].x0 > profile[1, 1].x1
+    assert rule[2, 0].x0 == pytest.approx(text[1, 0].x1 + 5)
+    assert solved.selections[grid.row_header_role(2, 0)] == 1
+    assert text[2, 0].height == 150
+    # The figure legend clears the headers, and the canvas holds them.
+    assert rects['legend/figure/1'].x0 > text[2, 0].x1
+    assert 0 <= text[1, 0].y0 and text[2, 0].x1 <= solved.figure_size.width

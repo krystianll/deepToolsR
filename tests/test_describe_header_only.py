@@ -177,6 +177,23 @@ def test_serve_load_returns_the_full_record(matrix):
     assert all(group['regions'] for group in reply['describe']['groups'])
 
 
+@pytest.mark.parametrize('load', [False, True], ids=['header_only', 'loaded'])
+def test_more_clusters_than_regions_is_an_option_error(matrix, load):
+    # The plot refuses 31 clusters of 30 rows; describe must too, as the
+    # options error a client can show, never an internal failure.
+    from deeptoolsr.serve import _Worker, _Writer
+
+    request = _Worker._validate_request({
+        'id': 'one', 'describe': ['plotProfileR', '-m', matrix, '--kmeans',
+                                  '31'], 'load': load})
+    worker = _Worker(_Writer(StringIO()), StringIO())
+    with PlotSession() as session:
+        reply = worker._run(session, request)
+    assert reply['ok'] is False, reply
+    assert reply['error']['kind'] == 'options', reply
+    assert 'cluster' in reply['error']['message'], reply
+
+
 @pytest.mark.parametrize('request_data', [
     {'id': 'x', 'command': ['plotProfileR'], 'load': True},
     {'id': 'x', 'info': ['-m', 'matrix.gz'], 'load': True},

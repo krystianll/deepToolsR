@@ -149,7 +149,8 @@ def test_matrix_help_groups_own_their_options():
             '--clusterUsingSamples', '--clusterUsingGroups',
             '--arrangeSamples', '--arrangeGroups',
             '--commonLegend',
-            '--sampleSetLabels', '--sampleSetGroupArrangement',
+            '--sampleSetLabels', '--nestedHeaders',
+            '--sampleSetGroupArrangement',
             '--gridColumns', '--gridRows', '--regionsLabel',
             '--samplesLabel', '--showRegionCounts', '--sameGroupLabels',
             '--sameSampleLabels', '--xAxisLabel', '--xAxisVisibility',
@@ -164,7 +165,7 @@ def test_matrix_help_groups_own_their_options():
             '--ci_level', '--bootstrapReplicates', '-p',
             '--profileHeight', '--profileAspectRatio', '--yAxisLabel',
             '--yAxisVisibility', '--yAxisLimits', '--yMin', '--yMax',
-            '--yScale', '--yPseudologSigma',
+            '--yScale', '--yPseudologSigma', '--linesAsSteps',
             '--colorsPerSample', '--legendLocation'),
         'Heatmap options': (
             '--heatmapHeight', '--heatmapAspectRatio',
@@ -173,7 +174,7 @@ def test_matrix_help_groups_own_their_options():
             '--colorbarLabels', '--sortIndicator', '--colorMap', '--alpha',
             '--colorList', '--colorNumber', '--missingDataColor',
             '--boxAroundHeatmaps', '--zMin', '--zMax', '--zMid',
-            '--silhouette'),
+            '--zAxisLimits', '--silhouette'),
     }
     for title, options in ownership.items():
         actual = {option for action in groups[title]._group_actions

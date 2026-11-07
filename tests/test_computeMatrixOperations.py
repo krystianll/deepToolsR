@@ -1198,6 +1198,32 @@ def test_transform_plain_matrix_io(tmp_path):
     np.testing.assert_allclose(_load(output).values, 2)
 
 
+def test_sorted_matrix_without_sort_fields_still_plots(tmp_path):
+    # Both header sort fields are optional; sorting a matrix that lacks them
+    # must still write one the plot tools accept.
+    from deeptoolsr import plotProfile
+    header = {
+        'upstream': [0], 'downstream': [0], 'body': [2], 'bin size': [1],
+        'unscaled 5 prime': [0], 'unscaled 3 prime': [0],
+        'ref point': [None], 'sample_labels': ['Sample A'],
+        'group_labels': ['genes'], 'sample_boundaries': [0, 2],
+        'group_boundaries': [0, 3]}
+    rows = ''.join(f'chr1\t{i * 100}\t{i * 100 + 50}\tr{i}\t0\t+\t{i}\t{i}\n'
+                   for i in range(3))
+    source, bed = tmp_path / 'source.mat', tmp_path / 'genes.bed'
+    source.write_bytes(('@' + json.dumps(header) + '\n' + rows).encode())
+    bed.write_bytes(b''.join(
+        f'chr1\t{i * 100}\t{i * 100 + 50}\tr{i}\t0\t+\n'.encode()
+        for i in (2, 0, 1)))
+    sorted_matrix, plot = tmp_path / 'sorted.mat', tmp_path / 'plot.png'
+
+    cmo.main(['sort', '-m', str(source), '-R', str(bed),
+              '-o', str(sorted_matrix)])
+    plotProfile.main(['-m', str(sorted_matrix), '-o', str(plot)])
+
+    assert plot.stat().st_size > 0
+
+
 @pytest.mark.parametrize('labels,match', [
     (['', 'g2'], 'non-empty group labels'),
     (['g', 'g'], 'unique group labels'),

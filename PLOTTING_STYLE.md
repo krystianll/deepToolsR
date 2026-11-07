@@ -53,7 +53,20 @@ so it is self-documenting. The style sections are:
   `figure_title_text` (12 pt), `panel_title_text` (10 pt — also the sample /
   structural row / facet headers), `region_label_text` (heatmap side-region
   labels), `axis_label_text` (X and Y share this), the tick and colorbar text,
-  and the legend roles — all 8 pt by default.
+  and the legend roles — all 8 pt by default. Three roles belong to the
+  nested headers of `--nestedHeaders`, each a copy of the labels the header
+  embraces: `panel_title_header_text` (the headers drawn over cell titles,
+  as `panel_title_text`; they wrap and widen the column gaps with the
+  `panel_title_*` layout settings and `max_column_gap_points`, like
+  titles), `region_label_header_text` (the headers drawn beside heatmap
+  region labels, as `region_label_text`; rotated like those labels, they
+  wrap and may widen the block gap with the `heatmap_region_label_*`
+  layout settings, `heatmap_region_label_gap_growth` and
+  `max_heatmap_region_gap_points`, like region labels), and
+  `row_label_header_text` (the headers drawn beside row labels, as
+  `panel_title_text`, which row labels use; rotated like row labels, they
+  wrap and may widen the row gap with the `panel_title_*` layout settings,
+  `auto_facet_label_layout` and `max_row_gap_points`, like row labels).
 - `label_layout`: measured wrapping and gap limits for structural labels.
   `auto_panel_title_column_gap`, `auto_axis_label_layout`, and
   `auto_facet_label_layout` enable automatic layout for panel/sample titles,
@@ -65,7 +78,10 @@ so it is self-documenting. The style sections are:
   and X labels share one column-gap decision;
   profile titles and X labels do too. Profile Y and facet labels share a
   row-gap decision, while incoming-column Y decorations may add private width
-  to their own column boundary.
+  to their own column boundary. The figure title wraps between words, into
+  as few lines as keep it within the plot's width; among those it uses the
+  `panel_title_balance_weight` and `panel_title_orphan_weight` preferences.
+  A title that fits keeps its literal layout.
 
   `max_column_gap_points` and `max_row_gap_points` default to 96 pt and
   are hard limits on the uniform common gap. If labels still do not fit,
@@ -120,7 +136,16 @@ so it is self-documenting. The style sections are:
 
 - `geometry`: physical spacing in points, including figure padding and gaps
   between titles, legends, heatmaps, axes, ticks, and colorbars; it also holds
-  colorbar size limits such as thickness and minimum height.
+  colorbar size limits such as thickness and minimum height. Four keys
+  space the nested headers (`--nestedHeaders`; used by the headers over
+  cell titles and beside region and row labels), copying the spacing of
+  the labels they embrace:
+  `header_rule_to_label_gap` (4 pt, from the labels a header embraces, or
+  the level inside it, to the rule under the header) and
+  `header_text_to_rule_gap` (4 pt, rule to the header text), as far as a
+  title sits from its panel; `header_rule_inset` (2 pt, each rule end is
+  shortened by it, so two neighbouring rules keep `label_min_clearance`
+  apart); and `header_rule_width` (0.8 pt, the axis spine width).
 - `drawing`: stroke settings separate from layout geometry. `profile_line_width`
   controls the profile-line width (1.5 pt by default).
 
@@ -141,6 +166,7 @@ automatically, the `label_layout` `max_*` fields cap the gap.
 | stack ↔ sort indicator | `sort_indicator_gap` |
 | stack ↔ region labels | `heatmap_to_row_header_gap` |
 | region labels ↔ heatmap Y label | `row_header_to_y_label_gap` |
+| cell titles, region labels or row labels (or the header level inside) ↔ the rule of the nested header over or beside them | `header_rule_to_label_gap`; rule ↔ its text `header_text_to_rule_gap` |
 | heatmap ↔ colorbar | `heatmap_colorbar_gap`; inside a colorbar area, the `colorbar_*` fields |
 | column ↔ column (minimum, then measured) | `heatmap_min_column_gap` if either column has a heatmap, else `profile_min_column_gap` |
 | grid row ↔ grid row | `profile_row_gap`, added to the measured extents |

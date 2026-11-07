@@ -18,7 +18,7 @@ def _read(target, path):
         compressed_bz2 = handle.read(3) == b'BZh'
     if compressed_bz2:
         with bz2.open(path, 'rb') as stream:
-            target.read_stream(stream.read, path)
+            target.read_stream(stream.read, native_path(path))
     else:
         target.read_file(native_path(path))
 

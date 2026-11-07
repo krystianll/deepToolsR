@@ -278,9 +278,11 @@ enum class NanMode { Keep = 0, AnyBin = 1, AnySample = 2, AllBins = 3 };
 struct SampleEval {
     bool value_fail = false;
     std::size_t finite = 0, total = 0;
+    // AnySample and AllBins agree on one sample; across samples AllBins
+    // applies to the summed evaluation (FilterPolicy::keep_row).
     bool fails(NanMode mode) const {
         return value_fail || (mode == NanMode::AnyBin && finite < total) ||
-            (mode == NanMode::AnySample && finite == 0);
+            ((mode == NanMode::AnySample || mode == NanMode::AllBins) && finite == 0);
     }
 };
 template<class Get>

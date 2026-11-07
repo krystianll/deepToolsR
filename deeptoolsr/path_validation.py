@@ -3,15 +3,13 @@
 from contextlib import contextmanager
 import os
 import re
+import secrets
 import stat
 import tempfile
 import unicodedata
 
-# Published outputs get the mode a plain open() would give them; mkstemp
-# creates 0600 files. Read the umask once, at import, before worker threads.
-_UMASK = os.umask(0)
-os.umask(_UMASK)
-_OUTPUT_MODE = 0o666 & ~_UMASK
+from deeptoolsr.native_path import check_path_length
+
 _TEMP_PREFIX = '.deeptoolsr.'
 
 
@@ -70,6 +68,8 @@ def validate_input_output_paths(inputs, outputs):
     """
     input_paths = [path for value in inputs if (path := _path(value))]
     output_paths = [path for value in outputs if (path := _path(value))]
+    for path in (*input_paths, *output_paths):
+        check_path_length(path)
     for output in output_paths:
         for input_path in input_paths:
             if _aliases(output, input_path):
@@ -112,10 +112,20 @@ def validate_input_output_paths(inputs, outputs):
 
 
 def _reserve(directory, suffix):
-    descriptor, path = tempfile.mkstemp(
-        prefix=_TEMP_PREFIX, suffix=suffix, dir=directory)
-    os.close(descriptor)
-    return path
+    """Create an empty file with an unused random name in ``directory``.
+
+    Like a plain open(), the OS applies the umask current at this moment, so
+    a new output published from it gets the default file mode.
+    """
+    for _ in range(tempfile.TMP_MAX):
+        path = os.path.abspath(os.path.join(
+            directory, _TEMP_PREFIX + secrets.token_hex(8) + suffix))
+        try:
+            os.close(os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o666))
+        except FileExistsError:
+            continue
+        return path
+    raise FileExistsError("no unused temporary file name in {!r}".format(directory))
 
 
 @contextmanager
@@ -136,12 +146,13 @@ def _discard(path):
         pass
 
 
-def _output_mode(destination):
-    """Keep an existing destination's permission bits; new files get the umask default."""
+def _output_mode(temporary, destination):
+    """Keep an existing destination's permission bits; a new output keeps
+    the mode its temporary was created with (see _reserve)."""
     try:
         return stat.S_IMODE(os.stat(destination).st_mode)
     except OSError:
-        return _OUTPUT_MODE
+        return stat.S_IMODE(os.stat(temporary).st_mode)
 
 
 def publish(staged):
@@ -159,7 +170,7 @@ def publish(staged):
     try:
         for index, (temporary, destination) in enumerate(staged):
             try:
-                os.chmod(temporary, _output_mode(destination))
+                os.chmod(temporary, _output_mode(temporary, destination))
             except OSError:
                 pass  # filesystems without POSIX modes keep their default
             backup = None

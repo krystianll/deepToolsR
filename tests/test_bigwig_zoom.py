@@ -8,7 +8,6 @@ each level at 0; deepToolsR writes it.
 """
 
 import os
-import signal
 import subprocess
 import sys
 import time
@@ -182,20 +181,29 @@ def test_failed_write_removes_spill_file(tmp_path, dense_track):
     assert os.listdir(tmp_path) == ["in.bw"]
 
 
+# The job ends soon after it spills, so the child interrupts itself: a 1 ms
+# timer runs Python's Ctrl+C handler at the first native signal check after
+# the spill file exists (named after the staged output, hence the listing).
+INTERRUPT_WHEN_SPILLED = """\
+import os, signal, sys
+from deeptoolsr import bigWigOperations
+def tick(signum, frame):
+    if any(n.endswith(".zoomruns") for n in os.listdir(os.path.dirname(sys.argv[2]))):
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.default_int_handler(signal.SIGINT, frame)
+signal.signal(signal.SIGALRM, tick)
+signal.setitimer(signal.ITIMER_REAL, 0.001, 0.001)
+bigWigOperations.main(['scale', '-b', sys.argv[1], '-o', sys.argv[2], '-s', '2'])
+"""
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="POSIX SIGINT delivery")
 def test_cancel_removes_spill_file(tmp_path, dense_track):
     out = tmp_path / "out.bw"
-    child = subprocess.Popen(
-        [sys.executable, "-c", "import sys\nfrom deeptoolsr import bigWigOperations\n"
-         "bigWigOperations.main(['scale', '-b', sys.argv[1], '-o', sys.argv[2], '-s', '2'])",
-         str(dense_track), str(out)], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    deadline = time.monotonic() + 60
-    while not any(n.endswith(".zoomruns") for n in os.listdir(tmp_path)):
-        assert child.poll() is None and time.monotonic() < deadline, "spill file never appeared"
-        time.sleep(0.002)
-    child.send_signal(signal.SIGINT)
-    child.communicate(timeout=60)
+    child = subprocess.run([sys.executable, "-c", INTERRUPT_WHEN_SPILLED, str(dense_track), str(out)],
+                           capture_output=True, text=True, timeout=120)
     assert child.returncode != 0
+    assert "interrupted" in child.stderr
     assert os.listdir(tmp_path) == []
 
 

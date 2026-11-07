@@ -20,6 +20,7 @@ from deeptoolsr.matrix import Matrix, OwnedMatrix
 from deeptoolsr.session import (
     Cancelled, OPTION_STAGES, PlotSession, project_color_spec,
     project_scan_spec, project_scene_digest)
+from tests.helpers.hidden_samples import write_hidden_sample_matrix
 
 
 MATRIX = Path(__file__).parent / 'test_heatmapper' / 'master_multi.mat.gz'
@@ -108,7 +109,8 @@ def test_numeric_projection_reads_are_owned_or_derived():
              if stage == 'order'}
     order_derived = {
         'show_heatmap', 'outFileSortedRegions', 'outFileNameMatrix',
-        'outFileSortedRegionsPerGroup', 'regionsLabel', 'run_options'}
+        'outFileSortedRegionsPerGroup', 'regionsLabel', 'samplesLabel',
+        'run_options'}
     assert _attribute_reads(prepare._common_spec, 'args') <= (
         order | order_derived)
 
@@ -245,6 +247,10 @@ def _warm_cold(session, tmp_path, before, after, *, source=MATRIX,
     ('quantiles', ('--heatmap', '--sortRegions', 'descend'),
      ('--heatmap', '--sortRegions', 'descend',
       '--quantileSortedRegions', '2'), ('matrix',)),
+    ('arrange_reorder', ('--heatmap', '--arrangeSamples', '1', '2'),
+     ('--heatmap', '--arrangeSamples', '2', '1'), ('layout', 'scan')),
+    ('arrange_hide', ('--heatmap', '--arrangeSamples', '1', '2'),
+     ('--heatmap', '--arrangeSamples', '1', '3'), ('matrix',)),
 ])
 def test_warm_transition_matches_cold(name, before, after, hits, tmp_path):
     recomputes = {
@@ -253,7 +259,7 @@ def test_warm_transition_matches_cold(name, before, after, hits, tmp_path):
         'heatmap_lut': ('bitmaps',), 'bad_color': ('bitmaps',),
         'z_mid': ('bitmaps',), 'per_group': ('bitmaps',),
         'filter': ('layout',), 'quantiles': ('layout',),
-        'merge': ('layout',),
+        'merge': ('layout',), 'arrange_hide': ('layout',),
         'enable_heatmap_unconsumed': ('layout', 'statistics'),
     }
     with PlotSession(cache_bytes=64 << 20) as session:
@@ -858,3 +864,26 @@ def test_many_text_entries_respect_heap_budget():
     tracemalloc.stop()
     assert cache.bytes_used <= cache.budget
     assert growth <= cache.budget * 1.1
+
+
+def test_changing_arranged_samples_resorts_on_drawn_samples(tmp_path):
+    """Default sort follows the new --arrangeSamples subset in one session."""
+    # Sample B mirrors C, so all samples together sort r7..r0 while the
+    # drawn samples A and C put the even rows first.
+    source = write_hidden_sample_matrix(tmp_path / 'hidden.gz',
+                                        b_mirrors_c=True)
+
+    def command(stem, *flags):
+        bed = tmp_path / f'{stem}.bed'
+        return ['plotHeatmapR', '-m', source, '-p', '1',
+                '-o', str(tmp_path / f'{stem}.png'), '--sortRegions',
+                'descend', '--outFileSortedRegions', str(bed), *flags], bed
+    with PlotSession(cache_bytes=64 << 20) as session:
+        session.run(command('first', '--arrangeSamples', '1', '2')[0])
+        argv, warm = command('second', '--arrangeSamples', '1', '3')
+        session.run(argv)
+    argv, explicit = command('explicit', '--arrangeSamples', '1', '3',
+                             '--sortUsingSamples', '1', '3')
+    with PlotSession(cache_bytes=0) as fresh:
+        fresh.run(argv)
+    assert warm.read_bytes() == explicit.read_bytes()

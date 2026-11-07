@@ -667,8 +667,17 @@ def test_compute_matrix_option_parity(tmp_path, parity_matrix_inputs, name, mode
     assert set(map(tuple, orows)) == set(lookup)
     np.testing.assert_allclose(pv[[lookup[tuple(row)] for row in orows]], ov, rtol=3e-07, atol=1.01e-06, equal_nan=True)
     if orows != prows:
-        assert name.startswith('sort-mean-'), 'unexpected region reordering'
-        expected_key = {tuple(row): np.nanmean(values[8:]) for row, values in zip(orows, ov)}
+        # Rows may differ from 3.5.6 only among equal sort keys: deepToolsR
+        # keeps tied rows in input order; 3.5.6's tie order depends on the
+        # CPU and its descend reverses ties.
+        assert name.startswith('sort-'), 'unexpected region reordering'
+        stat = name.split('-')[1]
+
+        def key(row, values):
+            if stat == 'region_length':
+                return float(row[2]) - float(row[1])
+            return getattr(np, 'nan' + stat)(values[8:])
+        expected_key = {tuple(row): key(row, values) for row, values in zip(orows, ov)}
         np.testing.assert_allclose([expected_key[tuple(row)] for row in prows], [expected_key[tuple(row)] for row in orows], rtol=3e-07, atol=1e-06)
 
 

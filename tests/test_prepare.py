@@ -10,6 +10,7 @@ from tests.helpers.parity import read_matrix
 
 import io
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,8 @@ from deeptoolsr.prepare import (
     DataError, heatmap_spec, prepare, profile_spec,
     resolve_prepared_labels, warning_text,
 )
+from tests.helpers.hidden_samples import (
+    plot_outputs, write_hidden_sample_matrix)
 from tests.helpers.generate_prepare_expected import CASES
 from tests.helpers.prepare_fixtures import (
     assert_bed_equal, assert_diagnostics_equal,
@@ -82,7 +85,8 @@ def test_prepare_reproduces_every_accepted_cli_fixture(case, tmp_path):
               file=stdout)
     if args.sortUsingSamples is not None and spec.row_order_consumed:
         print('Samples used for ordering within each group: ',
-              [index - 1 for index in args.sortUsingSamples], file=stdout)
+              [int(index) - 1 for index in args.sortUsingSamples],
+              file=stdout)
     actual = {
         'status': 0, 'stdout': stdout.getvalue(),
         'stderr': ''.join(warning_text(
@@ -290,3 +294,145 @@ def test_h05_filtering_a_whole_group_does_not_require_quiet(tmp_path, criterion)
 @pytest.mark.parametrize('extra', [['--quiet'], ['--sortRegions', 'no']])
 def test_filtering_empty_group_controls(tmp_path, criterion, extra):
     filtered_groups(tmp_path, criterion, extra)
+
+
+# --arrangeSamples hides samples from every step without its own sample list.
+
+TOOLS = ['plotHeatmapR', 'plotProfileR', 'plotMatrixR']
+
+
+@pytest.mark.parametrize('tool', TOOLS)
+@pytest.mark.parametrize('arrange', [
+    pytest.param(['--arrangeSamples', '1', '2'], id='sets'),
+    pytest.param(['--perGroup', '--arrangeSamples', '1,2'], id='per_group')])
+def test_default_sort_uses_only_drawn_samples(tmp_path, tool, arrange):
+    source = write_hidden_sample_matrix(tmp_path / 'source.gz')
+    base = [*arrange, '--sortRegions', 'descend']
+    runs = iter(range(100))
+
+    def order(*flags):
+        out = tmp_path / f'run{next(runs)}'
+        return plot_outputs(out, tool, source, *base, *flags)[0]
+    hidden_sort = order('--sortUsingSamples', '3')
+    # an explicit list may still name the hidden sample
+    assert [name for name, _ in hidden_sort][:4] == ['r6', 'r4', 'r2', 'r0']
+    drawn_only = order('--sortUsingSamples', '1', '2')
+    assert [name for name, _ in drawn_only] == [f'r{i}'
+                                                for i in range(7, -1, -1)]
+    assert order() == drawn_only, 'default sort used the hidden sample'
+    assert order('--sortUsingSamples', '1-2') == drawn_only, 'range'
+    assert order('--sortUsingSamples', 'Sample C') == hidden_sort, 'name'
+    assert order('--sortUsingSamples', 'Sample A', '2-3') == order(
+        '--sortUsingSamples', '1', '2', '3'), 'name and range'
+
+
+# A range far past the sample count is refused by its ends: it is never
+# expanded (a list this long cannot exist) and the message stays one line.
+HUGE_RANGE = '1-2000000000000000000'
+
+
+@pytest.mark.parametrize('flags', [
+    pytest.param(['--arrangeSamples', HUGE_RANGE], id='arrangeSamples'),
+    pytest.param(['--sortRegions', 'descend', '--sortUsingSamples',
+                  HUGE_RANGE], id='sortUsingSamples'),
+    pytest.param(['--kmeans', '2', '--clusterUsingSamples', HUGE_RANGE],
+                 id='clusterUsingSamples')])
+def test_huge_sample_range_is_refused_concisely(tmp_path, capsys, flags):
+    source = write_hidden_sample_matrix(tmp_path / 'source.gz')
+    output = tmp_path / 'plot.png'
+    with pytest.raises(SystemExit) as stopped:
+        plotHeatmap.main(['-m', source, '-o', str(output), *flags])
+    code = stopped.value.code
+    assert code not in (0, None)
+    message = (code if isinstance(code, str) else '') + capsys.readouterr().err
+    assert 'Traceback' not in message
+    assert len(message) < 500, 'the expanded range was printed'
+    # It names the offending range or its first sample past the three.
+    assert HUGE_RANGE in message or re.search(r'\b4\b', message), message
+    assert not output.exists()
+
+
+@pytest.mark.parametrize('tool', ['plotHeatmapR', 'plotProfileR'])
+def test_matrix_output_keeps_only_drawn_samples_in_matrix_order(tmp_path,
+                                                                tool):
+    source = write_hidden_sample_matrix(tmp_path / 'source.gz')
+    _, written = plot_outputs(tmp_path / 'run', tool, source,
+                              '--arrangeSamples', '3', '1',
+                              '--sortRegions', 'keep')
+    header, _, values = read_matrix(written)
+    _, _, original_values = read_matrix(source)
+    assert header['sample_labels'] == ['Sample A', 'Sample C']
+    assert header['sample_boundaries'] == [0, 2, 4]
+    np.testing.assert_array_equal(values, original_values[:, [0, 1, 4, 5]])
+
+
+# Sorting is stable: tied rows keep their input order in both directions,
+# and rows without a key stay last (ascend) or first (descend). The group
+# has more than 16 rows so numpy's unstable default reorders ties on every
+# CPU, not only on x86.
+
+TIED_ROWS = 40
+
+
+def tied_values():
+    """Row i holds i % 3 in every bin; row 5 is all NaN."""
+    values = [[i % 3, i % 3] for i in range(TIED_ROWS)]
+    values[5] = [np.nan, np.nan]
+    return values
+
+
+def stable_order(method):
+    keyed = [i for i in range(TIED_ROWS) if i != 5]
+    if method == 'descend':
+        ordered = sorted(keyed, key=lambda i: -(i % 3))
+        return ['r5'] + [f'r{i}' for i in ordered]
+    return [f'r{i}' for i in sorted(keyed, key=lambda i: i % 3)] + ['r5']
+
+
+@pytest.mark.parametrize('tool', TOOLS)
+@pytest.mark.parametrize('using', ['mean', 'max'])
+@pytest.mark.parametrize('method', ['ascend', 'descend'])
+def test_sort_keeps_tied_rows_in_input_order(tmp_path, tool, using, method):
+    source = tmp_path / 'source.gz'
+    make_matrix(source, tied_values())
+    rows, written = plot_outputs(tmp_path / 'run', tool, source,
+                                 '--sortRegions', method,
+                                 '--sortUsing', using)
+    expected = stable_order(method)
+    assert [name for name, _ in rows] == expected
+    assert [row[3] for row in read_matrix(written)[1]] == expected
+
+
+@pytest.mark.parametrize('method', ['ascend', 'descend'])
+def test_quantiles_cut_from_stable_order(tmp_path, method):
+    source = tmp_path / 'source.gz'
+    make_matrix(source, tied_values())
+    rows, _ = plot_outputs(tmp_path / 'run', 'plotHeatmapR', source,
+                           '--sortRegions', method,
+                           '--quantileSortedRegions', '3')
+    names = stable_order(method)
+    bounds = [0, 13, 26, 40]
+    expected = [(name, f'group0_Q{q + 1}')
+                for q in range(3) for name in names[bounds[q]:bounds[q + 1]]]
+    assert rows == expected
+
+
+@pytest.mark.parametrize('method', ['ascend', 'descend'])
+def test_compute_matrix_sort_keeps_tied_rows_in_input_order(tmp_path,
+                                                            method):
+    bw, bed, out = (tmp_path / 'signal.bw', tmp_path / 'regions.bed',
+                    tmp_path / 'out.gz')
+    starts = [i * 10 for i in range(TIED_ROWS)]
+    with pyBigWig.open(str(bw), 'w') as handle:
+        handle.addHeader([('chr1', TIED_ROWS * 10)])
+        handle.addEntries(['chr1'] * TIED_ROWS, starts,
+                          ends=[s + 10 for s in starts],
+                          values=[float(i % 3) for i in range(TIED_ROWS)])
+    bed.write_bytes(''.join(f'chr1\t{s}\t{s + 5}\tr{i}\t0\t+\n'
+                            for i, s in enumerate(starts)).encode())
+    computeMatrix.main(matrix_args(bw, bed, out, [
+        '--sortRegions', method, '--sortUsing', 'mean']))
+    direction = -1 if method == 'descend' else 1
+    expected = [f'r{i}' for i in sorted(range(TIED_ROWS),
+                                        key=lambda i: direction * (i % 3))]
+    assert [row[3] for row in read_matrix(out)[1]] == expected

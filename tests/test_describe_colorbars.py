@@ -170,3 +170,31 @@ def test_plot_and_describe_agree(plain, monkeypatch, tmp_path, extra):
     assert [(start + 1, title) for start, _, title in drawn] == [
         (bar['cells'][0], bar['title']['value'])
         for bar in record['colorbars']]
+
+
+@pytest.mark.parametrize('tool, option, value', [
+    ('plotHeatmapR', '--zMin', '1'), ('plotHeatmapR', '--zMax', '9'),
+    ('plotMatrixR', '--zMid', '4'), ('plotMatrixR', '--colorMap', 'Reds'),
+    ('plotHeatmapR', '--colorList', 'white,red')])
+def test_best_ignores_how_equal_scales_are_written(plain, tool, option,
+                                                   value):
+    argv = ['-m', plain, '--arrangeSamples', '1', '2']
+    if tool == 'plotMatrixR':
+        argv.append('--heatmap')
+
+    def positions(*values):
+        record = describe(tool, [*argv, option, *values])
+        return {bar['position'] for bar in record['colorbars']}
+    assert positions(value) == {'side'}
+    for values in ([value, value], [f'1,2={value}'],
+                   [f'1={value}', f'2={value}']):
+        assert positions(*values) == {'side'}
+
+
+@pytest.mark.parametrize('option, values', [
+    ('--zMin', ['1', '2']), ('--zMax', ['8', '9']),
+    ('--colorMap', ['1=Reds', '2=Blues'])])
+def test_best_goes_below_for_different_scales(plain, option, values):
+    record = describe('plotHeatmapR', [
+        '-m', plain, '--arrangeSamples', '1', '2', option, *values])
+    assert {bar['position'] for bar in record['colorbars']} == {'below'}

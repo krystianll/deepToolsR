@@ -45,6 +45,7 @@ def resolve_matrix_plan(header, layout, labels, spec, sizes=None):
                                if spec.show_heatmap else None),
         groups=groups,
         default_labels=default_labels,
+        headers=spec.nested_headers,
         option_spellings=tool_option_spellings(spec.tool, spec.invoked_spellings),
         context=('--arrangeSamples ' + ' '.join(spec.arrange_samples)
                  if spec.arrange_samples else None))

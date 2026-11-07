@@ -48,6 +48,7 @@ class MatrixFigureSpec:
     y_axis_limits: str = _panel('profile')
     y_scale: object = _panel('profile')
     y_pseudolog_sigma: float = _panel('profile')
+    lines_as_steps: bool = _panel('profile')
     x_axis_visibility: str
     y_axis_visibility: str
     axis_visibility: object
@@ -60,6 +61,7 @@ class MatrixFigureSpec:
     z_min: object = _panel('heatmap')
     z_max: object = _panel('heatmap')
     z_mid: object = _panel('heatmap')
+    z_axis_limits: str = _panel('heatmap')
     plot_title: str
     reference_point_label: object
     start_label: object
@@ -70,11 +72,15 @@ class MatrixFigureSpec:
     same_sample_labels: str
     arrange_samples: object
     sample_set_labels: object
+    nested_headers: bool
     placement: str
     grid_columns: object
     grid_rows: object
     common_legend: str = _panel('profile')
     legend_location: str = _panel('profile')
+    # 'below_top_profile' is 'below' whose shared legend sits under the
+    # first profile row instead of under the heatmaps.
+    shared_legend_under_profiles: bool = _panel('profile')
     lines_at_tick_marks: bool
     minor_tick_marks: object
     box_around_heatmaps: bool = _panel('heatmap')
@@ -134,6 +140,7 @@ def project_matrix_spec(args, tool):
         heatmap_y_axis_label=_option(args, 'heatmapYAxisLabel'),
         y_min=args.yMin, y_max=args.yMax, y_axis_limits=args.yAxisLimits,
         y_scale=args.yScale, y_pseudolog_sigma=args.yPseudologSigma,
+        lines_as_steps=args.linesAsSteps,
         x_axis_visibility=args.xAxisVisibility,
         y_axis_visibility=args.yAxisVisibility,
         axis_visibility=_option(args, 'axisVisibility'),
@@ -144,7 +151,8 @@ def project_matrix_spec(args, tool):
         missing_data_color=_option(args, 'missingDataColor'),
         alpha=_option(args, 'alpha'),
         z_min=_option(args, 'zMin'), z_max=_option(args, 'zMax'),
-        z_mid=_option(args, 'zMid'), plot_title=args.plotTitle,
+        z_mid=_option(args, 'zMid'),
+        z_axis_limits=_option(args, 'zAxisLimits'), plot_title=args.plotTitle,
         reference_point_label=args.refPointLabel,
         start_label=args.startLabel, end_label=args.endLabel,
         per_group=args.perGroup,
@@ -153,10 +161,14 @@ def project_matrix_spec(args, tool):
         same_sample_labels=args.sameSampleLabels,
         arrange_samples=args.arrangeSamples,
         sample_set_labels=args.sampleSetLabels,
+        nested_headers=args.nestedHeaders,
         placement=args.sampleSetGroupArrangement,
         grid_columns=args.gridColumns, grid_rows=args.gridRows,
         common_legend=args.commonLegend,
-        legend_location=args.legendLocation,
+        legend_location=('below' if args.legendLocation ==
+                         'below_top_profile' else args.legendLocation),
+        shared_legend_under_profiles=(
+            args.legendLocation == 'below_top_profile'),
         lines_at_tick_marks=args.linesAtTickMarks,
         minor_tick_marks=_option(args, 'minorTickMarks'),
         box_around_heatmaps=_option(args, 'boxAroundHeatmaps'),

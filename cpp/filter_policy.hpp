@@ -50,16 +50,19 @@ public:
     // No selected samples means no filtering, including under AllBins.
     template<class Evaluate, class Mask>
     bool keep_row(Evaluate evaluate, Mask mask) const {
-        bool all_missing = !samples_.empty();
+        // AllBins judges every selected bin together, not each sample.
+        const bool all_bins = nan_mode_ == NanMode::AllBins;
+        SampleEval row;
         for (const auto sample : samples_) {
             const SampleEval result = evaluate(sample);
-            all_missing &= result.finite == 0;
-            if (result.fails(nan_mode_)) {
+            row.finite += result.finite;
+            row.total += result.total;
+            if (result.fails(all_bins ? NanMode::Keep : nan_mode_)) {
                 if (action_ == FilterAction::RemoveRegion) return false;
                 mask(sample);
             }
         }
-        if (nan_mode_ == NanMode::AllBins && all_missing) {
+        if (all_bins && !samples_.empty() && row.fails(NanMode::AllBins)) {
             if (action_ == FilterAction::RemoveRegion) return false;
             for (const auto sample : samples_) mask(sample);
         }

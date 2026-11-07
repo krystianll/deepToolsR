@@ -10,7 +10,7 @@ licence text is in this folder, and the vendored trees keep their own copies.
 | deepToolsR changes (C++ core, R-suffix tools, etc.) | whole repo | MIT | Krystian Łazowski, 2026 | `deepTools-MIT.txt` (pointer line at the end of `../LICENSE.txt`) | n/a (own code) |
 | seaborn colormaps | `deeptoolsr/cm.py` | BSD-3-Clause | Michael L. Waskom, 2012-2019 | `seaborn-BSD-3-Clause.txt` | colormap data copied into `cm.py` |
 | htslib (excluding `cram/`) | `cpp/htslib/` | MIT (Expat) | Genome Research Ltd, 2012-2026 (plus other authors named in file headers) | `htslib-MIT-and-BSD-3-Clause.txt` | 1.24 release tarball; subset of upstream files, unmodified |
-| htslib `cram/` | `cpp/htslib/cram/` | BSD-3-Clause | Genome Research Ltd, 2012-2026 | `htslib-MIT-and-BSD-3-Clause.txt` | 1.24; unmodified |
+| htslib `cram/` | `cpp/htslib/cram/` | BSD-3-Clause | Genome Research Ltd, 2012-2026 | `htslib-MIT-and-BSD-3-Clause.txt` | 1.24; one Windows-only change in `cram_io.c`, see `cpp/htslib/CHANGES_deepToolsR.md` |
 | htscodecs (all files except the two below) | `cpp/htslib/htscodecs/` | BSD-3-Clause | Genome Research Ltd | `htscodecs-BSD-3-Clause.md` | 1.6.7 (bundled in htslib 1.24); subset of upstream files, unmodified |
 | htscodecs `c_range_coder.h` | `cpp/htslib/htscodecs/` | public domain (derived from work by Eugene Shelwien) | Eugene Shelwien | `htscodecs-BSD-3-Clause.md` | 1.6.7; unmodified |
 | htscodecs `rANS_byte.h`, `rANS_word.h` | `cpp/htslib/htscodecs/` | CC0-1.0 / public domain (derived from ryg_rans) | Fabian Giesen (waived) | `htscodecs-BSD-3-Clause.md` | 1.6.7; unmodified |

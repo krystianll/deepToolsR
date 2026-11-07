@@ -152,6 +152,21 @@ def test_missing_mate_contributes_only_the_observed_alignment(
     begin, end = SHAPES[shape]
     expected[begin:end] = 1
     np.testing.assert_array_equal(read_values(output), expected)
+    if aggregation != "count":
+        return
+    # The orphaned mate is one counted fragment, so both CPM denominators
+    # (the whole library and the retained units) hold exactly that one.
+    for denominator in ("library", "filtered"):
+        _coverage.bam_coverage_bigwig(
+            str(bam), str(output), bin_size=1, aggregation="count",
+            normalization="cpm", normalization_denominator=denominator,
+            window_size=7, threads=2, max_zooms=0, count_unit="fragment",
+            **kwargs,
+        )
+        np.testing.assert_allclose(
+            read_values(output), expected * 1e6, rtol=1e-6,
+            err_msg=f"{denominator} CPM denominator",
+        )
 
 
 @pytest.mark.parametrize("shape", ["extend", "5prime", "3prime", "center"])

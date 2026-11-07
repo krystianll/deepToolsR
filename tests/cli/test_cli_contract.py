@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from deeptoolsr import plotHeatmap, plotProfile
+from deeptoolsr import plotHeatmap, plotMatrix, plotProfile
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -95,9 +95,9 @@ def test_version_line(tool):
     assert result.returncode == 0, result.stderr
     assert re.fullmatch(re.escape(tool) + r' [0-9][\w.+-]*\n', result.stdout)
     if tool == 'bamCoverageR':
-        seqbench = (r'(?:bamCoverageR|deepToolsR|bamCoverage)[ \t]+'
-                    r'(?:version[ \t]+)?v?([0-9][\w.+-]*)')
-        assert re.fullmatch(seqbench + r'\n', result.stdout)
+        version_reader = (r'(?:bamCoverageR|deepToolsR|bamCoverage)[ \t]+'
+                          r'(?:version[ \t]+)?v?([0-9][\w.+-]*)')
+        assert re.fullmatch(version_reader + r'\n', result.stdout)
 
 
 # Each row passes through the real plot parser and process_args validator.
@@ -157,6 +157,19 @@ def test_required_output_is_rejected(tool):
     process = plotHeatmap.process_args if tool == 'heatmap' else plotProfile.process_args
     with pytest.raises(SystemExit):
         process(['-m', str(MATRIX)])
+
+
+@pytest.mark.parametrize('module,panel', [
+    (plotHeatmap, []), (plotProfile, []), (plotMatrix, ['--heatmap'])],
+    ids=['plotHeatmapR', 'plotProfileR', 'plotMatrixR'])
+def test_missing_matrix_is_a_usage_error(tmp_path, capsys, module, panel):
+    output = tmp_path / 'out.png'
+    with pytest.raises(SystemExit) as stopped:
+        module.main(['-o', str(output), *panel])
+    error = capsys.readouterr().err
+    assert stopped.value.code == 2
+    assert '--matrixFile' in error and 'Traceback' not in error
+    assert not output.exists()
 
 
 WARNINGS = [

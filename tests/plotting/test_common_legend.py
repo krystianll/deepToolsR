@@ -79,8 +79,10 @@ def _bars(figure):
 
 
 @pytest.mark.parametrize('flags,bars', [
+    # One sample set has one scale (extra values are unused): best keeps
+    # the right-hand bar.
+    (('--perGroup', '--zMax', '1', '2', '3'), ['colorbar/row/1/1']),
     # One sample set split into groups shares one bar under its cells.
-    (('--perGroup', '--zMax', '1', '2', '3'), ['colorbar/cell/1']),
     (('--perGroup', '--arrangeSamples', '1,2', '3', '--zMax', '1', '2'),
      ['colorbar/cell/1', 'colorbar/cell/4']),
     # Explicit below keeps one bar per cell.

@@ -161,13 +161,30 @@ def test_no_panel_and_series_heatmap_conflict(tmp_path, capsys):
     assert 'cannot be combined with --heatmap' in capsys.readouterr().err
 
 
-def test_profile_heatmap_options_are_inert(tmp_path):
-    base = ['-m', str(DATA / 'master.mat.gz'), '--profile', '-p', '1']
+@pytest.mark.parametrize('panel,hidden_options', [
+    pytest.param('--profile', ['--zMin', '0', '--colorMap', 'viridis'],
+                 id='heatmap_options_without_heatmap'),
+    # Valid only without a profile: CI bands cannot accompany a median.
+    pytest.param('--heatmap', ['--averageType', 'median', '--plotType', 'ci'],
+                 id='profile_options_without_profile'),
+])
+def test_profile_heatmap_options_are_inert(tmp_path, panel, hidden_options):
+    base = ['-m', str(DATA / 'master.mat.gz'), panel, '-p', '1']
     first, second = tmp_path / 'first.png', tmp_path / 'second.png'
     plotMatrix.main([*base, '-o', str(first)])
-    plotMatrix.main([*base, '-o', str(second), '--zMin', '0',
-                     '--colorMap', 'viridis'])
+    plotMatrix.main([*base, '-o', str(second), *hidden_options])
     assert first.read_bytes() == second.read_bytes()
+
+
+@pytest.mark.parametrize('panels', [['--profile'], ['--profile', '--heatmap']])
+def test_drawn_profile_refuses_ci_band_for_median(tmp_path, capsys, panels):
+    with pytest.raises(SystemExit) as stopped:
+        plotMatrix.main(['-m', str(DATA / 'master.mat.gz'), *panels,
+                         '-o', str(tmp_path / 'out.png'),
+                         '--averageType', 'median', '--plotType', 'ci'])
+    assert stopped.value.code == 2
+    assert '--plotType ci' in capsys.readouterr().err
+    assert not (tmp_path / 'out.png').exists()
 
 
 def test_filter_nans_is_shared_membership(tmp_path):

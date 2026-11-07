@@ -22,10 +22,12 @@ OPTION_STAGES = {
     'quantileSortedRegions': 'order', 'filterNans': 'order',
     'silhouette': 'order', 'sameGroupLabels': 'order',
     'arrangeGroups': 'order',
+    # The drawn samples feed sorting, clustering and --filterNans.
+    'arrangeSamples': 'order',
     'averageType': 'statistics', 'plotType': 'statistics',
     'pseudocount': 'statistics', 'trim_perc': 'statistics',
     'ci_level': 'statistics', 'bootstrapReplicates': 'statistics',
-    'zMin': 'limits', 'zMax': 'limits',
+    'zMin': 'limits', 'zMax': 'limits', 'zAxisLimits': 'limits',
     'colorMap': 'color', 'colorList': 'color',
     'colorNumber': 'color', 'zMid': 'color',
     'missingDataColor': 'color', 'interpolationMethod': 'color',
@@ -34,7 +36,7 @@ OPTION_STAGES = {
     'plotTitle': 'labels', 'xAxisLabel': 'labels',
     'yAxisLabel': 'labels', 'heatmapYAxisLabel': 'labels',
     'startLabel': 'labels', 'endLabel': 'labels',
-    'refPointLabel': 'labels', 'arrangeSamples': 'scene',
+    'refPointLabel': 'labels', 'nestedHeaders': 'labels',
     'axisVisibility': 'scene', 'xAxisVisibility': 'scene',
     'yAxisVisibility': 'scene', 'distanceUnit': 'scene',
     'distanceUnitLocation': 'scene', 'dpi': 'scene',
@@ -48,7 +50,7 @@ OPTION_STAGES = {
     'legendLocation': 'scene', 'sameSampleLabels': 'scene',
     'sampleSetGroupArrangement': 'scene',
     'yAxisLimits': 'scene', 'yMax': 'scene', 'yMin': 'scene',
-    'yScale': 'scene', 'yPseudologSigma': 'scene',
+    'yScale': 'scene', 'yPseudologSigma': 'scene', 'linesAsSteps': 'scene',
     'show_profile': 'scene', 'show_heatmap': 'scene',
     'cellWidth': 'scene', 'profileHeight': 'scene',
     'profileAspectRatio': 'scene',
@@ -245,11 +247,11 @@ class StagedNumeric:
     def statistics_batch(self, data, pairs, spec, threads):
         return self.session.statistics_batch(data, pairs, spec, threads)
 
-    def scan(self, data, probabilities, exact, threads):
+    def scan(self, data, probabilities, exact, threads, region=None):
         if not self.limits_staged:
             self.session.stage('limits', self.cancelled, self.progress)
             self.limits_staged = True
-        return self.session.scan(data, probabilities, exact, threads)
+        return self.session.scan(data, probabilities, exact, threads, region)
 
     def render(self, requests, threads):
         if not requests:
@@ -360,16 +362,17 @@ class PlotSession:
                 values[key] = value
         return tuple(values[key] for key in keys)
 
-    def scan(self, data, probabilities, exact, threads):
-        """Cache a global percentile scan separately from limit assignment."""
+    def scan(self, data, probabilities, exact, threads, region=None):
+        """Cache a percentile scan separately from limit assignment."""
         from .stats import scan_prepared_matrix
 
         key = (self.source_key, data.layout.digest(),
-               tuple(probabilities), bool(exact))
+               tuple(probabilities), bool(exact), region)
         value, _hit = self.get_or_compute(
             'scan', key,
             lambda: scan_prepared_matrix(
-                data, probabilities, exact=exact, threads=threads))
+                data, probabilities, exact=exact, threads=threads,
+                region=region))
         return value
 
     def render_bitmaps(self, requests, threads):

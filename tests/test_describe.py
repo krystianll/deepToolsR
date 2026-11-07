@@ -323,3 +323,52 @@ def test_describe_runs_the_plot_colour_checks(tool, extra, problem, tmp_path):
         printed = [line for line in cli.stderr.splitlines()
                    if line.startswith('WARNING: --colorsPerSample')]
         assert json.loads(metadata.stdout)['warnings'] == printed
+
+
+HEADER_LABELS = ('--arrangeSamples', '1,2', '3', '--samplesLabel',
+                 'Untreated|antisense', 'Untreated|sense', 'Treated|sense',
+                 '--regionsLabel', 'genes', 'genes', 'enhancers')
+X_HEADERS = [
+    {'axis': 'x', 'level': 1, 'text': 'Untreated', 'row': 1, 'cells': [1]},
+    {'axis': 'x', 'level': 1, 'text': 'Treated', 'row': 1, 'cells': [2]}]
+STACK_HEADERS = [
+    {'axis': 'stack', 'level': 1, 'text': 'antisense', 'row': 1,
+     'cells': [1], 'blocks': [1, 2, 3]},
+    {'axis': 'stack', 'level': 1, 'text': 'sense', 'row': 1, 'cells': [1],
+     'blocks': [4, 5, 6]},
+    {'axis': 'stack', 'level': 2, 'text': 'Untreated', 'row': 1,
+     'cells': [1], 'blocks': [1, 2, 3, 4, 5, 6]}]
+
+
+@pytest.mark.parametrize('name,options,headers', [
+    ('off_adds_nothing', (), None),
+    ('on_reports_levels_and_headers', ('--nestedHeaders',),
+     X_HEADERS + STACK_HEADERS),
+    ('hidden_region_labels_have_no_stack_headers',
+     ('--nestedHeaders', '--regionLabelLocation', 'none'), X_HEADERS),
+])
+def test_describe_reports_outer_header_levels(name, options, headers,
+                                              tmp_path):
+    matrix = tmp_path / 'distinct.gz'
+    write_input(matrix, distinct=True)
+    record = describe('plotHeatmapR', ['-m', str(matrix), *HEADER_LABELS,
+                                       *options])
+    added = {'title_levels', 'stack_label_levels'}
+    if headers is None:
+        assert not {'headers', 'row_label_levels'} & set(record)
+        assert not any(added & set(cell) for cell in record['cells'])
+        assert record['cells'][0]['title'] == (
+            'Untreated|antisense, Untreated|sense')
+        return
+    assert record['headers'] == headers
+    assert record['row_label_levels'] == []
+    assert [cell['title_levels'] for cell in record['cells']] == [
+        ['Untreated', 'antisense, sense'], ['Treated', 'sense']]
+    assert record['cells'][1]['stack_label_levels'] == [
+        ['genes'], ['genes'], ['enhancers']]
+    # Legends and colorbar titles cannot carry headers: levels are joined.
+    assert [item['label'] for item in record['series']][-3:] == [
+        'genes', 'genes', 'enhancers']
+    assert record['series'][0]['label'] == 'genes: Untreated antisense'
+    assert record['colorbars'][0]['title']['auto_text'] == (
+        'Untreated antisense, Untreated sense,\nTreated sense')

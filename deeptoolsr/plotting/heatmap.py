@@ -1,6 +1,7 @@
 """Prepare heatmap statistics, colours, raster images and tick artists."""
 
 import copy
+from dataclasses import replace
 import math
 
 import matplotlib
@@ -17,11 +18,17 @@ from deeptoolsr.parallel import parallel_map
 from deeptoolsr.stats import NumericProvider, scan_prepared_matrix
 from deeptoolsr.plotting.ticks import choose_colorbar_ticks
 from . import DEFAULT_HEATMAP_COLORMAP, colormap, fonts
+from .colorbars import colour_sources, limit_slots
+from .geometry import HEATMAP_SMALL_GROUP_MAX_ROWS
 from .matrix_plan import tool_option_spellings
 from .series import has_explicit_assignment, resolve_recyclable
 
 
 HEATMAP_RASTER_OVERSAMPLE = 2.0
+# The native resize kernel each explicit --interpolationMethod draws with;
+# 'auto' uses the raster filter from the deepToolsR settings.
+INTERPOLATION_RASTER_FILTERS = {'nearest': 'point', 'bilinear': 'triangle',
+                                'bicubic': 'catmullrom', 'gaussian': 'cubic'}
 
 
 def scale_assignments(spec, plan):
@@ -100,48 +107,59 @@ def _midpoint_message(option, mid, minimum, maximum):
             f'({minimum:g}) and zMax ({maximum:g})')
 
 
-def _limits(data, assigned, numeric: NumericProvider | None = None, *,
-            mid_option='--zMid'):
+def _limits(data, assigned, slots, numeric: NumericProvider | None = None,
+            *, mid_option='--zMid'):
+    """Resolve each limit slot's colour limits and midpoint.
+
+    ``slots`` are ``(sample set, region)`` pairs (``limit_slots``): a
+    slot's 'auto' limits come from the percentiles of its region's values,
+    one scan per distinct region. Returns the percentiles and the low,
+    high and midpoint lists, one entry per slot.
+    """
     lower, upper, middle = assigned['zMin'], assigned['zMax'], assigned['zMid']
 
     def needs_auto(value):
         return value is None or isinstance(value, list) and 'auto' in value
+    regions = dict.fromkeys(region for _, region in slots)
     percentiles = None
     if needs_auto(lower) or needs_auto(upper):
-        percentiles = _color_limit_percentiles(
-            data, (0.0, 1.0, 98.0, 100.0), numeric=numeric)
-        lower, upper = _resolve_color_limits(lower, upper, percentiles)
+        scanned = {region: _color_limit_percentiles(
+            data, (0.0, 1.0, 98.0, 100.0), numeric=numeric, region=region)
+            for region in regions}
+        percentiles = tuple(scanned[region] for _, region in slots)
+        limits = {region: _resolve_color_limits(lower, upper, value)
+                  for region, value in scanned.items()}
     else:
-        lower = [float(value) for value in lower]
-        upper = [float(value) for value in upper]
+        limits = dict.fromkeys(regions, ([float(value) for value in lower],
+                                         [float(value) for value in upper]))
     if middle is not None:
         middle = [None if value is None or value == '' else float(value)
                   for value in middle]
-        for index in range(max(len(lower), len(upper), len(middle))):
-            mid = middle[index % len(middle)]
-            if mid is None:
-                continue
-            minimum = lower[index % len(lower)]
-            maximum = upper[index % len(upper)]
-            if minimum is None or maximum is None:
-                raise ValueError(
-                    '--zMid requires finite effective zMin and zMax values')
-            if not minimum < mid < maximum:
-                from deeptoolsr.prepare import OptionError
-                raise OptionError(
-                    _midpoint_message(mid_option, mid, minimum, maximum))
-    return percentiles, lower, upper, middle
+    lows, highs, mids = [], [], []
+    for sample_set, region in slots:
+        low, high = limits[region]
+        low, high = low[sample_set % len(low)], high[sample_set % len(high)]
+        mid = None if middle is None else middle[sample_set % len(middle)]
+        if mid is not None and not low < mid < high:
+            from deeptoolsr.prepare import OptionError
+            raise OptionError(_midpoint_message(mid_option, mid, low, high))
+        lows.append(low)
+        highs.append(high)
+        mids.append(mid)
+    return percentiles, lows, highs, None if middle is None else mids
 
 
-def heatmap_scales(data, spec, assigned,
+def heatmap_scales(data, spec, plan, assigned,
                    numeric: NumericProvider | None = None):
-    """Resolve colour maps and limits from the plan's scale assignments."""
+    """Resolve colour maps and each limit slot's limits (``limit_slots``)."""
     options = {
         'colorMap': assigned['colorMap'], 'colorList': assigned['colorList'],
         'colorNumber': spec.color_number,
         'missingDataColor': spec.missing_data_color, 'alpha': spec.alpha}
     percentiles, lower, upper, middle = _limits(
-        data, assigned, numeric=numeric,
+        data, assigned,
+        limit_slots(spec, plan, len(data.matrix.header.sample_labels))[1],
+        numeric=numeric,
         mid_option=tool_option_spellings(
             spec.tool, spec.invoked_spellings)['zMid'])
     return options, percentiles, lower, upper, middle
@@ -150,9 +168,8 @@ def heatmap_scales(data, spec, assigned,
 def region_lengths(data):
     parameters = data.matrix.header.parameters
     result = [None] * len(parameters['upstream'])
-    if ((data.layout.sort.using if data.layout.sort else None) !=
-            'region_length' or
-            (data.layout.sort.method if data.layout.sort else None) == 'no'):
+    drawn_sort = data.layout.drawn_sort
+    if drawn_sort is None or drawn_sort.using != 'region_length':
         return tuple(result)
     for index in range(len(parameters['upstream'])):
         if parameters['ref point'][index] is None:
@@ -202,8 +219,6 @@ def shift_cmap_midpoint(cmap, vmin, vcenter, vmax, samples=256):
 
 
 def make_colormaps(options, explicit):
-    from .colorbars import colour_sources
-
     maps = []
     for name, colours in colour_sources(
             options['colorMap'], options['colorList'], explicit):
@@ -259,18 +274,23 @@ def style_vertical_colorbar(cbar, minimum, maximum, height_cm, style):
 
 
 def _color_limit_percentiles(data, probs,
-                             numeric: NumericProvider | None = None):
-    return (numeric.scan(data, tuple(probs), False, data.threads)
+                             numeric: NumericProvider | None = None,
+                             region=None):
+    return (numeric.scan(data, tuple(probs), False, data.threads, region)
             if numeric is not None else scan_prepared_matrix(
-                data, probs, threads=data.threads))
+                data, probs, threads=data.threads, region=region))
 
 
 def ordered_regions(data):
-    rows = data.layout.row_indices()
-    return [[data.matrix.regions[int(row)] for row in
-             rows[start:stop]]
-            for start, stop in zip(data.layout.group_bounds,
-                                   data.layout.group_bounds[1:])]
+    """Each group's regions in drawn heatmap rows, top row first."""
+    layout = data.layout
+    groups = []
+    for group, (start, stop) in enumerate(zip(layout.group_bounds,
+                                              layout.group_bounds[1:])):
+        rows = layout.drawn_rows(group)
+        groups.append([data.matrix.regions[int(row)] for row in
+                       (range(start, stop) if rows is None else rows)])
+    return groups
 
 
 def get_plot_ticks(data, sample, sample_plan):
@@ -283,12 +303,16 @@ def get_plot_ticks(data, sample, sample_plan):
 
 
 def draw_sort_indicator(axis, direction, triangle_fraction=1.0):
-    """Draw the effective region-sort direction in a dedicated axes."""
+    """Draw the effective region-sort direction in a dedicated axes.
+
+    Heatmap rows read from the bottom, so the wedge is wide where the
+    biggest values are drawn: the top for ascend, the bottom for descend.
+    """
     if direction not in ('ascend', 'descend'):
         return None
     axis.set_axis_off()
     vertices = ([(0, 1), (triangle_fraction, 1),
-                 (triangle_fraction, 0)] if direction == 'descend'
+                 (triangle_fraction, 0)] if direction == 'ascend'
                 else [(triangle_fraction, 1), (0, 0),
                       (triangle_fraction, 0)])
     polygon = Polygon(vertices, closed=True, facecolor='black',
@@ -433,13 +457,17 @@ def draw_heatmap_image(ax, matrix, image_cmap, vmin, vmax, alpha,
     # oversample) so matplotlib's uint8 -> float32 upcast and final
     # resize land on an array no larger than the output can show.
     out_h, out_w = _raster_output_size(ax, dpi, rows, cols)
+    if interpolation_method != 'auto':
+        raster = replace(raster, filter=INTERPOLATION_RASTER_FILTERS[
+            interpolation_method])
     # The raster is pre-shrunk in C++ to bound memory, but is still
     # larger than the on-screen axis; let matplotlib filter that final
     # (small) resize rather than nearest-dropping it, which matches the
-    # single float resample the plain imshow path does. A small group
-    # asks for 'nearest' so its few regions stay crisp rectangles.
-    final_interpolation = ('nearest' if interpolation_method == 'nearest'
-                           else 'antialiased')
+    # single float resample the plain imshow path does. 'nearest', and
+    # 'auto' for a small group, keep regions crisp rectangles.
+    crisp = interpolation_method == 'nearest' or (
+        interpolation_method == 'auto' and rows < HEATMAP_SMALL_GROUP_MAX_ROWS)
+    final_interpolation = 'nearest' if crisp else 'antialiased'
     request = {
         'ax': ax, 'data': data, 'rows': rows, 'cols': cols,
         'lut': lut, 'bad': bad, 'vmin': float(vmin), 'vmax': float(vmax),

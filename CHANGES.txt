@@ -1,3 +1,62 @@
+deepToolsR 0.10.5-beta
+
+New plotting options (plotProfileR, plotHeatmapR, plotMatrixR)
+* `--zAxisLimits common|per_sample_set|per_panel|per_heatmap` (plotHeatmapR,
+  plotMatrixR) chooses where the automatic `--zMin`/`--zMax` come from: the
+  whole matrix (`common`, the default and deepTools 3.5.6), each sample set,
+  each panel or each heatmap. Heatmaps with different limits get their own
+  colorbars.
+* `--nestedHeaders`: a `|` splits sample, region group and sample set labels
+  into levels, outermost first. Neighbouring panels, heatmap blocks or rows
+  that share an outer level get one header with a rule along them, e.g.
+  `Control|Rep1` and `Control|Rep2` give the panels `Rep1` and `Rep2` under
+  one `Control` header.
+* `--linesAsSteps` draws profile lines, and their `fill`, `se`, `std`, `ci`
+  and `bootstrap` bands, as steps: one flat segment per bin.
+* `--legendLocation below_top_profile` puts one shared legend under the first
+  row of profiles instead of under the heatmaps.
+* `--sortUsingSamples` and `--clusterUsingSamples` accept `a-b` ranges and
+  sample names, like `--arrangeSamples`.
+
+Changed plotting behaviour
+* Heatmap rows are drawn bottom-up within each group, so the default
+  `--sortRegions ascend` puts the biggest values at the top, as deepTools
+  3.5.6's default does. Written region and matrix files are unchanged.
+* In reference-point mode the reference tick sits on the reference
+  nucleotide's bin (first downstream bin for TSS, last upstream bin for TES),
+  as in scale-regions mode; deepTools 3.5.6 puts it half a bin away in that
+  mode.
+* Region sorting and cluster ranking are stable: rows with equal values keep
+  their input order on every platform and in both directions.
+* Samples left out by `--arrangeSamples` no longer affect the default sort,
+  clustering, `--filterNans`, automatic colour limits or
+  `--outFileNameMatrix`. You can still sort/cluster by invisible samples by
+  choosing them explicitly.
+* `--interpolationMethod bilinear`, `bicubic` and `gaussian` now resize large
+  heatmaps with different filters; they drew identical images before.
+* `--colorbarLocation best` puts colorbars below the heatmaps only when the
+  colour scales differ, not whenever several values are given.
+* `--plotTitle` wraps to the width of the plot instead of widening the
+  figure.
+* With `--xAxisVisibility outer_merged`, neighbouring heatmap columns with the
+  same X-axis label share it even when their ranges differ, and tick values
+  are shown only on the bottom panel of each column.
+
+Fixes
+* Plotting: colorbar ticks for very narrow or tiny ranges, right-hand
+  colorbar title alignment, misplaced region labels, unsorted region files
+  from profile-only clustering, and a crash or broken plot for a missing
+  `-m` or a colorbar title taller than its heatmap.
+* computeMatrixOperationsR: sorted matrices without a `sort using` field plot.
+* bamCoverageR: fragment CPM/RPKM counts lone mates in the denominator.
+* Output file permissions follow the current umask.
+* Windows: commands write UTF-8 to stdout, so `info`, `dataRange` and
+  `options` no longer fail on names outside cp1252; drawn labels drop
+  carriage returns, which Matplotlib could not lay out; bzip2 input files
+  with non-ASCII names keep their names; paths over 259 characters work
+  with long paths enabled (also a CRAM's `--referenceFasta`) and are
+  refused up front, not at the end, when they are off.
+
 deepToolsR 0.10.4-beta
 
 bamCoverageR
@@ -520,6 +579,8 @@ Windows
 Changed defaults and deliberate divergences
 * Plot tools default to `--sortRegions ascend` (deepTools plotHeatmap:
   `descend`), so default plotHeatmapR region order differs from 3.5.6.
+  Written files list the regions from low to high; heatmaps read each
+  group from the bottom, so the biggest values are drawn at its top.
 * Profile Y limits default to `--yAxisLimits per_y_label`.
 * Plot tools no longer re-filter rows by the matrix header's `min
   threshold`/`max threshold`; computeMatrixR applies those filters before

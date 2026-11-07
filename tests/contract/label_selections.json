@@ -1150,6 +1150,114 @@
         "solver": "shared_gap"
       }
     ],
+    "matrix_nested_headers": [
+      {
+        "choices": [
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.014111111111111126",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_nested_row_headers": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.07055555555555561",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
+    "matrix_nested_stack_headers": [
+      {
+        "choices": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0
+          ]
+        ],
+        "objective_cost": "0.11288888888888898",
+        "solver": "shared_gap"
+      },
+      {
+        "choices": [
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "objective_cost": "0.0",
+        "solver": "shared_gap"
+      }
+    ],
     "matrix_pergroup_sets": [
       {
         "choices": [

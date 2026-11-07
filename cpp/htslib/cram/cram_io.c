@@ -115,6 +115,14 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define PATH_MAX FILENAME_MAX
 #endif
 
+#if defined(_WIN32)
+/* deepToolsR: MinGW's PATH_MAX is MAX_PATH (260), which truncates reference
+ * FASTA and .fai paths that Windows long paths allow; use Linux's 4096. Every
+ * PATH_MAX buffer below is local to this file. See CHANGES_deepToolsR.md. */
+#undef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
 #define TRIAL_SPAN 70
 #define NTRIALS 3
 

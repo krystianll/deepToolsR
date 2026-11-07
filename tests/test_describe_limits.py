@@ -9,6 +9,7 @@ import pytest
 from deeptoolsr import _compute_matrix_io
 from deeptoolsr import plotMatrix
 from deeptoolsr.session import Cancelled, PlotSession
+from tests.helpers.hidden_samples import write_hidden_sample_matrix
 
 
 def _write_matrix(path):
@@ -142,3 +143,21 @@ def test_cancelled_describe_stops_at_a_stage(matrix, stage):
         record = session.describe(command, force_load=True)
     assert record['values_read'] is True
     assert record['colorbars'][0]['z_range'] is not None
+
+
+@pytest.mark.parametrize('tool,arrange', [
+    pytest.param('plotHeatmapR', ['--arrangeSamples', '1', '2'], id='heatmap'),
+    pytest.param('plotHeatmapR', ['--perGroup', '--arrangeSamples', '1,2'],
+                 id='heatmap_per_group'),
+    pytest.param('plotMatrixR', ['--heatmap', '--arrangeSamples', '1', '2'],
+                 id='matrix')])
+def test_automatic_z_limits_come_from_drawn_samples(tmp_path, tool, arrange):
+    source = write_hidden_sample_matrix(tmp_path / 'hidden.gz')
+    with PlotSession() as session:
+        record = session.describe([tool, '-m', source, *arrange],
+                                  force_load=True)
+    assert record['colorbars']
+    for bar in record['colorbars']:
+        low, high = bar['z_range']['auto']
+        # drawn samples A and B span 0 to 3.75; hidden C reaches 106
+        assert 0 <= low <= high <= 3.75, bar['z_range']
